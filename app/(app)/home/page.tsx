@@ -4,6 +4,14 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ROOMS } from "@/lib/data";
+import { createClient } from "@/lib/supabase/client";
+
+const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
+function colorFromUsername(u: string): string {
+  let h = 0;
+  for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) & 0xffffffff;
+  return USER_COLORS[Math.abs(h) % USER_COLORS.length];
+}
 
 type Friend = { id: string; name: string; initials: string; color: string };
 type ScheduledSession = {
@@ -386,10 +394,13 @@ export default function HomePage() {
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
   const [prepopSearch, setPrepopSearch] = useState("");
 
+  const [friends, setFriends] = useState<Friend[]>([]);
+
   // Edit session modal
   const [editingSession, setEditingSession] = useState<ScheduledSession | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
+  const [editInvitedIds, setEditInvitedIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     try {
@@ -402,6 +413,24 @@ export default function HomePage() {
     } catch { /* ignore */ }
     const a = localStorage.getItem("homeroom-avatar");
     if (a) setAvatar(a);
+
+    const currentUsername = localStorage.getItem("homeroom-username");
+    if (currentUsername) {
+      const supabase = createClient();
+      supabase
+        .from("friend_requests")
+        .select("*")
+        .eq("status", "accepted")
+        .or(`from_username.eq.${currentUsername},to_username.eq.${currentUsername}`)
+        .then(({ data }) => {
+          if (data) {
+            setFriends(data.map((r) => {
+              const uname = r.from_username === currentUsername ? r.to_username : r.from_username;
+              return { id: uname.toLowerCase(), name: uname, initials: uname.slice(0, 2).toUpperCase(), color: colorFromUsername(uname) };
+            }));
+          }
+        });
+    }
   }, []);
 
   // Tick every 30s so Start/Join button enables at the right time
@@ -488,22 +517,23 @@ export default function HomePage() {
   function openEdit(session: ScheduledSession) {
     setEditDate(isoToDateInput(session.scheduledFor));
     setEditTime(isoToTimeInput(session.scheduledFor));
+    setEditInvitedIds(new Set(session.invitedFriends.map((f) => f.id)));
     setEditingSession(session);
   }
 
   function saveEdit() {
     if (!editingSession || !editDate || !editTime) return;
     const newIso = new Date(`${editDate}T${editTime}`).toISOString();
+    const newInvited = friends.filter((f) => editInvitedIds.has(f.id));
     const updated = scheduled.map((s) =>
-      s.id === editingSession.id ? { ...s, scheduledFor: newIso } : s
+      s.id === editingSession.id ? { ...s, scheduledFor: newIso, invitedFriends: newInvited } : s
     );
     setScheduled(updated);
     localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
 
-    // Simulate sending time change to invited friends
-    if (editingSession.invitedFriends.length > 0) {
-      const names = editingSession.invitedFriends.map((f) => f.name.split(" ")[0]).join(", ");
-      showToast(`Time change sent to ${names}`);
+    if (newInvited.length > 0) {
+      const names = newInvited.map((f) => f.name).join(", ");
+      showToast(`Saved · notified ${names}`);
     } else {
       showToast("Time updated");
     }
@@ -867,9 +897,41 @@ export default function HomePage() {
                   className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-charcoal focus:outline-none focus:border-sage bg-white"
                 />
               </div>
-              {editingSession.invitedFriends.length > 0 && (
+              {friends.length > 0 && (
+                <div>
+                  <label className="text-xs font-medium text-warm-gray block mb-2">Invite friends</label>
+                  <div className="space-y-1.5 max-h-44 overflow-y-auto">
+                    {friends.map((f) => {
+                      const invited = editInvitedIds.has(f.id);
+                      return (
+                        <button
+                          key={f.id}
+                          onClick={() => setEditInvitedIds((prev) => {
+                            const next = new Set(prev);
+                            invited ? next.delete(f.id) : next.add(f.id);
+                            return next;
+                          })}
+                          className="w-full flex items-center gap-3 rounded-xl px-3 py-2 border transition-all text-left"
+                          style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}
+                        >
+                          <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
+                            {f.initials}
+                          </div>
+                          <span className="text-sm text-charcoal flex-1">{f.name}</span>
+                          {invited && (
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+              {editInvitedIds.size > 0 && (
                 <p className="text-xs text-warm-gray bg-amber-50 rounded-xl px-3 py-2">
-                  Saving will notify {editingSession.invitedFriends.map((f) => f.name).join(", ")} of the time change.
+                  Saving will notify {friends.filter((f) => editInvitedIds.has(f.id)).map((f) => f.name).join(", ")} of the time.
                 </p>
               )}
             </div>
