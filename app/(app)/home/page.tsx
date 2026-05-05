@@ -590,6 +590,14 @@ export default function HomePage() {
         </div>
         <h1 className="text-2xl font-bold text-charcoal leading-snug">Find your Homeroom.</h1>
         <p className="text-sm text-warm-gray mt-1">Adulting is hard. Don&apos;t do it alone.</p>
+        <div className="flex gap-2 mt-4">
+          <a href="#active-rooms" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
+            Join a Homeroom
+          </a>
+          <Link href="/start" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
+            Start a Homeroom
+          </Link>
+        </div>
       </div>
 
       {/* Invites */}
@@ -775,7 +783,7 @@ export default function HomePage() {
       )}
 
       {/* Active rooms */}
-      <div className="mb-3">
+      <div className="mb-3" id="active-rooms">
         <h2 className="text-sm font-semibold text-charcoal mb-3">Active rooms</h2>
         <div className="space-y-3">
           {ROOMS.length === 0 ? (
