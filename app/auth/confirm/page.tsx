@@ -9,26 +9,50 @@ export default function ConfirmPage() {
   const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
 
   useEffect(() => {
+    const supabase = createClient();
+
+    // Query params (PKCE flow)
     const params = new URLSearchParams(window.location.search);
     const token_hash = params.get("token_hash");
     const type = params.get("type");
+    const code = params.get("code");
 
-    if (!token_hash || !type) {
+    // Hash fragment (implicit flow)
+    const hash = new URLSearchParams(window.location.hash.slice(1));
+    const access_token = hash.get("access_token");
+    const refresh_token = hash.get("refresh_token");
+
+    async function verify() {
+      if (token_hash && type) {
+        const { error } = await supabase.auth.verifyOtp({
+          token_hash,
+          type: type as "signup",
+        });
+        if (!error) { setStatus("success"); setTimeout(() => router.replace("/welcome"), 800); return; }
+      }
+
+      if (code) {
+        const { error } = await supabase.auth.exchangeCodeForSession(code);
+        if (!error) { setStatus("success"); setTimeout(() => router.replace("/welcome"), 800); return; }
+      }
+
+      if (access_token && refresh_token) {
+        const { error } = await supabase.auth.setSession({ access_token, refresh_token });
+        if (!error) { setStatus("success"); setTimeout(() => router.replace("/welcome"), 800); return; }
+      }
+
+      // Check if the client already handled the session from the URL
+      const { data: { session } } = await supabase.auth.getSession();
+      if (session) {
+        setStatus("success");
+        setTimeout(() => router.replace("/welcome"), 800);
+        return;
+      }
+
       setStatus("error");
-      return;
     }
 
-    const supabase = createClient();
-    supabase.auth
-      .verifyOtp({ token_hash, type: type as "signup" })
-      .then(({ error }) => {
-        if (error) {
-          setStatus("error");
-        } else {
-          setStatus("success");
-          setTimeout(() => router.replace("/welcome"), 800);
-        }
-      });
+    verify();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
