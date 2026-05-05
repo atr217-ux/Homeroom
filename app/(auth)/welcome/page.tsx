@@ -207,8 +207,15 @@ export default function WelcomePage() {
     };
 
     if (authData.session) {
-      // Email confirmation is disabled — insert profile and go directly to profile page
-      await supabase.from("profiles").insert(profileData);
+      // Explicitly set session so the insert uses the right auth token
+      await supabase.auth.setSession(authData.session);
+
+      const { error: profileError } = await supabase.from("profiles").insert(profileData);
+      if (profileError) {
+        setRegError(`Profile setup failed: ${profileError.message}`);
+        setRegLoading(false);
+        return;
+      }
       restoreUserData(profileData);
       router.replace("/profile");
     } else {
