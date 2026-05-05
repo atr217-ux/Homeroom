@@ -465,9 +465,10 @@ export default function HomePage() {
     setTimeout(() => setToast(null), 2500);
   }
 
-  function acceptInvite(invite: Invite) {
+  async function acceptInvite(invite: Invite) {
     const supabase = createClient();
-    supabase.from("room_invites").delete().eq("id", invite.id);
+    const { error } = await supabase.from("room_invites").delete().eq("id", invite.id);
+    if (error) console.error("acceptInvite delete failed:", error.message);
     setInvites((prev) => prev.filter((i) => i.id !== invite.id));
 
     if (!invite.isLive && invite.scheduledFor) {
@@ -498,9 +499,10 @@ export default function HomePage() {
     router.push("/room");
   }
 
-  function declineInvite(id: string) {
+  async function declineInvite(id: string) {
     const supabase = createClient();
-    supabase.from("room_invites").delete().eq("id", id);
+    const { error } = await supabase.from("room_invites").delete().eq("id", id);
+    if (error) console.error("declineInvite delete failed:", error.message);
     setInvites((prev) => prev.filter((i) => i.id !== id));
     setDeclinedInvites((prev) => new Set([...prev, id]));
   }
@@ -565,7 +567,7 @@ export default function HomePage() {
       if (newlyAdded.length > 0) {
         const supabase = createClient();
         await Promise.all(newlyAdded.map((f) =>
-          supabase.from("room_invites").insert({
+          supabase.from("room_invites").upsert({
             from_username: myUsername,
             to_username: f.name,
             session_id: editingSession.id,
@@ -573,7 +575,7 @@ export default function HomePage() {
             duration: editingSession.duration,
             is_public: editingSession.isPublic,
             scheduled_for: newIso,
-          })
+          }, { onConflict: "session_id,to_username", ignoreDuplicates: true })
         ));
       }
     }

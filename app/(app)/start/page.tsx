@@ -151,7 +151,7 @@ export default function StartPage() {
         } else {
           const supabase = createClient();
           const results = await Promise.all(invitedFriends.map((f) =>
-            supabase.from("room_invites").insert({
+            supabase.from("room_invites").upsert({
               from_username: myUsername,
               to_username: f.username,
               session_id: session.id,
@@ -159,7 +159,7 @@ export default function StartPage() {
               duration: finalDuration,
               is_public: isPublic,
               scheduled_for: scheduledFor,
-            })
+            }, { onConflict: "session_id,to_username", ignoreDuplicates: true })
           ));
           results.forEach(({ error }, i) => {
             if (error) console.error(`room_invites insert failed for ${invitedFriends[i].username}:`, error.message);
@@ -211,6 +211,23 @@ export default function StartPage() {
       localStorage.setItem("homeroom-session", JSON.stringify({
         title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null,
       }));
+
+      if (invitedFriends.length > 0 && myUsername) {
+        const supabase = createClient();
+        const liveSessionId = crypto.randomUUID();
+        await Promise.all(invitedFriends.map((f) =>
+          supabase.from("room_invites").upsert({
+            from_username: myUsername,
+            to_username: f.username,
+            session_id: liveSessionId,
+            title: status || "Homeroom",
+            duration: finalDuration,
+            is_public: isPublic,
+            scheduled_for: null,
+          }, { onConflict: "session_id,to_username", ignoreDuplicates: true })
+        ));
+      }
+
       router.push("/room");
     }
   }
