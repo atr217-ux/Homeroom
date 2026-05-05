@@ -3,6 +3,8 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
+
 type Task = { id: string; text: string };
 type StoredTask = {
   id: string; text: string; done: boolean;
@@ -12,10 +14,15 @@ type StoredTask = {
   scheduledForTitle?: string;
 };
 
-type Friend = { id: string; name: string; initials: string; color: string };
+type Friend = { id: string; name: string; initials: string; color: string; username: string };
 
-const RECENT_FRIENDS: Friend[] = [];
-const ALL_FRIENDS: Friend[] = [];
+const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
+function colorFromUsername(u: string): string {
+  let h = 0;
+  for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) & 0xffffffff;
+  return USER_COLORS[Math.abs(h) % USER_COLORS.length];
+}
+
 const SQUADS: { id: string; name: string; memberIds: string[] }[] = [];
 
 export default function StartPage() {
@@ -41,6 +48,8 @@ export default function StartPage() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
   const [selectedSquads, setSelectedSquads] = useState<Set<string>>(new Set());
+  const [friends, setFriends] = useState<Friend[]>([]);
+  const [myUsername, setMyUsername] = useState("");
 
   function toggleSquad(id: string) {
     setSelectedSquads((prev) => {
@@ -66,6 +75,31 @@ export default function StartPage() {
         setMyListTasks(active);
       }
     } catch { /* ignore */ }
+
+    const username = localStorage.getItem("homeroom-username") ?? "";
+    console.log("[start] homeroom-username:", username);
+    setMyUsername(username);
+    if (username) {
+      const supabase = createClient();
+      supabase
+        .from("friend_requests")
+        .select("*")
+        .eq("status", "accepted")
+        .or(`from_username.eq.${username},to_username.eq.${username}`)
+        .then(({ data, error }) => {
+          console.log("[start] friend_requests query:", { data, error });
+          if (data) {
+            const mapped = data.map((r) => {
+              const uname = r.from_username === username ? r.to_username : r.from_username;
+              return { id: uname.toLowerCase(), name: uname, initials: uname.slice(0, 2).toUpperCase(), color: colorFromUsername(uname), username: uname };
+            });
+            console.log("[start] friends mapped:", mapped);
+            setFriends(mapped);
+          }
+        });
+    } else {
+      console.warn("[start] no username in localStorage — friends won't load");
+    }
   }, []);
 
   function toggleSelect(id: string) {
@@ -97,10 +131,10 @@ export default function StartPage() {
 
   const finalDuration = (parseInt(durationHours) || 0) * 60 + (parseInt(durationMinutes) || 0);
 
-  function launch() {
+  async function launch() {
     const selectedFromList = myListTasks.filter((t) => selectedIds.has(t.id));
     const allTasks = [...extraTasks, ...selectedFromList];
-    const invitedFriends = ALL_FRIENDS.filter((f) => invitedIds.has(f.id));
+    const invitedFriends = friends.filter((f) => invitedIds.has(f.id));
 
     if (scheduleMode === "later" && scheduleDate && scheduleHour) {
       const h24 = schedulePeriod === "PM"
@@ -110,6 +144,28 @@ export default function StartPage() {
       const session = { id: crypto.randomUUID(), title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor, ownedByMe: true };
       const existing = (() => { try { return JSON.parse(localStorage.getItem("homeroom-scheduled") ?? "[]"); } catch { return []; } })();
       localStorage.setItem("homeroom-scheduled", JSON.stringify([...existing, session]));
+
+      if (invitedFriends.length > 0) {
+        if (!myUsername) {
+          console.error("room_invites insert skipped: myUsername is empty");
+        } else {
+          const supabase = createClient();
+          const results = await Promise.all(invitedFriends.map((f) =>
+            supabase.from("room_invites").insert({
+              from_username: myUsername,
+              to_username: f.username,
+              session_id: session.id,
+              title: status || "Homeroom",
+              duration: finalDuration,
+              is_public: isPublic,
+              scheduled_for: scheduledFor,
+            })
+          ));
+          results.forEach(({ error }, i) => {
+            if (error) console.error(`room_invites insert failed for ${invitedFriends[i].username}:`, error.message);
+          });
+        }
+      }
 
       // Add extra tasks to list and tag all tasks with this session
       try {
@@ -328,32 +384,39 @@ export default function StartPage() {
             Find other friends
           </button>
         </div>
-        <div className="flex flex-wrap gap-2">
-          {RECENT_FRIENDS.map((f) => {
-            const invited = invitedIds.has(f.id);
-            return (
-              <button
-                key={f.id}
-                onClick={() => toggleInvite(f.id)}
-                className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all"
-                style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}
-              >
-                <div
-                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                  style={{ background: f.color }}
+        {friends.length === 0 ? (
+          <p className="text-xs text-warm-gray">
+            No friends yet —{" "}
+            <a href="/profile" className="underline hover:text-charcoal transition-colors">add them on your profile</a>
+          </p>
+        ) : (
+          <div className="flex flex-wrap gap-2">
+            {friends.map((f: Friend) => {
+              const invited = invitedIds.has(f.id);
+              return (
+                <button
+                  key={f.id}
+                  onClick={() => toggleInvite(f.id)}
+                  className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all"
+                  style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}
                 >
-                  {f.initials}
-                </div>
-                <span className="text-sm text-charcoal">{f.name}</span>
-                {invited && (
-                  <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </button>
-            );
-          })}
-        </div>
+                  <div
+                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                    style={{ background: f.color }}
+                  >
+                    {f.initials}
+                  </div>
+                  <span className="text-sm text-charcoal">{f.name}</span>
+                  {invited && (
+                    <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* All friends modal */}
@@ -361,7 +424,7 @@ export default function StartPage() {
         const squadMemberIds = selectedSquads.size > 0
           ? new Set(SQUADS.filter((s) => selectedSquads.has(s.id)).flatMap((s) => s.memberIds))
           : null;
-        const visibleFriends = ALL_FRIENDS.filter((f) => {
+        const visibleFriends = friends.filter((f: Friend) => {
           if (squadMemberIds && !squadMemberIds.has(f.id)) return false;
           if (friendSearch && !f.name.toLowerCase().includes(friendSearch.toLowerCase())) return false;
           return true;

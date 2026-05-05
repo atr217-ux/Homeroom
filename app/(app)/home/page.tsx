@@ -377,7 +377,7 @@ export default function HomePage() {
   const [avatar, setAvatar] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledSession[]>([]);
   const [schedView, setSchedView] = useState<"list" | "calendar">("list");
-  const invites: Invite[] = [];
+  const [invites, setInvites] = useState<Invite[]>([]);
   const [declinedInvites, setDeclinedInvites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
@@ -430,6 +430,27 @@ export default function HomePage() {
             }));
           }
         });
+      supabase
+        .from("room_invites")
+        .select("*")
+        .eq("to_username", currentUsername)
+        .then(({ data }) => {
+          if (data) {
+            setInvites(data.map((row) => ({
+              id: row.id,
+              from: {
+                id: row.from_username,
+                name: row.from_username,
+                initials: (row.from_username as string).slice(0, 2).toUpperCase(),
+                color: colorFromUsername(row.from_username),
+              },
+              title: row.title,
+              duration: row.duration,
+              isLive: !row.scheduled_for,
+              scheduledFor: row.scheduled_for,
+            })));
+          }
+        });
     }
   }, []);
 
@@ -445,6 +466,10 @@ export default function HomePage() {
   }
 
   function acceptInvite(invite: Invite) {
+    const supabase = createClient();
+    supabase.from("room_invites").delete().eq("id", invite.id);
+    setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+
     if (!invite.isLive && invite.scheduledFor) {
       const newSession: ScheduledSession = {
         id: crypto.randomUUID(),
@@ -459,7 +484,6 @@ export default function HomePage() {
       const updated = [...scheduled, newSession];
       setScheduled(updated);
       localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-      setDeclinedInvites((prev) => new Set([...prev, invite.id]));
       showToast("Added to your scheduled homerooms");
       return;
     }
@@ -475,6 +499,9 @@ export default function HomePage() {
   }
 
   function declineInvite(id: string) {
+    const supabase = createClient();
+    supabase.from("room_invites").delete().eq("id", id);
+    setInvites((prev) => prev.filter((i) => i.id !== id));
     setDeclinedInvites((prev) => new Set([...prev, id]));
   }
 
@@ -521,7 +548,7 @@ export default function HomePage() {
     setEditingSession(session);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     if (!editingSession || !editDate || !editTime) return;
     const newIso = new Date(`${editDate}T${editTime}`).toISOString();
     const newInvited = friends.filter((f) => editInvitedIds.has(f.id));
@@ -530,6 +557,26 @@ export default function HomePage() {
     );
     setScheduled(updated);
     localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
+
+    const myUsername = localStorage.getItem("homeroom-username") ?? "";
+    if (myUsername && newInvited.length > 0) {
+      const prevIds = new Set(editingSession.invitedFriends.map((f) => f.id));
+      const newlyAdded = newInvited.filter((f) => !prevIds.has(f.id));
+      if (newlyAdded.length > 0) {
+        const supabase = createClient();
+        await Promise.all(newlyAdded.map((f) =>
+          supabase.from("room_invites").insert({
+            from_username: myUsername,
+            to_username: f.name,
+            session_id: editingSession.id,
+            title: editingSession.title || "Homeroom",
+            duration: editingSession.duration,
+            is_public: editingSession.isPublic,
+            scheduled_for: newIso,
+          })
+        ));
+      }
+    }
 
     if (newInvited.length > 0) {
       const names = newInvited.map((f) => f.name).join(", ");

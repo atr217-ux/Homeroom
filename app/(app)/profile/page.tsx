@@ -251,10 +251,11 @@ export default function ProfilePage() {
   }
 
   async function acceptRequest(friendUsername: string) {
-    await supabase.from("friend_requests")
+    const { error } = await supabase.from("friend_requests")
       .update({ status: "accepted" })
       .eq("from_username", friendUsername)
       .eq("to_username", username);
+    if (error) { console.error("acceptRequest failed:", error.message); return; }
     const friend = incomingRequests.find((f) => f.username === friendUsername);
     if (friend) {
       setFriends((prev) => [...prev, friend]);
