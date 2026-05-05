@@ -134,6 +134,7 @@ type SessionCardProps = {
 function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showTime }: SessionCardProps) {
   const owned = session.ownedByMe === true;
   const active = canStart(session, now);
+  const [confirming, setConfirming] = useState(false);
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3">
@@ -208,12 +209,20 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
         >
           {owned ? "Start" : "Join"}
         </button>
-        <button
-          onClick={() => onRemove(session.id)}
-          className="text-xs text-warm-gray hover:text-red-400 transition-colors"
-        >
-          {owned ? "Cancel" : "Leave"}
-        </button>
+        {confirming ? (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-warm-gray">{owned ? "Cancel homeroom?" : "Leave homeroom?"}</span>
+            <button onClick={() => onRemove(session.id)} className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors">Yes</button>
+            <button onClick={() => setConfirming(false)} className="text-xs text-warm-gray hover:text-charcoal transition-colors">No</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setConfirming(true)}
+            className="text-xs text-warm-gray hover:text-red-400 transition-colors"
+          >
+            {owned ? "Cancel" : "Leave"}
+          </button>
+        )}
       </div>
     </div>
   );
