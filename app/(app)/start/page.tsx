@@ -221,20 +221,29 @@ export default function StartPage() {
         title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null,
       }));
 
-      if (invitedFriends.length > 0 && myUsername) {
-        const supabase = createClient();
-        const liveSessionId = crypto.randomUUID();
-        await Promise.all(invitedFriends.map((f) =>
-          supabase.from("room_invites").upsert({
-            from_username: myUsername,
-            to_username: f.username,
-            session_id: liveSessionId,
-            title: status || "Homeroom",
-            duration: finalDuration,
-            is_public: isPublic,
-            scheduled_for: null,
-          }, { onConflict: "session_id,to_username", ignoreDuplicates: true })
-        ));
+      if (invitedFriends.length > 0) {
+        if (!myUsername) {
+          console.error("[start] live invite skipped: myUsername is empty");
+        } else {
+          console.log("[start] inserting live invite for:", invitedFriends.map(f => f.username), "from:", myUsername);
+          const supabase = createClient();
+          const liveSessionId = crypto.randomUUID();
+          const results = await Promise.all(invitedFriends.map((f) =>
+            supabase.from("room_invites").upsert({
+              from_username: myUsername,
+              to_username: f.username,
+              session_id: liveSessionId,
+              title: status || "Homeroom",
+              duration: finalDuration,
+              is_public: isPublic,
+              scheduled_for: null,
+            }, { onConflict: "session_id,to_username", ignoreDuplicates: true })
+          ));
+          results.forEach(({ error }, i) => {
+            if (error) console.error(`[start] live invite failed for ${invitedFriends[i].username}:`, error.message);
+            else console.log(`[start] live invite inserted for ${invitedFriends[i].username}`);
+          });
+        }
       }
 
       router.push("/room");
