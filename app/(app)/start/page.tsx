@@ -3,39 +3,14 @@
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { LIVE_FRIEND_IDS } from "@/lib/liveData";
-
 type Task = { id: string; text: string };
 type StoredTask = { id: string; text: string; done: boolean };
 
 type Friend = { id: string; name: string; initials: string; color: string };
 
-const RECENT_FRIENDS: Friend[] = [
-  { id: "f1", name: "Maya R.", initials: "MR", color: "#7C3AED" },
-  { id: "f2", name: "Jake T.", initials: "JT", color: "#0891B2" },
-  { id: "f3", name: "Priya S.", initials: "PS", color: "#059669" },
-  { id: "f4", name: "Leo K.", initials: "LK", color: "#D97706" },
-  { id: "f5", name: "Sam W.", initials: "SW", color: "#DC2626" },
-  { id: "f6", name: "Nina B.", initials: "NB", color: "#DB2777" },
-];
-
-const ALL_FRIENDS: Friend[] = [
-  ...RECENT_FRIENDS,
-  { id: "f7",  name: "Carlos M.", initials: "CM", color: "#65A30D" },
-  { id: "f8",  name: "Aisha K.",  initials: "AK", color: "#7C3AED" },
-  { id: "f9",  name: "Tom H.",    initials: "TH", color: "#0891B2" },
-  { id: "f10", name: "Zoe L.",    initials: "ZL", color: "#D97706" },
-  { id: "f11", name: "Omar F.",   initials: "OF", color: "#059669" },
-  { id: "f12", name: "Ella D.",   initials: "ED", color: "#DC2626" },
-  { id: "f13", name: "Raj P.",    initials: "RP", color: "#DB2777" },
-  { id: "f14", name: "Kim Y.",    initials: "KY", color: "#0891B2" },
-];
-
-const SQUADS = [
-  { id: "s1", name: "Study Crew",   memberIds: ["f1", "f2", "f3"] },
-  { id: "s2", name: "Work Grind",   memberIds: ["f4", "f5", "f7", "f8"] },
-  { id: "s3", name: "Night Owls",   memberIds: ["f6", "f9", "f10", "f11"] },
-];
+const RECENT_FRIENDS: Friend[] = [];
+const ALL_FRIENDS: Friend[] = [];
+const SQUADS: { id: string; name: string; memberIds: string[] }[] = [];
 
 export default function StartPage() {
   const router = useRouter();
@@ -310,7 +285,6 @@ export default function StartPage() {
         <div className="flex flex-wrap gap-2">
           {RECENT_FRIENDS.map((f) => {
             const invited = invitedIds.has(f.id);
-            const isLive = LIVE_FRIEND_IDS.has(f.id);
             return (
               <button
                 key={f.id}
@@ -318,25 +292,13 @@ export default function StartPage() {
                 className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all"
                 style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}
               >
-                <div className="relative flex-shrink-0">
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                    style={{ background: f.color }}
-                  >
-                    {f.initials}
-                  </div>
-                  {isLive && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2 h-2 rounded-full bg-red-500 border-2 border-white animate-pulse" />
-                  )}
+                <div
+                  className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                  style={{ background: f.color }}
+                >
+                  {f.initials}
                 </div>
-                <div className="text-left">
-                  <span className="text-sm text-charcoal">{f.name}</span>
-                  {isLive && (
-                    <p className="text-xs font-semibold leading-none mt-0.5" style={{ color: "#DC2626" }}>
-                      Live
-                    </p>
-                  )}
-                </div>
+                <span className="text-sm text-charcoal">{f.name}</span>
                 {invited && (
                   <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                     <polyline points="20 6 9 17 4 12" />
@@ -435,7 +397,6 @@ export default function StartPage() {
                   <p className="text-sm text-warm-gray text-center py-6">No friends found.</p>
                 ) : visibleFriends.map((f) => {
                   const invited = invitedIds.has(f.id);
-                  const isLive = LIVE_FRIEND_IDS.has(f.id);
                   return (
                     <button
                       key={f.id}
@@ -443,25 +404,13 @@ export default function StartPage() {
                       className="w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all text-left"
                       style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}
                     >
-                      <div className="relative flex-shrink-0">
-                        <div
-                          className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                          style={{ background: f.color }}
-                        >
-                          {f.initials}
-                        </div>
-                        {isLive && (
-                          <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white animate-pulse" />
-                        )}
+                      <div
+                        className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                        style={{ background: f.color }}
+                      >
+                        {f.initials}
                       </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="text-sm text-charcoal">{f.name}</p>
-                        {isLive && (
-                          <p className="text-xs font-semibold leading-none mt-0.5" style={{ color: "#DC2626" }}>
-                            Live now
-                          </p>
-                        )}
-                      </div>
+                      <p className="text-sm text-charcoal flex-1 min-w-0">{f.name}</p>
                       {invited && (
                         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />

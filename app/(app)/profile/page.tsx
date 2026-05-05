@@ -2,54 +2,17 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
-import { LIVE_USER_IDS } from "@/lib/liveData";
-
 const AVATAR_EMOJIS = [
   "😊","😎","🤓","🧑‍💻","👨‍🎨","👩‍🎨","🦊","🐼","🐸","🦁",
   "🐯","🦋","🌟","⚡","🔥","💎","🎯","🚀","🌙","☀️",
   "🎸","🎨","🏋️","🧘","🌊","🏔️","🌿","🍀","🦄","👾",
 ];
 
-const ALL_USERS = [
-  { id: "u1",  name: "Sarah K.",   initials: "SK", color: "#7C3AED", username: "sarahk"   },
-  { id: "u2",  name: "Mike T.",    initials: "MT", color: "#059669", username: "miket"    },
-  { id: "u3",  name: "Alex R.",    initials: "AR", color: "#D97706", username: "alexr"    },
-  { id: "u4",  name: "Jordan L.", initials: "JL", color: "#DC2626", username: "jordanl"  },
-  { id: "u5",  name: "Casey M.",   initials: "CM", color: "#7C3AED", username: "caseym"   },
-  { id: "u6",  name: "Taylor B.",  initials: "TB", color: "#059669", username: "taylorb"  },
-  { id: "u7",  name: "Riley P.",   initials: "RP", color: "#D97706", username: "rileyp"   },
-  { id: "u8",  name: "Morgan S.",  initials: "MS", color: "#DC2626", username: "morgans"  },
-  { id: "u9",  name: "Drew H.",    initials: "DH", color: "#0891B2", username: "drewh"    },
-  { id: "u10", name: "Jamie W.",   initials: "JW", color: "#7C3AED", username: "jamiew"   },
-  { id: "u11", name: "Avery N.",   initials: "AN", color: "#BE185D", username: "averyn"   },
-  { id: "u12", name: "Quinn F.",   initials: "QF", color: "#0284C7", username: "quinnf"   },
-];
+const ALL_USERS: { id: string; name: string; initials: string; color: string; username: string }[] = [];
 
-const ALL_SQUADS = [
-  { id: "s1", name: "#morninggrinders",  members: 142, description: "Early risers getting things done before 9am",        emoji: "🌅", isPublic: true },
-  { id: "s2", name: "#deepworkclub",     members: 89,  description: "4-hour focused sessions, no distractions",           emoji: "🧠", isPublic: true },
-  { id: "s3", name: "#startupfounders",  members: 234, description: "Founders building in public together",               emoji: "🚀", isPublic: true },
-  { id: "s4", name: "#studybuddies",     members: 67,  description: "Students helping students stay accountable",         emoji: "📚", isPublic: true },
-  { id: "s5", name: "#fitnessflow",      members: 188, description: "Combining workouts with productivity",               emoji: "💪", isPublic: true },
-  { id: "s6", name: "#nightowls",        members: 112, description: "Late night sessions for the nocturnal",              emoji: "🦉", isPublic: true },
-  { id: "s7", name: "#writersblock",     members: 45,  description: "Writers showing up daily to put words on paper",     emoji: "✍️", isPublic: true },
-  { id: "s8", name: "#codecoffee",       members: 321, description: "Developers shipping features one cup at a time",     emoji: "☕", isPublic: true },
-];
+const ALL_SQUADS: { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean }[] = [];
 
-const FRIEND_SQUAD_MEMBERSHIPS: Record<string, string[]> = {
-  u1:  ["s1", "s3"],
-  u2:  ["s2", "s8"],
-  u3:  ["s1", "s5"],
-  u4:  ["s4"],
-  u5:  ["s6", "s7"],
-  u6:  ["s3"],
-  u7:  ["s5", "s6"],
-  u8:  ["s2"],
-  u9:  ["s8"],
-  u10: ["s4", "s7"],
-  u11: ["s1"],
-  u12: ["s3", "s8"],
-};
+const FRIEND_SQUAD_MEMBERSHIPS: Record<string, string[]> = {};
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string };
 type Squad  = typeof ALL_SQUADS[number];
@@ -136,7 +99,7 @@ export default function ProfilePage() {
       const u = localStorage.getItem("homeroom-username");
       if (u) setUsername(u);
       const f = localStorage.getItem("homeroom-friends");
-      setFriends(f ? JSON.parse(f) : ALL_USERS.slice(0, 3));
+      setFriends(f ? JSON.parse(f) : []);
       const pf = localStorage.getItem("homeroom-pending-friends");
       if (pf) setPendingFriends(JSON.parse(pf));
       const js = localStorage.getItem("homeroom-joined-squads");
@@ -453,26 +416,15 @@ export default function ProfilePage() {
           <div className="space-y-2">
             {friends.map((f) => (
               <div key={f.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group">
-                <div className="relative flex-shrink-0">
-                  <div
-                    className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                    style={{ background: f.color }}
-                  >
-                    {f.initials}
-                  </div>
-                  {LIVE_USER_IDS.has(f.id) && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white animate-pulse" />
-                  )}
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                  style={{ background: f.color }}
+                >
+                  {f.initials}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-charcoal">{f.name}</p>
-                  {LIVE_USER_IDS.has(f.id) ? (
-                    <p className="text-xs font-semibold" style={{ color: "#DC2626" }}>
-                      Live now
-                    </p>
-                  ) : (
-                    <p className="text-xs text-warm-gray">@{f.username}</p>
-                  )}
+                  <p className="text-xs text-warm-gray">@{f.username}</p>
                 </div>
                 {removingId === f.id ? (
                   <div className="flex items-center gap-2">
@@ -543,26 +495,15 @@ export default function ProfilePage() {
               </p>
             ) : friendResults.map((user) => (
               <div key={user.id} className="flex items-center gap-3 py-2">
-                <div className="relative flex-shrink-0">
-                  <div
-                    className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                    style={{ background: user.color }}
-                  >
-                    {user.initials}
-                  </div>
-                  {LIVE_USER_IDS.has(user.id) && (
-                    <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white animate-pulse" />
-                  )}
+                <div
+                  className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                  style={{ background: user.color }}
+                >
+                  {user.initials}
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-semibold text-charcoal">{user.name}</p>
-                  {LIVE_USER_IDS.has(user.id) ? (
-                    <p className="text-xs font-semibold" style={{ color: "#DC2626" }}>
-                      Live now
-                    </p>
-                  ) : (
-                    <p className="text-xs text-warm-gray">@{user.username}</p>
-                  )}
+                  <p className="text-xs text-warm-gray">@{user.username}</p>
                 </div>
                 <button
                   onClick={() => requestFriend(user)}
@@ -782,25 +723,15 @@ export default function ProfilePage() {
                   .filter(Boolean) as typeof ALL_SQUADS;
                 return (
                   <div key={f.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                    <div className="relative flex-shrink-0">
-                      <div
-                        className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold"
-                        style={{ background: f.color }}
-                      >
-                        {f.initials}
-                      </div>
-                      {LIVE_USER_IDS.has(f.id) && (
-                        <span className="absolute -bottom-0.5 -right-0.5 w-2.5 h-2.5 rounded-full bg-red-500 border-2 border-white animate-pulse" />
-                      )}
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                      style={{ background: f.color }}
+                    >
+                      {f.initials}
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-charcoal">{f.name}</p>
-                      {LIVE_USER_IDS.has(f.id) ? (
-                        <p className="text-xs font-semibold" style={{ color: "#DC2626" }}>
-                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
-                          Live now
-                        </p>
-                      ) : friendSquads.length > 0 ? (
+                      {friendSquads.length > 0 ? (
                         <p className="text-xs text-warm-gray truncate">
                           {friendSquads.map((s) => s.name).join(" · ")}
                         </p>

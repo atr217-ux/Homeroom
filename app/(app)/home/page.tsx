@@ -45,45 +45,6 @@ type ListTask = {
   scheduledForTitle?: string;
 };
 
-// ── Mock data ───────────────────────────────────────────────────────────────
-
-const MOCK_INVITES: Invite[] = [
-  {
-    id: "inv1",
-    from: { id: "f1", name: "Maya R.", initials: "MR", color: "#7C3AED" },
-    title: "deep work session",
-    duration: 45,
-    isLive: true,
-    scheduledFor: null,
-  },
-  {
-    id: "inv2",
-    from: { id: "f2", name: "Jake T.", initials: "JT", color: "#0891B2" },
-    title: "study grind",
-    duration: 60,
-    isLive: false,
-    scheduledFor: (() => { const d = new Date(); d.setMinutes(d.getMinutes() + 35); return d.toISOString(); })(),
-  },
-];
-
-const MOCK_TIME_CHANGES: TimeChangeNotif[] = [
-  {
-    id: "tc1",
-    from: { id: "f1", name: "Maya R.", initials: "MR", color: "#7C3AED" },
-    sessionTitle: "deep work session",
-    originalTime: (() => { const d = new Date(); d.setDate(d.getDate() + 3); d.setHours(14, 0, 0, 0); return d.toISOString(); })(),
-    newTime: (() => { const d = new Date(); d.setDate(d.getDate() + 4); d.setHours(16, 0, 0, 0); return d.toISOString(); })(),
-    duration: 45,
-    sessionPayload: {
-      title: "deep work session",
-      duration: 45,
-      isPublic: false,
-      invitedFriends: [{ id: "f1", name: "Maya R.", initials: "MR", color: "#7C3AED" }],
-      tasks: [],
-    },
-  },
-];
-
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
 function formatScheduledFor(iso: string): string {
@@ -398,13 +359,13 @@ export default function HomePage() {
   const router = useRouter();
   const [scheduled, setScheduled] = useState<ScheduledSession[]>([]);
   const [schedView, setSchedView] = useState<"list" | "calendar">("list");
-  const invites = MOCK_INVITES;
+  const invites: Invite[] = [];
   const [declinedInvites, setDeclinedInvites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
 
   // Time change notifications
-  const [timeChanges] = useState<TimeChangeNotif[]>(MOCK_TIME_CHANGES);
+  const [timeChanges] = useState<TimeChangeNotif[]>([]);
   const [declinedTimeChanges, setDeclinedTimeChanges] = useState<Set<string>>(new Set());
 
   // All list tasks — loaded once, kept in sync when prepop saves
