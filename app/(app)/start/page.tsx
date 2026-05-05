@@ -4,7 +4,13 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 type Task = { id: string; text: string };
-type StoredTask = { id: string; text: string; done: boolean };
+type StoredTask = {
+  id: string; text: string; done: boolean;
+  estimatedMin?: number | null; addedAt?: string;
+  scheduledForSessionId?: string;
+  scheduledForDate?: string;
+  scheduledForTitle?: string;
+};
 
 type Friend = { id: string; name: string; initials: string; color: string };
 
@@ -104,8 +110,48 @@ export default function StartPage() {
       const session = { id: crypto.randomUUID(), title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor, ownedByMe: true };
       const existing = (() => { try { return JSON.parse(localStorage.getItem("homeroom-scheduled") ?? "[]"); } catch { return []; } })();
       localStorage.setItem("homeroom-scheduled", JSON.stringify([...existing, session]));
+
+      // Add extra tasks to list and tag all tasks with this session
+      try {
+        const listRaw = localStorage.getItem("homeroom-tasks");
+        let listTasks: StoredTask[] = listRaw ? JSON.parse(listRaw) : [];
+        const taggedIds = new Set(allTasks.map((t) => t.id));
+        // Add extra tasks that aren't already in the list
+        for (const t of extraTasks) {
+          if (!listTasks.some((lt) => lt.id === t.id)) {
+            listTasks.push({
+              id: t.id, text: t.text, done: false,
+              estimatedMin: null, addedAt: new Date().toISOString(),
+              scheduledForSessionId: session.id,
+              scheduledForDate: session.scheduledFor,
+              scheduledForTitle: session.title || "Homeroom",
+            });
+          }
+        }
+        // Tag selected list tasks
+        listTasks = listTasks.map((lt) =>
+          taggedIds.has(lt.id)
+            ? { ...lt, scheduledForSessionId: session.id, scheduledForDate: session.scheduledFor, scheduledForTitle: session.title || "Homeroom" }
+            : lt
+        );
+        localStorage.setItem("homeroom-tasks", JSON.stringify(listTasks));
+      } catch { /* ignore */ }
+
       router.push("/home");
     } else {
+      // Live session — add extra tasks to the list (no scheduling tags)
+      if (extraTasks.length > 0) {
+        try {
+          const listRaw = localStorage.getItem("homeroom-tasks");
+          const listTasks: StoredTask[] = listRaw ? JSON.parse(listRaw) : [];
+          for (const t of extraTasks) {
+            if (!listTasks.some((lt) => lt.id === t.id)) {
+              listTasks.push({ id: t.id, text: t.text, done: false, estimatedMin: null, addedAt: new Date().toISOString() });
+            }
+          }
+          localStorage.setItem("homeroom-tasks", JSON.stringify(listTasks));
+        } catch { /* ignore */ }
+      }
       localStorage.setItem("homeroom-session", JSON.stringify({
         title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null,
       }));
