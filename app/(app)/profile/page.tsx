@@ -79,7 +79,8 @@ export default function ProfilePage() {
 
   const [allRegisteredUsers, setAllRegisteredUsers] = useState<Friend[]>([]);
   const [friends, setFriends]             = useState<Friend[]>([]);
-  const [pendingFriends, setPendingFriends] = useState<Friend[]>([]);
+  const [incomingRequests, setIncomingRequests] = useState<Friend[]>([]);
+  const [outgoingRequests, setOutgoingRequests] = useState<Friend[]>([]);
   const [joinedSquads, setJoinedSquads]   = useState<string[]>([]);
   const [mySquads, setMySquads]           = useState<Squad[]>([]);
 
@@ -108,10 +109,6 @@ export default function ProfilePage() {
       if (a) setAvatar(a);
       const u = localStorage.getItem("homeroom-username");
       if (u) setUsername(u);
-      const f = localStorage.getItem("homeroom-friends");
-      setFriends(f ? JSON.parse(f) : []);
-      const pf = localStorage.getItem("homeroom-pending-friends");
-      if (pf) setPendingFriends(JSON.parse(pf));
       const js = localStorage.getItem("homeroom-joined-squads");
       setJoinedSquads(js ? JSON.parse(js) : []);
       const ms = localStorage.getItem("homeroom-my-squads");
@@ -131,13 +128,46 @@ export default function ProfilePage() {
         );
       }
     });
+
+    const currentUsername = localStorage.getItem("homeroom-username");
+    if (currentUsername) loadFriendData(currentUsername);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  function toFriend(uname: string): Friend {
+    return {
+      id: uname.toLowerCase(),
+      name: uname,
+      initials: uname.slice(0, 2).toUpperCase(),
+      color: colorFromUsername(uname),
+      username: uname,
+    };
+  }
+
+  async function loadFriendData(currentUsername: string) {
+    const { data } = await supabase
+      .from("friend_requests")
+      .select("*")
+      .or(`from_username.eq.${currentUsername},to_username.eq.${currentUsername}`);
+    if (!data) return;
+    setIncomingRequests(
+      data.filter(r => r.to_username === currentUsername && r.status === "pending")
+          .map(r => toFriend(r.from_username))
+    );
+    setOutgoingRequests(
+      data.filter(r => r.from_username === currentUsername && r.status === "pending")
+          .map(r => toFriend(r.to_username))
+    );
+    setFriends(
+      data.filter(r => r.status === "accepted")
+          .map(r => toFriend(r.from_username === currentUsername ? r.to_username : r.from_username))
+    );
+  }
+
   function getTakenUsernames(): string[] {
-    return [...friends, ...pendingFriends].map((f) =>
-      (f.username ?? "").toLowerCase()
-    ).filter(Boolean);
+    return [...friends, ...outgoingRequests, ...incomingRequests]
+      .map((f) => (f.username ?? "").toLowerCase())
+      .filter(Boolean);
   }
 
   function handleUsernameInput(raw: string) {
@@ -188,11 +218,6 @@ export default function ProfilePage() {
     setShowAvatarPicker(false);
   }
 
-  function saveFriends(updated: Friend[]) {
-    setFriends(updated);
-    localStorage.setItem("homeroom-friends", JSON.stringify(updated));
-  }
-
   function saveJoinedSquads(updated: string[]) {
     setJoinedSquads(updated);
     localStorage.setItem("homeroom-joined-squads", JSON.stringify(updated));
@@ -203,22 +228,55 @@ export default function ProfilePage() {
     localStorage.setItem("homeroom-my-squads", JSON.stringify(updated));
   }
 
-  function requestFriend(user: Friend) {
+  async function requestFriend(user: Friend) {
     if (friends.some((f) => f.id === user.id)) return;
-    if (pendingFriends.some((f) => f.id === user.id)) return;
-    const updated = [...pendingFriends, user];
-    setPendingFriends(updated);
-    localStorage.setItem("homeroom-pending-friends", JSON.stringify(updated));
+    if (outgoingRequests.some((f) => f.id === user.id)) return;
+    if (incomingRequests.some((f) => f.id === user.id)) return;
+    await supabase.from("friend_requests").insert({
+      from_username: username,
+      to_username: user.username,
+      status: "pending",
+    });
+    setOutgoingRequests((prev) => [...prev, user]);
   }
 
-  function cancelRequest(id: string) {
-    const updated = pendingFriends.filter((f) => f.id !== id);
-    setPendingFriends(updated);
-    localStorage.setItem("homeroom-pending-friends", JSON.stringify(updated));
+  async function cancelRequest(id: string) {
+    const req = outgoingRequests.find((f) => f.id === id);
+    if (!req) return;
+    await supabase.from("friend_requests")
+      .delete()
+      .eq("from_username", username)
+      .eq("to_username", req.username);
+    setOutgoingRequests((prev) => prev.filter((f) => f.id !== id));
   }
 
-  function removeFriend(id: string) {
-    saveFriends(friends.filter((f) => f.id !== id));
+  async function acceptRequest(friendUsername: string) {
+    await supabase.from("friend_requests")
+      .update({ status: "accepted" })
+      .eq("from_username", friendUsername)
+      .eq("to_username", username);
+    const friend = incomingRequests.find((f) => f.username === friendUsername);
+    if (friend) {
+      setFriends((prev) => [...prev, friend]);
+      setIncomingRequests((prev) => prev.filter((f) => f.username !== friendUsername));
+    }
+  }
+
+  async function declineRequest(friendUsername: string) {
+    await supabase.from("friend_requests")
+      .delete()
+      .eq("from_username", friendUsername)
+      .eq("to_username", username);
+    setIncomingRequests((prev) => prev.filter((f) => f.username !== friendUsername));
+  }
+
+  async function removeFriend(id: string) {
+    const friend = friends.find((f) => f.id === id);
+    if (!friend) return;
+    await supabase.from("friend_requests")
+      .delete()
+      .or(`and(from_username.eq.${username},to_username.eq.${friend.username}),and(from_username.eq.${friend.username},to_username.eq.${username})`);
+    setFriends((prev) => prev.filter((f) => f.id !== id));
     setRemovingId(null);
   }
 
@@ -265,7 +323,8 @@ export default function ProfilePage() {
   const friendResults = allRegisteredUsers.filter((u) =>
     u.id !== username.toLowerCase() &&
     !friends.some((f) => f.id === u.id) &&
-    !pendingFriends.some((f) => f.id === u.id) &&
+    !outgoingRequests.some((f) => f.id === u.id) &&
+    !incomingRequests.some((f) => f.id === u.id) &&
     (!friendSearch ||
       u.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
       u.username.toLowerCase().includes(friendSearch.toLowerCase()))
@@ -433,12 +492,48 @@ export default function ProfilePage() {
         </div>
       )}
 
-      {/* Pending requests */}
-      {pendingFriends.length > 0 && (
+      {/* Incoming friend requests */}
+      {incomingRequests.length > 0 && (
         <div className="mb-4">
-          <h2 className="text-sm font-semibold text-charcoal mb-3">Pending · {pendingFriends.length}</h2>
+          <h2 className="text-sm font-semibold text-charcoal mb-3">Friend Requests · {incomingRequests.length}</h2>
           <div className="space-y-2">
-            {pendingFriends.map((f) => (
+            {incomingRequests.map((f) => (
+              <div key={f.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3">
+                <div
+                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                  style={{ background: f.color }}
+                >
+                  {f.initials}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-charcoal">{f.name}</p>
+                  <p className="text-xs text-warm-gray">@{f.username}</p>
+                </div>
+                <button
+                  onClick={() => acceptRequest(f.username)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
+                  style={{ background: "#7C3AED", color: "white" }}
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() => declineRequest(f.username)}
+                  className="text-xs text-warm-gray hover:text-red-400 transition-colors flex-shrink-0"
+                >
+                  Decline
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Outgoing pending requests */}
+      {outgoingRequests.length > 0 && (
+        <div className="mb-4">
+          <h2 className="text-sm font-semibold text-charcoal mb-3">Sent · {outgoingRequests.length}</h2>
+          <div className="space-y-2">
+            {outgoingRequests.map((f) => (
               <div key={f.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group">
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
