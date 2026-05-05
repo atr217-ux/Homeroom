@@ -1,0 +1,72 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
+
+export default function ConfirmPage() {
+  const router = useRouter();
+  const [status, setStatus] = useState<"verifying" | "success" | "error">("verifying");
+
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const token_hash = params.get("token_hash");
+    const type = params.get("type");
+
+    if (!token_hash || !type) {
+      setStatus("error");
+      return;
+    }
+
+    const supabase = createClient();
+    supabase.auth
+      .verifyOtp({ token_hash, type: type as "signup" })
+      .then(({ error }) => {
+        if (error) {
+          setStatus("error");
+        } else {
+          setStatus("success");
+          setTimeout(() => router.replace("/welcome"), 800);
+        }
+      });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-[#F9F7F4] px-4">
+      <div className="bg-white rounded-3xl shadow-sm border border-gray-100 px-8 py-10 w-full max-w-sm text-center">
+        <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
+
+        {status === "verifying" && (
+          <>
+            <div className="text-4xl mt-6 mb-3">⏳</div>
+            <h1 className="text-xl font-bold text-charcoal">Verifying…</h1>
+            <p className="text-sm text-warm-gray mt-2">Just a second.</p>
+          </>
+        )}
+
+        {status === "success" && (
+          <>
+            <div className="text-4xl mt-6 mb-3">✅</div>
+            <h1 className="text-xl font-bold text-charcoal">Email verified!</h1>
+            <p className="text-sm text-warm-gray mt-2">Taking you to your profile…</p>
+          </>
+        )}
+
+        {status === "error" && (
+          <>
+            <div className="text-4xl mt-6 mb-3">❌</div>
+            <h1 className="text-xl font-bold text-charcoal">Link invalid or expired</h1>
+            <p className="text-sm text-warm-gray mt-2">Try registering again.</p>
+            <button
+              onClick={() => router.replace("/welcome")}
+              className="mt-6 w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors"
+            >
+              Back to welcome
+            </button>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}

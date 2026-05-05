@@ -29,8 +29,8 @@ export default function WelcomePage() {
   const router = useRouter();
   const supabase = createClient();
 
-  // "login" | "register-name" | "register-avatar"
-  const [step, setStep] = useState<"login" | "register-name" | "register-avatar">("login");
+  const [step, setStep] = useState<"login" | "register-name" | "register-avatar" | "check-email">("login");
+  const [pendingEmail, setPendingEmail] = useState("");
 
   const [loginInput, setLoginInput] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
@@ -48,8 +48,30 @@ export default function WelcomePage() {
   const [regError, setRegError] = useState("");
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (!session) return;
+
+      // After email verification, insert the pending profile then go to /profile
+      const pendingRaw = localStorage.getItem("homeroom-pending-profile");
+      if (pendingRaw) {
+        try {
+          const pending = JSON.parse(pendingRaw) as Profile;
+          const { error } = await supabase.from("profiles").insert({
+            id: session.user.id,
+            username: pending.username,
+            email: pending.email,
+            avatar: pending.avatar,
+          });
+          if (!error) {
+            localStorage.removeItem("homeroom-pending-profile");
+            restoreUserData({ ...pending, id: session.user.id });
+            router.replace("/profile");
+            return;
+          }
+        } catch { /* fall through to normal load */ }
+      }
+
+      // Normal login — load existing profile
       supabase
         .from("profiles")
         .select("*")
@@ -166,6 +188,9 @@ export default function WelcomePage() {
     const { data: authData, error: signUpError } = await supabase.auth.signUp({
       email: regEmail.trim(),
       password: regPassword,
+      options: {
+        emailRedirectTo: `${window.location.origin}/auth/confirm`,
+      },
     });
 
     if (signUpError || !authData.user) {
@@ -174,29 +199,43 @@ export default function WelcomePage() {
       return;
     }
 
-    const { error: profileError } = await supabase.from("profiles").insert({
+    // Store profile data locally — will be inserted after email is verified
+    localStorage.setItem("homeroom-pending-profile", JSON.stringify({
       id: authData.user.id,
       username: regUsername.trim(),
       email: regEmail.trim(),
       avatar: chosenAvatar,
-    });
+    }));
 
-    if (profileError) {
-      setRegError("Account created but profile setup failed. Try logging in.");
-      setRegLoading(false);
-      return;
-    }
-
-    restoreUserData({
-      id: authData.user.id,
-      username: regUsername.trim(),
-      email: regEmail.trim(),
-      avatar: chosenAvatar,
-    });
-    router.replace("/home");
+    setPendingEmail(regEmail.trim());
+    setRegLoading(false);
+    setStep("check-email");
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (step === "check-email") {
+    return (
+      <div className="text-center">
+        <div className="text-5xl mb-6">📬</div>
+        <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
+        <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Check your inbox</h1>
+        <p className="text-sm text-warm-gray mt-2">
+          We sent a verification link to
+        </p>
+        <p className="text-sm font-semibold text-charcoal mt-0.5">{pendingEmail}</p>
+        <p className="text-sm text-warm-gray mt-3">
+          Click the link in that email to confirm your account. It expires in 24 hours.
+        </p>
+        <button
+          onClick={() => setStep("login")}
+          className="mt-8 w-full text-sm text-warm-gray hover:text-charcoal transition-colors"
+        >
+          ← Back to login
+        </button>
+      </div>
+    );
+  }
 
   if (step === "register-avatar") {
     return (
