@@ -217,8 +217,9 @@ export default function StartPage() {
           localStorage.setItem("homeroom-tasks", JSON.stringify(listTasks));
         } catch { /* ignore */ }
       }
+      const liveSessionId = crypto.randomUUID();
       localStorage.setItem("homeroom-session", JSON.stringify({
-        title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null,
+        sessionId: liveSessionId, title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null,
       }));
 
       if (invitedFriends.length > 0) {
@@ -227,7 +228,6 @@ export default function StartPage() {
         } else {
           console.log("[start] inserting live invite for:", invitedFriends.map(f => f.username), "from:", myUsername);
           const supabase = createClient();
-          const liveSessionId = crypto.randomUUID();
           const results = await Promise.all(invitedFriends.map((f) =>
             supabase.from("room_invites").upsert({
               from_username: myUsername,

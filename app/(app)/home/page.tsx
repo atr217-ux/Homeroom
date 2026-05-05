@@ -32,6 +32,7 @@ type Invite = {
   duration: number;
   isLive: boolean;
   scheduledFor: string | null;
+  sessionId: string;
 };
 
 type TimeChangeNotif = {
@@ -448,6 +449,7 @@ export default function HomePage() {
               duration: row.duration,
               isLive: !row.scheduled_for,
               scheduledFor: row.scheduled_for,
+              sessionId: row.session_id,
             })));
           }
         });
@@ -489,6 +491,7 @@ export default function HomePage() {
       return;
     }
     localStorage.setItem("homeroom-session", JSON.stringify({
+      sessionId: invite.sessionId,
       title: `${invite.from.name} is ${invite.title}`,
       duration: invite.duration,
       isPublic: false,

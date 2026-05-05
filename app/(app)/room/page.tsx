@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 type Task = {
   id: string;
@@ -12,6 +13,7 @@ type Task = {
 };
 type Friend = { id: string; name: string; initials: string; color: string };
 type Session = {
+  sessionId?: string;
   title: string;
   duration: number;
   isPublic: boolean;
@@ -81,6 +83,21 @@ export default function RoomPage() {
     } catch { /* ignore */ }
   }, []);
 
+  useEffect(() => {
+    if (!session?.sessionId || session.isPublic) return;
+    const supabase = createClient();
+    const channel = supabase
+      .channel(`room:${session.sessionId}`)
+      .on("broadcast", { event: "message" }, ({ payload }) => {
+        if (payload.sender !== myUsername) {
+          setChatMessages((prev) => [...prev, { ...payload, time: new Date(payload.time) }]);
+        }
+      })
+      .subscribe();
+    realtimeChannelRef.current = channel;
+    return () => { supabase.removeChannel(channel); };
+  }, [session?.sessionId, myUsername]);
+
   function getElapsed(t: Task): number {
     if (t.startedAt === null) return t.timeSpent;
     return t.timeSpent + Math.floor((Date.now() - t.startedAt) / 1000);
@@ -111,7 +128,9 @@ export default function RoomPage() {
     if (!task.done) {
       const feedText = timeSpent > 0 ? `Finished ${task.text} · ${formatTime(timeSpent)}` : `Finished ${task.text}`;
       pushFeed(feedText);
-      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsername, time: new Date(), reactions: [] }]);
+      const activityMsg = { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsername, time: new Date(), reactions: [] };
+      setChatMessages((prev) => [...prev, activityMsg]);
+      realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...activityMsg, time: activityMsg.time.toISOString() } });
       if (timeSpent > 0) {
         try {
           // Save to task history for autocomplete
@@ -196,6 +215,8 @@ export default function RoomPage() {
   }
 
   const sessionStartRef = useRef<number | null>(null);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const realtimeChannelRef = useRef<any>(null);
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
@@ -613,7 +634,9 @@ export default function RoomPage() {
                     if (e.key === "Enter") {
                       const text = chatInput.trim();
                       if (!text) return;
-                      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] }]);
+                      const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
+                      setChatMessages((prev) => [...prev, msg]);
+                      realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
                       setChatInput("");
                     }
                   }}
@@ -624,7 +647,9 @@ export default function RoomPage() {
                   onClick={() => {
                     const text = chatInput.trim();
                     if (!text) return;
-                    setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] }]);
+                    const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
+                    setChatMessages((prev) => [...prev, msg]);
+                    realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
                     setChatInput("");
                   }}
                   style={{ color: "#7C3AED" }}
