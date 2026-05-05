@@ -28,6 +28,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function RoomPage() {
+  const [myUsername, setMyUsername] = useState("You");
   const [session, setSession] = useState<Session | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskInput, setTaskInput] = useState("");
@@ -66,6 +67,8 @@ export default function RoomPage() {
   }, []);
 
   useEffect(() => {
+    const u = localStorage.getItem("homeroom-username");
+    if (u) setMyUsername(u);
     try {
       const stored = localStorage.getItem("homeroom-session");
       if (stored) {
@@ -108,7 +111,7 @@ export default function RoomPage() {
     if (!task.done) {
       const feedText = timeSpent > 0 ? `Finished ${task.text} · ${formatTime(timeSpent)}` : `Finished ${task.text}`;
       pushFeed(feedText);
-      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: "You", time: new Date(), reactions: [] }]);
+      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsername, time: new Date(), reactions: [] }]);
       if (timeSpent > 0) {
         try {
           // Save to task history for autocomplete
@@ -509,20 +512,20 @@ export default function RoomPage() {
                     return (
                       <div
                         key={msg.id}
-                        className={`flex flex-col ${msg.sender === "You" ? "items-end" : "items-start"}`}
+                        className={`flex flex-col ${msg.sender === myUsername ? "items-end" : "items-start"}`}
                         onMouseEnter={() => setHoveredMsgId(msg.id)}
                         onMouseLeave={() => setHoveredMsgId(null)}
                       >
                         <div
                           className="max-w-[75%] px-3 py-2 rounded-2xl text-sm"
-                          style={msg.sender === "You"
+                          style={msg.sender === myUsername
                             ? { background: "#7C3AED", color: "white" }
                             : { background: "#F3F4F6", color: "#1C1917" }}
                         >
                           {msg.text}
                         </div>
                         {hoveredMsgId === msg.id && (
-                          <div className={`flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm mt-1 ${msg.sender === "You" ? "self-end" : "self-start"}`}>
+                          <div className={`flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm mt-1 ${msg.sender === myUsername ? "self-end" : "self-start"}`}>
                             {REACTION_EMOJIS.map((emoji) => {
                               const reacted = msg.reactions.includes(emoji);
                               return (
@@ -539,7 +542,7 @@ export default function RoomPage() {
                           </div>
                         )}
                         {msg.reactions.length > 0 && (
-                          <div className={`flex gap-1 flex-wrap mt-1 ${msg.sender === "You" ? "justify-end" : "justify-start"}`}>
+                          <div className={`flex gap-1 flex-wrap mt-1 ${msg.sender === myUsername ? "justify-end" : "justify-start"}`}>
                             {msg.reactions.map((emoji) => (
                               <button
                                 key={emoji}
@@ -552,7 +555,7 @@ export default function RoomPage() {
                           </div>
                         )}
                         <span className="text-xs text-warm-gray mt-0.5 px-1">
-                          {msg.sender !== "You" && <span className="font-medium mr-1">{msg.sender}</span>}
+                          {msg.sender !== myUsername && <span className="font-medium mr-1">{msg.sender}</span>}
                           {msg.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
                         </span>
                       </div>
@@ -571,7 +574,7 @@ export default function RoomPage() {
                     if (e.key === "Enter") {
                       const text = chatInput.trim();
                       if (!text) return;
-                      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "chat" as const, text, sender: "You", time: new Date(), reactions: [] }]);
+                      setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] }]);
                       setChatInput("");
                     }
                   }}
@@ -582,7 +585,7 @@ export default function RoomPage() {
                   onClick={() => {
                     const text = chatInput.trim();
                     if (!text) return;
-                    setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "chat" as const, text, sender: "You", time: new Date(), reactions: [] }]);
+                    setChatMessages((prev) => [...prev, { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] }]);
                     setChatInput("");
                   }}
                   style={{ color: "#7C3AED" }}

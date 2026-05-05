@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 const AVATAR_EMOJIS = [
   "😊","😎","🤓","🧑‍💻","👨‍🎨","👩‍🎨","🦊","🐼","🐸","🦁",
   "🐯","🦋","🌟","⚡","🔥","💎","🎯","🚀","🌙","☀️",
@@ -59,6 +60,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 }
 
 export default function ProfilePage() {
+  const router = useRouter();
   const [avatar, setAvatar]                 = useState<string | null>(null);
   const [hoveringAvatar, setHoveringAvatar] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -109,11 +111,19 @@ export default function ProfilePage() {
     } catch { /* ignore */ }
   }, []);
 
+  function getTakenUsernames(): string[] {
+    return [...friends, ...pendingFriends].map((f) =>
+      (f.username ?? "").toLowerCase()
+    ).filter(Boolean);
+  }
+
   function handleUsernameInput(raw: string) {
     const cleaned = raw.replace(/\s/g, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 15);
     setUsernameInput(cleaned);
     if (/[^a-zA-Z0-9_]/.test(raw.replace(/\s/g, ""))) {
       setUsernameError("Only letters, numbers, and underscores allowed");
+    } else if (cleaned && getTakenUsernames().includes(cleaned.toLowerCase())) {
+      setUsernameError("That username is already taken");
     } else {
       setUsernameError("");
     }
@@ -122,11 +132,26 @@ export default function ProfilePage() {
   function saveUsername() {
     const val = usernameInput.trim();
     if (!val || usernameError) return;
+    if (getTakenUsernames().includes(val.toLowerCase())) {
+      setUsernameError("That username is already taken");
+      return;
+    }
     setUsername(val);
     localStorage.setItem("homeroom-username", val);
     setEditingUsername(false);
     setUsernameInput("");
     setUsernameError("");
+  }
+
+  function logout() {
+    const keys = [
+      "homeroom-avatar", "homeroom-username", "homeroom-friends",
+      "homeroom-pending-friends", "homeroom-joined-squads", "homeroom-my-squads",
+      "homeroom-tasks", "homeroom-session", "homeroom-scheduled",
+      "homeroom-task-history",
+    ];
+    keys.forEach((k) => localStorage.removeItem(k));
+    router.replace("/welcome");
   }
 
   function saveAvatar(emoji: string) {
@@ -232,7 +257,12 @@ export default function ProfilePage() {
           <span className="text-sm">Home</span>
         </Link>
         <span className="text-xs font-semibold tracking-widest text-sage uppercase">Profile</span>
-        <div className="w-12" />
+        <button
+          onClick={logout}
+          className="text-xs font-medium text-warm-gray hover:text-red-400 transition-colors"
+        >
+          Log out
+        </button>
       </div>
 
       {/* Avatar */}

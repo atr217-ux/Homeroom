@@ -357,6 +357,7 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
 
 export default function HomePage() {
   const router = useRouter();
+  const [avatar, setAvatar] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledSession[]>([]);
   const [schedView, setSchedView] = useState<"list" | "calendar">("list");
   const invites: Invite[] = [];
@@ -390,6 +391,8 @@ export default function HomePage() {
       const raw = localStorage.getItem("homeroom-tasks");
       if (raw) setAllListTasks(JSON.parse(raw));
     } catch { /* ignore */ }
+    const a = localStorage.getItem("homeroom-avatar");
+    if (a) setAvatar(a);
   }, []);
 
   // Tick every 30s so Start/Join button enables at the right time
@@ -584,8 +587,8 @@ export default function HomePage() {
       <div className="pt-8 pb-6">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
-          <Link href="/profile" className="w-8 h-8 rounded-full bg-sage flex items-center justify-center text-white text-xs font-semibold">
-            ?
+          <Link href="/profile" className="w-8 h-8 rounded-full flex items-center justify-center text-lg overflow-hidden" style={{ background: avatar ? "#F3F4F6" : "#7C9E87" }}>
+            {avatar ?? <span className="text-white text-xs font-semibold">?</span>}
           </Link>
         </div>
         <h1 className="text-2xl font-bold text-charcoal leading-snug">Find your Homeroom.</h1>
