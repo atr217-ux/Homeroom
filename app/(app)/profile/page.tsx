@@ -3,7 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { saveCurrentUserState } from "@/app/(auth)/welcome/page";
+import { createClient } from "@/lib/supabase/client";
 const AVATAR_EMOJIS = [
   "😊","😎","🤓","🧑‍💻","👨‍🎨","👩‍🎨","🦊","🐼","🐸","🦁",
   "🐯","🦋","🌟","⚡","🔥","💎","🎯","🚀","🌙","☀️",
@@ -67,6 +67,7 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
 
 export default function ProfilePage() {
   const router = useRouter();
+  const supabase = createClient();
   const [avatar, setAvatar]                 = useState<string | null>(null);
   const [hoveringAvatar, setHoveringAvatar] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
@@ -115,20 +116,22 @@ export default function ProfilePage() {
       setJoinedSquads(js ? JSON.parse(js) : []);
       const ms = localStorage.getItem("homeroom-my-squads");
       setMySquads(ms ? JSON.parse(ms) : []);
-      const reg = localStorage.getItem("homeroom-registered-users");
-      if (reg) {
-        const parsed = JSON.parse(reg) as Record<string, { username: string }>;
+    } catch { /* ignore */ }
+
+    supabase.from("profiles").select("username").then(({ data }) => {
+      if (data) {
         setAllRegisteredUsers(
-          Object.values(parsed).map((ru) => ({
-            id: ru.username.toLowerCase(),
-            name: ru.username,
-            initials: ru.username.slice(0, 2).toUpperCase(),
-            color: colorFromUsername(ru.username),
-            username: ru.username,
+          data.map((p) => ({
+            id: p.username.toLowerCase(),
+            name: p.username,
+            initials: p.username.slice(0, 2).toUpperCase(),
+            color: colorFromUsername(p.username),
+            username: p.username,
           }))
         );
       }
-    } catch { /* ignore */ }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function getTakenUsernames(): string[] {
@@ -149,7 +152,7 @@ export default function ProfilePage() {
     }
   }
 
-  function saveUsername() {
+  async function saveUsername() {
     const val = usernameInput.trim();
     if (!val || usernameError) return;
     if (getTakenUsernames().includes(val.toLowerCase())) {
@@ -158,14 +161,15 @@ export default function ProfilePage() {
     }
     setUsername(val);
     localStorage.setItem("homeroom-username", val);
-    saveCurrentUserState();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) await supabase.from("profiles").update({ username: val }).eq("id", user.id);
     setEditingUsername(false);
     setUsernameInput("");
     setUsernameError("");
   }
 
-  function logout() {
-    saveCurrentUserState();
+  async function logout() {
+    await supabase.auth.signOut();
     const keys = [
       "homeroom-avatar", "homeroom-username", "homeroom-friends",
       "homeroom-pending-friends", "homeroom-joined-squads", "homeroom-my-squads",
@@ -176,10 +180,11 @@ export default function ProfilePage() {
     router.replace("/welcome");
   }
 
-  function saveAvatar(emoji: string) {
+  async function saveAvatar(emoji: string) {
     setAvatar(emoji);
     localStorage.setItem("homeroom-avatar", emoji);
-    saveCurrentUserState();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) await supabase.from("profiles").update({ avatar: emoji }).eq("id", user.id);
     setShowAvatarPicker(false);
   }
 

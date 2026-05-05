@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
+import { createClient } from "@/lib/supabase/client";
 
 const AVATAR_EMOJIS = [
   "😊","😎","🤓","🧑‍💻","👨‍🎨","👩‍🎨","🦊","🐼","🐸","🦁",
@@ -9,95 +10,100 @@ const AVATAR_EMOJIS = [
   "🎸","🎨","🏋️","🧘","🌊","🏔️","🌿","🍀","🦄","👾",
 ];
 
-type RegisteredUser = {
+type Profile = {
+  id: string;
   username: string;
   email: string;
   avatar: string;
-  friends: unknown[];
-  pendingFriends: unknown[];
-  joinedSquads: string[];
-  mySquads: unknown[];
-  tasks: unknown[];
-  taskHistory: unknown[];
-  scheduled: unknown[];
 };
 
-function getRegisteredUsers(): Record<string, RegisteredUser> {
-  try {
-    const raw = localStorage.getItem("homeroom-registered-users");
-    return raw ? JSON.parse(raw) : {};
-  } catch { return {}; }
-}
+// Kept as a no-op export so profile page import doesn't break
+export function saveCurrentUserState() {}
 
-function saveRegisteredUsers(users: Record<string, RegisteredUser>) {
-  localStorage.setItem("homeroom-registered-users", JSON.stringify(users));
-}
-
-export function saveCurrentUserState() {
-  const username = localStorage.getItem("homeroom-username");
-  if (!username) return;
-  const users = getRegisteredUsers();
-  const existing = users[username.toLowerCase()];
-  users[username.toLowerCase()] = {
-    username,
-    email: existing?.email ?? "",
-    avatar: localStorage.getItem("homeroom-avatar") ?? "",
-    friends: JSON.parse(localStorage.getItem("homeroom-friends") ?? "[]"),
-    pendingFriends: JSON.parse(localStorage.getItem("homeroom-pending-friends") ?? "[]"),
-    joinedSquads: JSON.parse(localStorage.getItem("homeroom-joined-squads") ?? "[]"),
-    mySquads: JSON.parse(localStorage.getItem("homeroom-my-squads") ?? "[]"),
-    tasks: JSON.parse(localStorage.getItem("homeroom-tasks") ?? "[]"),
-    taskHistory: JSON.parse(localStorage.getItem("homeroom-task-history") ?? "[]"),
-    scheduled: JSON.parse(localStorage.getItem("homeroom-scheduled") ?? "[]"),
-  };
-  saveRegisteredUsers(users);
-}
-
-function restoreUserData(user: RegisteredUser) {
-  localStorage.setItem("homeroom-username", user.username);
-  localStorage.setItem("homeroom-avatar", user.avatar);
-  localStorage.setItem("homeroom-friends", JSON.stringify(user.friends));
-  localStorage.setItem("homeroom-pending-friends", JSON.stringify(user.pendingFriends));
-  localStorage.setItem("homeroom-joined-squads", JSON.stringify(user.joinedSquads));
-  localStorage.setItem("homeroom-my-squads", JSON.stringify(user.mySquads));
-  localStorage.setItem("homeroom-tasks", JSON.stringify(user.tasks));
-  localStorage.setItem("homeroom-task-history", JSON.stringify(user.taskHistory));
-  localStorage.setItem("homeroom-scheduled", JSON.stringify(user.scheduled));
+function restoreUserData(profile: Profile) {
+  localStorage.setItem("homeroom-username", profile.username);
+  localStorage.setItem("homeroom-avatar", profile.avatar ?? "");
 }
 
 export default function WelcomePage() {
   const router = useRouter();
+  const supabase = createClient();
 
   // "login" | "register-name" | "register-avatar"
   const [step, setStep] = useState<"login" | "register-name" | "register-avatar">("login");
 
   const [loginInput, setLoginInput] = useState("");
+  const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
+  const [loginLoading, setLoginLoading] = useState(false);
 
   const [regUsername, setRegUsername] = useState("");
   const [regUsernameError, setRegUsernameError] = useState("");
   const [regEmail, setRegEmail] = useState("");
   const [regEmailError, setRegEmailError] = useState("");
+  const [regPassword, setRegPassword] = useState("");
+  const [regPasswordError, setRegPasswordError] = useState("");
   const [regAvatar, setRegAvatar] = useState("");
+  const [regLoading, setRegLoading] = useState(false);
+  const [regError, setRegError] = useState("");
 
   useEffect(() => {
-    const stored = localStorage.getItem("homeroom-username");
-    if (stored && stored.trim()) router.replace("/home");
-  }, [router]);
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      if (!session) return;
+      supabase
+        .from("profiles")
+        .select("*")
+        .eq("id", session.user.id)
+        .single()
+        .then(({ data }) => {
+          if (data) {
+            restoreUserData(data as Profile);
+            router.replace("/home");
+          }
+        });
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   // ── Login ──────────────────────────────────────────────────────────────────
 
-  function handleLogin() {
-    const val = loginInput.trim().toLowerCase();
-    if (!val) return;
-    const users = getRegisteredUsers();
-    // Try username first, then scan for matching email
-    const user = users[val] ?? Object.values(users).find((u) => u.email.toLowerCase() === val);
-    if (!user) {
-      setLoginError("No account found with that username or email.");
+  async function handleLogin() {
+    const val = loginInput.trim();
+    const pwd = loginPassword.trim();
+    if (!val || !pwd) return;
+    setLoginLoading(true);
+    setLoginError("");
+
+    let email = val;
+
+    // If no @, treat as username → look up email in profiles
+    if (!val.includes("@")) {
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("email")
+        .ilike("username", val)
+        .single();
+      if (!profile) {
+        setLoginError("No account found with that username.");
+        setLoginLoading(false);
+        return;
+      }
+      email = profile.email;
+    }
+
+    const { error } = await supabase.auth.signInWithPassword({ email, password: pwd });
+    if (error) {
+      setLoginError("Incorrect password or account not found.");
+      setLoginLoading(false);
       return;
     }
-    restoreUserData(user);
+
+    const { data: prof } = await supabase
+      .from("profiles")
+      .select("*")
+      .eq("email", email)
+      .single();
+    if (prof) restoreUserData(prof as Profile);
     router.replace("/home");
   }
 
@@ -107,8 +113,8 @@ export default function WelcomePage() {
     const cleaned = raw.replace(/\s/g, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 15);
     setRegUsername(cleaned);
     if (!cleaned) { setRegUsernameError(""); return; }
-    if (getRegisteredUsers()[cleaned.toLowerCase()]) {
-      setRegUsernameError("That username is already taken");
+    if (/[^a-zA-Z0-9_]/.test(raw.replace(/\s/g, ""))) {
+      setRegUsernameError("Only letters, numbers, and underscores");
     } else {
       setRegUsernameError("");
     }
@@ -120,35 +126,73 @@ export default function WelcomePage() {
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(raw.trim())) {
       setRegEmailError("Enter a valid email address");
-    } else if (Object.values(getRegisteredUsers()).some((u) => u.email.toLowerCase() === raw.trim().toLowerCase())) {
-      setRegEmailError("An account with that email already exists");
     } else {
       setRegEmailError("");
     }
   }
 
-  function submitRegName() {
+  function handleRegPasswordInput(raw: string) {
+    setRegPassword(raw);
+    if (!raw) { setRegPasswordError(""); return; }
+    if (raw.length < 6) {
+      setRegPasswordError("Password must be at least 6 characters");
+    } else {
+      setRegPasswordError("");
+    }
+  }
+
+  async function submitRegName() {
     if (!regUsername.trim() || regUsernameError) return;
     if (!regEmail.trim() || regEmailError) { setRegEmailError(regEmailError || "Email is required"); return; }
-    if (getRegisteredUsers()[regUsername.toLowerCase()]) {
+    if (!regPassword || regPassword.length < 6) { setRegPasswordError("Password must be at least 6 characters"); return; }
+
+    // Check username uniqueness against DB
+    const { data: existingUser } = await supabase
+      .from("profiles")
+      .select("id")
+      .ilike("username", regUsername.trim())
+      .single();
+    if (existingUser) {
       setRegUsernameError("That username is already taken");
       return;
     }
     setStep("register-avatar");
   }
 
-  function finishRegister(chosenAvatar: string) {
-    const newUser: RegisteredUser = {
+  async function finishRegister(chosenAvatar: string) {
+    setRegLoading(true);
+    setRegError("");
+
+    const { data: authData, error: signUpError } = await supabase.auth.signUp({
+      email: regEmail.trim(),
+      password: regPassword,
+    });
+
+    if (signUpError || !authData.user) {
+      setRegError(signUpError?.message ?? "Failed to create account.");
+      setRegLoading(false);
+      return;
+    }
+
+    const { error: profileError } = await supabase.from("profiles").insert({
+      id: authData.user.id,
       username: regUsername.trim(),
       email: regEmail.trim(),
       avatar: chosenAvatar,
-      friends: [], pendingFriends: [], joinedSquads: [],
-      mySquads: [], tasks: [], taskHistory: [], scheduled: [],
-    };
-    const users = getRegisteredUsers();
-    users[regUsername.toLowerCase()] = newUser;
-    saveRegisteredUsers(users);
-    restoreUserData(newUser);
+    });
+
+    if (profileError) {
+      setRegError("Account created but profile setup failed. Try logging in.");
+      setRegLoading(false);
+      return;
+    }
+
+    restoreUserData({
+      id: authData.user.id,
+      username: regUsername.trim(),
+      email: regEmail.trim(),
+      avatar: chosenAvatar,
+    });
     router.replace("/home");
   }
 
@@ -162,6 +206,8 @@ export default function WelcomePage() {
           <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Pick your avatar</h1>
           <p className="text-sm text-warm-gray mt-1">This shows on your profile and to friends.</p>
         </div>
+
+        {regError && <p className="text-xs text-red-400 mb-4 text-center">{regError}</p>}
 
         <div className="grid grid-cols-6 gap-2 mb-6">
           {AVATAR_EMOJIS.map((emoji) => (
@@ -178,9 +224,10 @@ export default function WelcomePage() {
 
         <button
           onClick={() => finishRegister(regAvatar)}
-          className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors"
+          disabled={regLoading}
+          className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
         >
-          {regAvatar ? "Let's go" : "Skip for now"}
+          {regLoading ? "Creating account…" : (regAvatar ? "Let's go" : "Skip for now")}
         </button>
       </div>
     );
@@ -235,9 +282,23 @@ export default function WelcomePage() {
             {regEmailError && <p className="text-xs text-red-400 mt-1">{regEmailError}</p>}
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-charcoal mb-1.5">Password</label>
+            <input
+              type="password"
+              value={regPassword}
+              onChange={(e) => handleRegPasswordInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitRegName()}
+              placeholder="At least 6 characters"
+              className="w-full text-sm border rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+              style={{ borderColor: regPasswordError ? "#F87171" : "#E5E7EB" }}
+            />
+            {regPasswordError && <p className="text-xs text-red-400 mt-1">{regPasswordError}</p>}
+          </div>
+
           <button
             onClick={submitRegName}
-            disabled={!regUsername.trim() || !!regUsernameError || !regEmail.trim() || !!regEmailError}
+            disabled={!regUsername.trim() || !!regUsernameError || !regEmail.trim() || !!regEmailError || !regPassword || !!regPasswordError}
             className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
           >
             Continue
@@ -270,9 +331,25 @@ export default function WelcomePage() {
             type="text"
             value={loginInput}
             onChange={(e) => { setLoginInput(e.target.value); setLoginError(""); }}
-            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") document.getElementById("login-password-field")?.focus();
+            }}
             placeholder="your_username or you@example.com"
             autoFocus
+            className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+            style={loginError ? { borderColor: "#F87171" } : {}}
+          />
+        </div>
+
+        <div>
+          <label className="block text-xs font-semibold text-charcoal mb-1.5">Password</label>
+          <input
+            id="login-password-field"
+            type="password"
+            value={loginPassword}
+            onChange={(e) => { setLoginPassword(e.target.value); setLoginError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            placeholder="Your password"
             className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
             style={loginError ? { borderColor: "#F87171" } : {}}
           />
@@ -281,10 +358,10 @@ export default function WelcomePage() {
 
         <button
           onClick={handleLogin}
-          disabled={!loginInput.trim()}
+          disabled={!loginInput.trim() || !loginPassword.trim() || loginLoading}
           className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
         >
-          Log in
+          {loginLoading ? "Logging in…" : "Log in"}
         </button>
 
         <div className="relative flex items-center gap-3 py-1">
