@@ -219,6 +219,26 @@ export default function RoomPage() {
     return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
+  if (!session) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 pb-24 flex flex-col items-center justify-center min-h-[70vh] text-center">
+        <div className="text-4xl mb-4">🏠</div>
+        <h2 className="text-xl font-bold text-charcoal mb-2">You&apos;re not in a room</h2>
+        <p className="text-sm text-warm-gray mb-8 max-w-xs">
+          Start one of your own or jump into one people are already in!
+        </p>
+        <div className="flex gap-3 w-full max-w-xs">
+          <a href="/home#active-rooms" className="flex-1 bg-charcoal text-white font-semibold text-sm py-3 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
+            Join a room
+          </a>
+          <Link href="/start" className="flex-1 bg-charcoal text-white font-semibold text-sm py-3 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
+            Start a room
+          </Link>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div id="screen-room" className="pb-20">
       {/* Sticky header */}
