@@ -199,17 +199,25 @@ export default function WelcomePage() {
       return;
     }
 
-    // Store profile data locally — will be inserted after email is verified
-    localStorage.setItem("homeroom-pending-profile", JSON.stringify({
+    const profileData = {
       id: authData.user.id,
       username: regUsername.trim(),
       email: regEmail.trim(),
       avatar: chosenAvatar,
-    }));
+    };
 
-    setPendingEmail(regEmail.trim());
-    setRegLoading(false);
-    setStep("check-email");
+    if (authData.session) {
+      // Email confirmation is disabled — insert profile and go directly to profile page
+      await supabase.from("profiles").insert(profileData);
+      restoreUserData(profileData);
+      router.replace("/profile");
+    } else {
+      // Email confirmation is enabled — store pending and show check-email screen
+      localStorage.setItem("homeroom-pending-profile", JSON.stringify(profileData));
+      setPendingEmail(regEmail.trim());
+      setRegLoading(false);
+      setStep("check-email");
+    }
   }
 
   // ── Render ─────────────────────────────────────────────────────────────────
