@@ -11,6 +11,7 @@ const AVATAR_EMOJIS = [
 
 type RegisteredUser = {
   username: string;
+  email: string;
   avatar: string;
   friends: unknown[];
   pendingFriends: unknown[];
@@ -36,8 +37,10 @@ export function saveCurrentUserState() {
   const username = localStorage.getItem("homeroom-username");
   if (!username) return;
   const users = getRegisteredUsers();
+  const existing = users[username.toLowerCase()];
   users[username.toLowerCase()] = {
     username,
+    email: existing?.email ?? "",
     avatar: localStorage.getItem("homeroom-avatar") ?? "",
     friends: JSON.parse(localStorage.getItem("homeroom-friends") ?? "[]"),
     pendingFriends: JSON.parse(localStorage.getItem("homeroom-pending-friends") ?? "[]"),
@@ -73,6 +76,8 @@ export default function WelcomePage() {
 
   const [regUsername, setRegUsername] = useState("");
   const [regUsernameError, setRegUsernameError] = useState("");
+  const [regEmail, setRegEmail] = useState("");
+  const [regEmailError, setRegEmailError] = useState("");
   const [regAvatar, setRegAvatar] = useState("");
 
   useEffect(() => {
@@ -83,12 +88,13 @@ export default function WelcomePage() {
   // ── Login ──────────────────────────────────────────────────────────────────
 
   function handleLogin() {
-    const val = loginInput.trim();
+    const val = loginInput.trim().toLowerCase();
     if (!val) return;
     const users = getRegisteredUsers();
-    const user = users[val.toLowerCase()];
+    // Try username first, then scan for matching email
+    const user = users[val] ?? Object.values(users).find((u) => u.email.toLowerCase() === val);
     if (!user) {
-      setLoginError("No account found with that username.");
+      setLoginError("No account found with that username or email.");
       return;
     }
     restoreUserData(user);
@@ -108,8 +114,22 @@ export default function WelcomePage() {
     }
   }
 
+  function handleRegEmailInput(raw: string) {
+    setRegEmail(raw);
+    if (!raw.trim()) { setRegEmailError(""); return; }
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!emailRegex.test(raw.trim())) {
+      setRegEmailError("Enter a valid email address");
+    } else if (Object.values(getRegisteredUsers()).some((u) => u.email.toLowerCase() === raw.trim().toLowerCase())) {
+      setRegEmailError("An account with that email already exists");
+    } else {
+      setRegEmailError("");
+    }
+  }
+
   function submitRegName() {
     if (!regUsername.trim() || regUsernameError) return;
+    if (!regEmail.trim() || regEmailError) { setRegEmailError(regEmailError || "Email is required"); return; }
     if (getRegisteredUsers()[regUsername.toLowerCase()]) {
       setRegUsernameError("That username is already taken");
       return;
@@ -120,6 +140,7 @@ export default function WelcomePage() {
   function finishRegister(chosenAvatar: string) {
     const newUser: RegisteredUser = {
       username: regUsername.trim(),
+      email: regEmail.trim(),
       avatar: chosenAvatar,
       friends: [], pendingFriends: [], joinedSquads: [],
       mySquads: [], tasks: [], taskHistory: [], scheduled: [],
@@ -200,9 +221,23 @@ export default function WelcomePage() {
             )}
           </div>
 
+          <div>
+            <label className="block text-xs font-semibold text-charcoal mb-1.5">Email</label>
+            <input
+              type="email"
+              value={regEmail}
+              onChange={(e) => handleRegEmailInput(e.target.value)}
+              onKeyDown={(e) => e.key === "Enter" && submitRegName()}
+              placeholder="you@example.com"
+              className="w-full text-sm border rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+              style={{ borderColor: regEmailError ? "#F87171" : "#E5E7EB" }}
+            />
+            {regEmailError && <p className="text-xs text-red-400 mt-1">{regEmailError}</p>}
+          </div>
+
           <button
             onClick={submitRegName}
-            disabled={!regUsername.trim() || !!regUsernameError}
+            disabled={!regUsername.trim() || !!regUsernameError || !regEmail.trim() || !!regEmailError}
             className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
           >
             Continue
@@ -230,13 +265,13 @@ export default function WelcomePage() {
 
       <div className="space-y-3">
         <div>
-          <label className="block text-xs font-semibold text-charcoal mb-1.5">Username</label>
+          <label className="block text-xs font-semibold text-charcoal mb-1.5">Username or email</label>
           <input
             type="text"
             value={loginInput}
             onChange={(e) => { setLoginInput(e.target.value); setLoginError(""); }}
             onKeyDown={(e) => e.key === "Enter" && handleLogin()}
-            placeholder="your_username"
+            placeholder="your_username or you@example.com"
             autoFocus
             className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
             style={loginError ? { borderColor: "#F87171" } : {}}
