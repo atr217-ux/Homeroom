@@ -76,6 +76,15 @@ export default function StartPage() {
       }
     } catch { /* ignore */ }
 
+    try {
+      const carry = localStorage.getItem("homeroom-carry-forward");
+      if (carry) {
+        const carried: { id: string; text: string }[] = JSON.parse(carry);
+        setExtraTasks(carried);
+        localStorage.removeItem("homeroom-carry-forward");
+      }
+    } catch { /* ignore */ }
+
     const username = localStorage.getItem("homeroom-username") ?? "";
     console.log("[start] homeroom-username:", username);
     setMyUsername(username);

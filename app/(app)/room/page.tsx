@@ -198,6 +198,7 @@ export default function RoomPage() {
   const sessionStartRef = useRef<number | null>(null);
 
   const [showTodos, setShowTodos] = useState(true);
+  const [showSummary, setShowSummary] = useState(false);
   const doneTasks = tasks.filter((t) => t.done).length;
   const duration = session?.duration ?? 0;
 
@@ -213,6 +214,21 @@ export default function RoomPage() {
   const remainingMin = Math.floor(remainingSec / 60);
   const remainingSs  = remainingSec % 60;
   const progressPct  = duration > 0 ? Math.min(100, (elapsedSec / (duration * 60)) * 100) : 0;
+
+  function leaveRoom() {
+    setTasks((prev) => prev.map((t) =>
+      t.startedAt !== null ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
+    ));
+    setShowSummary(true);
+  }
+
+  function scheduleRemaining(remaining: Task[]) {
+    localStorage.setItem(
+      "homeroom-carry-forward",
+      JSON.stringify(remaining.map((t) => ({ id: crypto.randomUUID(), text: t.text })))
+    );
+    window.location.href = "/start";
+  }
 
   function formatScheduled(iso: string) {
     const d = new Date(iso);
@@ -268,7 +284,10 @@ export default function RoomPage() {
               </div>
             </div>
           </div>
-          <button className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors">
+          <button
+            onClick={leaveRoom}
+            className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors"
+          >
             Leave
           </button>
         </div>
@@ -752,6 +771,83 @@ export default function RoomPage() {
                   style={{ background: "#7C3AED", color: "white", opacity: selectedListIds.length > 0 ? 1 : 0.4 }}
                 >
                   {selectedListIds.length === 0 ? "Select tasks to add" : `Add ${selectedListIds.length} task${selectedListIds.length !== 1 ? "s" : ""}`}
+                </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Leave summary modal */}
+      {showSummary && (() => {
+        const done = tasks.filter((t) => t.done);
+        const remaining = tasks.filter((t) => !t.done);
+        const timedDone = done.filter((t) => t.timeSpent > 0);
+        const elapsedDisplay = elapsedMin < 1
+          ? "less than a minute"
+          : elapsedMin === 1 ? "1 minute" : `${elapsedMin} minutes`;
+
+        function goHome() {
+          localStorage.removeItem("homeroom-session");
+          window.location.href = "/home";
+        }
+
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-6 flex flex-col gap-5">
+
+              {/* Header */}
+              <div className="text-center">
+                <div className="text-4xl mb-3">{done.length === tasks.length && tasks.length > 0 ? "🎉" : "🏠"}</div>
+                <h2 className="text-xl font-bold text-charcoal">Session wrapped</h2>
+                <p className="text-sm text-warm-gray mt-1">You were in here for {elapsedDisplay}</p>
+              </div>
+
+              {/* Stats */}
+              <div className="bg-gray-50 rounded-2xl px-4 py-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-warm-gray">Tasks completed</span>
+                  <span className="text-sm font-semibold text-charcoal">{done.length} of {tasks.length}</span>
+                </div>
+                {remaining.length > 0 && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm text-warm-gray">Still unfinished</span>
+                    <span className="text-sm font-semibold text-charcoal">{remaining.length}</span>
+                  </div>
+                )}
+              </div>
+
+              {/* Beat the time */}
+              {timedDone.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Tasks you beat the time on</p>
+                  <div className="space-y-1.5">
+                    {timedDone.map((t) => (
+                      <div key={t.id} className="flex items-center justify-between rounded-xl bg-purple-50 px-3 py-2">
+                        <span className="text-sm text-charcoal truncate flex-1 mr-3">{t.text}</span>
+                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: "#7C3AED" }}>{formatTime(t.timeSpent)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Actions */}
+              <div className="flex flex-col gap-2">
+                {remaining.length > 0 && (
+                  <button
+                    onClick={() => scheduleRemaining(remaining)}
+                    className="w-full font-semibold text-sm py-3 rounded-xl text-white"
+                    style={{ background: "#7C3AED" }}
+                  >
+                    Schedule a homeroom to finish ({remaining.length} task{remaining.length !== 1 ? "s" : ""})
+                  </button>
+                )}
+                <button
+                  onClick={goHome}
+                  className="w-full font-semibold text-sm py-3 rounded-xl border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors"
+                >
+                  Back to home
                 </button>
               </div>
             </div>
