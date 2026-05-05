@@ -10,7 +10,12 @@ const AVATAR_EMOJIS = [
   "🎸","🎨","🏋️","🧘","🌊","🏔️","🌿","🍀","🦄","👾",
 ];
 
-const ALL_USERS: { id: string; name: string; initials: string; color: string; username: string }[] = [];
+const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
+function colorFromUsername(u: string): string {
+  let h = 0;
+  for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) & 0xffffffff;
+  return USER_COLORS[Math.abs(h) % USER_COLORS.length];
+}
 
 const ALL_SQUADS: { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean }[] = [];
 
@@ -71,6 +76,7 @@ export default function ProfilePage() {
   const [usernameInput, setUsernameInput] = useState("");
   const [usernameError, setUsernameError] = useState("");
 
+  const [allRegisteredUsers, setAllRegisteredUsers] = useState<Friend[]>([]);
   const [friends, setFriends]             = useState<Friend[]>([]);
   const [pendingFriends, setPendingFriends] = useState<Friend[]>([]);
   const [joinedSquads, setJoinedSquads]   = useState<string[]>([]);
@@ -109,6 +115,19 @@ export default function ProfilePage() {
       setJoinedSquads(js ? JSON.parse(js) : []);
       const ms = localStorage.getItem("homeroom-my-squads");
       setMySquads(ms ? JSON.parse(ms) : []);
+      const reg = localStorage.getItem("homeroom-registered-users");
+      if (reg) {
+        const parsed = JSON.parse(reg) as Record<string, { username: string }>;
+        setAllRegisteredUsers(
+          Object.values(parsed).map((ru) => ({
+            id: ru.username.toLowerCase(),
+            name: ru.username,
+            initials: ru.username.slice(0, 2).toUpperCase(),
+            color: colorFromUsername(ru.username),
+            username: ru.username,
+          }))
+        );
+      }
     } catch { /* ignore */ }
   }, []);
 
@@ -238,11 +257,13 @@ export default function ProfilePage() {
     setShowCreateSquad(false);
   }
 
-  const friendResults = ALL_USERS.filter((u) =>
+  const friendResults = allRegisteredUsers.filter((u) =>
+    u.id !== username.toLowerCase() &&
     !friends.some((f) => f.id === u.id) &&
     !pendingFriends.some((f) => f.id === u.id) &&
-    (u.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
-     u.username.toLowerCase().includes(friendSearch.toLowerCase()))
+    (!friendSearch ||
+      u.name.toLowerCase().includes(friendSearch.toLowerCase()) ||
+      u.username.toLowerCase().includes(friendSearch.toLowerCase()))
   );
 
   const allSquads = [...ALL_SQUADS, ...mySquads];
