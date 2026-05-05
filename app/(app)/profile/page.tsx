@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import { saveCurrentUserState } from "@/app/(auth)/welcome/page";
 const AVATAR_EMOJIS = [
   "😊","😎","🤓","🧑‍💻","👨‍🎨","👩‍🎨","🦊","🐼","🐸","🦁",
   "🐯","🦋","🌟","⚡","🔥","💎","🎯","🚀","🌙","☀️",
@@ -138,12 +139,14 @@ export default function ProfilePage() {
     }
     setUsername(val);
     localStorage.setItem("homeroom-username", val);
+    saveCurrentUserState();
     setEditingUsername(false);
     setUsernameInput("");
     setUsernameError("");
   }
 
   function logout() {
+    saveCurrentUserState();
     const keys = [
       "homeroom-avatar", "homeroom-username", "homeroom-friends",
       "homeroom-pending-friends", "homeroom-joined-squads", "homeroom-my-squads",
@@ -157,6 +160,7 @@ export default function ProfilePage() {
   function saveAvatar(emoji: string) {
     setAvatar(emoji);
     localStorage.setItem("homeroom-avatar", emoji);
+    saveCurrentUserState();
     setShowAvatarPicker(false);
   }
 

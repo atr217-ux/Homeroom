@@ -9,80 +9,146 @@ const AVATAR_EMOJIS = [
   "🎸","🎨","🏋️","🧘","🌊","🏔️","🌿","🍀","🦄","👾",
 ];
 
+type RegisteredUser = {
+  username: string;
+  avatar: string;
+  friends: unknown[];
+  pendingFriends: unknown[];
+  joinedSquads: string[];
+  mySquads: unknown[];
+  tasks: unknown[];
+  taskHistory: unknown[];
+  scheduled: unknown[];
+};
+
+function getRegisteredUsers(): Record<string, RegisteredUser> {
+  try {
+    const raw = localStorage.getItem("homeroom-registered-users");
+    return raw ? JSON.parse(raw) : {};
+  } catch { return {}; }
+}
+
+function saveRegisteredUsers(users: Record<string, RegisteredUser>) {
+  localStorage.setItem("homeroom-registered-users", JSON.stringify(users));
+}
+
+export function saveCurrentUserState() {
+  const username = localStorage.getItem("homeroom-username");
+  if (!username) return;
+  const users = getRegisteredUsers();
+  users[username.toLowerCase()] = {
+    username,
+    avatar: localStorage.getItem("homeroom-avatar") ?? "",
+    friends: JSON.parse(localStorage.getItem("homeroom-friends") ?? "[]"),
+    pendingFriends: JSON.parse(localStorage.getItem("homeroom-pending-friends") ?? "[]"),
+    joinedSquads: JSON.parse(localStorage.getItem("homeroom-joined-squads") ?? "[]"),
+    mySquads: JSON.parse(localStorage.getItem("homeroom-my-squads") ?? "[]"),
+    tasks: JSON.parse(localStorage.getItem("homeroom-tasks") ?? "[]"),
+    taskHistory: JSON.parse(localStorage.getItem("homeroom-task-history") ?? "[]"),
+    scheduled: JSON.parse(localStorage.getItem("homeroom-scheduled") ?? "[]"),
+  };
+  saveRegisteredUsers(users);
+}
+
+function restoreUserData(user: RegisteredUser) {
+  localStorage.setItem("homeroom-username", user.username);
+  localStorage.setItem("homeroom-avatar", user.avatar);
+  localStorage.setItem("homeroom-friends", JSON.stringify(user.friends));
+  localStorage.setItem("homeroom-pending-friends", JSON.stringify(user.pendingFriends));
+  localStorage.setItem("homeroom-joined-squads", JSON.stringify(user.joinedSquads));
+  localStorage.setItem("homeroom-my-squads", JSON.stringify(user.mySquads));
+  localStorage.setItem("homeroom-tasks", JSON.stringify(user.tasks));
+  localStorage.setItem("homeroom-task-history", JSON.stringify(user.taskHistory));
+  localStorage.setItem("homeroom-scheduled", JSON.stringify(user.scheduled));
+}
+
 export default function WelcomePage() {
   const router = useRouter();
-  const [username, setUsername] = useState("");
-  const [usernameError, setUsernameError] = useState("");
-  const [avatar, setAvatar] = useState("");
-  const [step, setStep] = useState<"name" | "avatar">("name");
+
+  // "login" | "register-name" | "register-avatar"
+  const [step, setStep] = useState<"login" | "register-name" | "register-avatar">("login");
+
+  const [loginInput, setLoginInput] = useState("");
+  const [loginError, setLoginError] = useState("");
+
+  const [regUsername, setRegUsername] = useState("");
+  const [regUsernameError, setRegUsernameError] = useState("");
+  const [regAvatar, setRegAvatar] = useState("");
 
   useEffect(() => {
     const stored = localStorage.getItem("homeroom-username");
     if (stored && stored.trim()) router.replace("/home");
   }, [router]);
 
-  function getTakenUsernames(): string[] {
-    try {
-      const friends = JSON.parse(localStorage.getItem("homeroom-friends") ?? "[]");
-      const pending = JSON.parse(localStorage.getItem("homeroom-pending-friends") ?? "[]");
-      return [...friends, ...pending].map((f: { username?: string; name?: string }) =>
-        (f.username ?? f.name ?? "").toLowerCase()
-      ).filter(Boolean);
-    } catch { return []; }
-  }
+  // ── Login ──────────────────────────────────────────────────────────────────
 
-  function handleUsernameInput(raw: string) {
-    const cleaned = raw.replace(/\s/g, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 15);
-    setUsername(cleaned);
-    if (!cleaned) { setUsernameError(""); return; }
-    if (/[^a-zA-Z0-9_]/.test(raw.replace(/\s/g, ""))) {
-      setUsernameError("Only letters, numbers, and underscores");
-    } else if (getTakenUsernames().includes(cleaned.toLowerCase())) {
-      setUsernameError("That username is already taken");
-    } else {
-      setUsernameError("");
-    }
-  }
-
-  function submitName() {
-    if (!username.trim() || usernameError) return;
-    if (getTakenUsernames().includes(username.toLowerCase())) {
-      setUsernameError("That username is already taken");
+  function handleLogin() {
+    const val = loginInput.trim();
+    if (!val) return;
+    const users = getRegisteredUsers();
+    const user = users[val.toLowerCase()];
+    if (!user) {
+      setLoginError("No account found with that username.");
       return;
     }
-    setStep("avatar");
-  }
-
-  function finish(chosenAvatar: string) {
-    localStorage.setItem("homeroom-username", username.trim());
-    localStorage.setItem("homeroom-avatar", chosenAvatar);
+    restoreUserData(user);
     router.replace("/home");
   }
 
-  function skipAvatar() {
-    localStorage.setItem("homeroom-username", username.trim());
-    if (avatar) localStorage.setItem("homeroom-avatar", avatar);
+  // ── Register ───────────────────────────────────────────────────────────────
+
+  function handleRegUsernameInput(raw: string) {
+    const cleaned = raw.replace(/\s/g, "").replace(/[^a-zA-Z0-9_]/g, "").slice(0, 15);
+    setRegUsername(cleaned);
+    if (!cleaned) { setRegUsernameError(""); return; }
+    if (getRegisteredUsers()[cleaned.toLowerCase()]) {
+      setRegUsernameError("That username is already taken");
+    } else {
+      setRegUsernameError("");
+    }
+  }
+
+  function submitRegName() {
+    if (!regUsername.trim() || regUsernameError) return;
+    if (getRegisteredUsers()[regUsername.toLowerCase()]) {
+      setRegUsernameError("That username is already taken");
+      return;
+    }
+    setStep("register-avatar");
+  }
+
+  function finishRegister(chosenAvatar: string) {
+    const newUser: RegisteredUser = {
+      username: regUsername.trim(),
+      avatar: chosenAvatar,
+      friends: [], pendingFriends: [], joinedSquads: [],
+      mySquads: [], tasks: [], taskHistory: [], scheduled: [],
+    };
+    const users = getRegisteredUsers();
+    users[regUsername.toLowerCase()] = newUser;
+    saveRegisteredUsers(users);
+    restoreUserData(newUser);
     router.replace("/home");
   }
 
-  if (step === "avatar") {
+  // ── Render ─────────────────────────────────────────────────────────────────
+
+  if (step === "register-avatar") {
     return (
       <div>
         <div className="mb-8 text-center">
           <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
           <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Pick your avatar</h1>
-          <p className="text-sm text-warm-gray mt-1">
-            This will show on your profile and to friends.
-          </p>
+          <p className="text-sm text-warm-gray mt-1">This shows on your profile and to friends.</p>
         </div>
 
         <div className="grid grid-cols-6 gap-2 mb-6">
           {AVATAR_EMOJIS.map((emoji) => (
             <button
               key={emoji}
-              onClick={() => setAvatar(emoji)}
+              onClick={() => setRegAvatar(emoji)}
               className="text-2xl h-12 w-full rounded-xl flex items-center justify-center transition-colors hover:bg-gray-100"
-              style={avatar === emoji ? { background: "#EDE9FE", outline: "2px solid #7C3AED" } : {}}
+              style={regAvatar === emoji ? { background: "#EDE9FE", outline: "2px solid #7C3AED" } : {}}
             >
               {emoji}
             </button>
@@ -90,55 +156,113 @@ export default function WelcomePage() {
         </div>
 
         <button
-          onClick={() => avatar ? finish(avatar) : skipAvatar()}
+          onClick={() => finishRegister(regAvatar)}
           className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors"
         >
-          {avatar ? "Let's go" : "Skip for now"}
+          {regAvatar ? "Let's go" : "Skip for now"}
         </button>
       </div>
     );
   }
 
+  if (step === "register-name") {
+    return (
+      <div>
+        <div className="mb-8 text-center">
+          <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
+          <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Create account</h1>
+          <p className="text-sm text-warm-gray mt-1">Choose a username to get started.</p>
+        </div>
+
+        <div className="space-y-4">
+          <div>
+            <label className="block text-xs font-semibold text-charcoal mb-1.5">Username</label>
+            <div
+              className="flex items-center border rounded-xl px-3 py-2.5 bg-white"
+              style={{ borderColor: regUsernameError ? "#F87171" : "#E5E7EB" }}
+            >
+              <input
+                type="text"
+                value={regUsername}
+                onChange={(e) => handleRegUsernameInput(e.target.value)}
+                onKeyDown={(e) => e.key === "Enter" && submitRegName()}
+                placeholder="your_username"
+                maxLength={15}
+                autoFocus
+                className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
+              />
+              <span className="text-xs text-warm-gray ml-1 flex-shrink-0">{regUsername.length}/15</span>
+            </div>
+            {regUsernameError ? (
+              <p className="text-xs text-red-400 mt-1">{regUsernameError}</p>
+            ) : (
+              <p className="text-xs text-warm-gray mt-1">Letters, numbers, and underscores only</p>
+            )}
+          </div>
+
+          <button
+            onClick={submitRegName}
+            disabled={!regUsername.trim() || !!regUsernameError}
+            className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
+          >
+            Continue
+          </button>
+
+          <button
+            onClick={() => setStep("login")}
+            className="w-full text-sm text-warm-gray hover:text-charcoal transition-colors"
+          >
+            ← Back to login
+          </button>
+        </div>
+      </div>
+    );
+  }
+
+  // Default: login
   return (
     <div>
       <div className="mb-8 text-center">
         <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
-        <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Welcome.</h1>
+        <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Welcome back.</h1>
         <p className="text-sm text-warm-gray mt-1">Adulting is hard. Don&apos;t do it alone.</p>
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         <div>
-          <label className="block text-xs font-semibold text-charcoal mb-1.5">Choose a username</label>
-          <div
-            className="flex items-center border rounded-xl px-3 py-2.5 bg-white"
-            style={{ borderColor: usernameError ? "#F87171" : "#E5E7EB" }}
-          >
-            <input
-              type="text"
-              value={username}
-              onChange={(e) => handleUsernameInput(e.target.value)}
-              onKeyDown={(e) => e.key === "Enter" && submitName()}
-              placeholder="your_username"
-              maxLength={15}
-              autoFocus
-              className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
-            />
-            <span className="text-xs text-warm-gray ml-1 flex-shrink-0">{username.length}/15</span>
-          </div>
-          {usernameError ? (
-            <p className="text-xs text-red-400 mt-1">{usernameError}</p>
-          ) : (
-            <p className="text-xs text-warm-gray mt-1">Letters, numbers, and underscores only</p>
-          )}
+          <label className="block text-xs font-semibold text-charcoal mb-1.5">Username</label>
+          <input
+            type="text"
+            value={loginInput}
+            onChange={(e) => { setLoginInput(e.target.value); setLoginError(""); }}
+            onKeyDown={(e) => e.key === "Enter" && handleLogin()}
+            placeholder="your_username"
+            autoFocus
+            className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+            style={loginError ? { borderColor: "#F87171" } : {}}
+          />
+          {loginError && <p className="text-xs text-red-400 mt-1">{loginError}</p>}
         </div>
 
         <button
-          onClick={submitName}
-          disabled={!username.trim() || !!usernameError}
+          onClick={handleLogin}
+          disabled={!loginInput.trim()}
           className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
         >
-          Continue
+          Log in
+        </button>
+
+        <div className="relative flex items-center gap-3 py-1">
+          <div className="flex-1 h-px bg-gray-200" />
+          <span className="text-xs text-warm-gray flex-shrink-0">or</span>
+          <div className="flex-1 h-px bg-gray-200" />
+        </div>
+
+        <button
+          onClick={() => setStep("register-name")}
+          className="w-full border border-gray-200 text-charcoal font-semibold text-sm py-3 rounded-xl hover:border-sage hover:text-sage transition-colors"
+        >
+          Create new account
         </button>
       </div>
     </div>
