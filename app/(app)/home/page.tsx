@@ -110,12 +110,6 @@ function isoToTimeInput(iso: string): string {
   return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
 }
 
-function maxDateInput(): string {
-  const d = new Date();
-  d.setDate(d.getDate() + 14);
-  return isoToDateInput(d.toISOString());
-}
-
 function minDateInput(): string {
   return isoToDateInput(new Date().toISOString());
 }
@@ -145,21 +139,37 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
   const [confirming, setConfirming] = useState(false);
 
   return (
-    <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm font-semibold text-charcoal truncate">{session.title || "Homeroom"}</p>
-        <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-          <span className="text-xs font-medium" style={{ color: active ? "#059669" : "#7C3AED" }}>
-            {showTime ? isoTimeLabel(session.scheduledFor) : formatScheduledFor(session.scheduledFor)}
+    <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-2.5">
+      {/* Row 1: title + status badge */}
+      <div className="flex items-start justify-between gap-2">
+        <p className="text-sm font-semibold text-charcoal leading-snug">{session.title || "Homeroom"}</p>
+        {active && (
+          <span className="text-xs font-medium px-2 py-0.5 rounded-full bg-emerald-50 text-emerald-600 flex-shrink-0">
+            Ready
           </span>
-          {session.duration > 0 && <span className="text-xs text-warm-gray">· {formatDuration(session.duration)}</span>}
-          <span className="text-xs text-warm-gray">· {session.isPublic ? "Public" : "Friends only"}</span>
-          {session.tasks.length > 0 && (
-            <span className="text-xs text-warm-gray">· {session.tasks.length} task{session.tasks.length !== 1 ? "s" : ""}</span>
-          )}
-        </div>
+        )}
+      </div>
+
+      {/* Row 2: date/time + metadata chips */}
+      <div className="flex items-center gap-2 flex-wrap">
+        <span className="text-xs font-medium" style={{ color: active ? "#059669" : "#7C3AED" }}>
+          {showTime ? isoTimeLabel(session.scheduledFor) : formatScheduledFor(session.scheduledFor)}
+        </span>
+        {session.duration > 0 && (
+          <span className="text-xs text-warm-gray bg-gray-50 px-2 py-0.5 rounded-full">
+            {formatDuration(session.duration)}
+          </span>
+        )}
+        <span className="text-xs text-warm-gray bg-gray-50 px-2 py-0.5 rounded-full">
+          {session.isPublic ? "Public" : "Friends only"}
+        </span>
+        {session.tasks.length > 0 && (
+          <span className="text-xs text-warm-gray bg-gray-50 px-2 py-0.5 rounded-full">
+            {session.tasks.length} task{session.tasks.length !== 1 ? "s" : ""}
+          </span>
+        )}
         {session.invitedFriends.length > 0 && (
-          <div className="flex items-center gap-1 mt-1.5">
+          <div className="flex items-center gap-0.5">
             {session.invitedFriends.slice(0, 4).map((f) => (
               <div
                 key={f.id}
@@ -171,67 +181,65 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
               </div>
             ))}
             {session.invitedFriends.length > 4 && (
-              <span className="text-xs text-warm-gray">+{session.invitedFriends.length - 4}</span>
+              <span className="text-xs text-warm-gray ml-0.5">+{session.invitedFriends.length - 4}</span>
             )}
           </div>
         )}
       </div>
-      <div className="flex items-center gap-2 flex-shrink-0">
-        {/* Tasks pre-plan */}
-        <button
-          onClick={() => onPrepop(session)}
-          className="flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-xl border transition-colors hover:border-sage hover:text-sage"
-          style={{ borderColor: "#E5E7EB", color: "#78716C" }}
-          title="Pre-plan tasks"
-        >
-          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
-          </svg>
-          Tasks
-        </button>
-        {/* Edit — only for sessions I own */}
-        {owned && (
+
+      {/* Row 3: action buttons */}
+      {confirming ? (
+        <div className="flex items-center gap-3 pt-0.5">
+          <span className="text-xs text-warm-gray">{owned ? "Cancel homeroom?" : "Leave homeroom?"}</span>
+          <button onClick={() => onRemove(session.id)} className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors">Yes</button>
+          <button onClick={() => setConfirming(false)} className="text-xs text-warm-gray hover:text-charcoal transition-colors">No</button>
+        </div>
+      ) : (
+        <div className="flex items-center gap-2 pt-0.5">
           <button
-            onClick={() => onEdit(session)}
-            className="text-xs px-2.5 py-1.5 rounded-xl border transition-colors hover:border-sage hover:text-sage"
+            onClick={() => onPrepop(session)}
+            className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-colors hover:border-sage hover:text-sage flex-1 justify-center"
             style={{ borderColor: "#E5E7EB", color: "#78716C" }}
-            title="Edit time"
           >
-            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
             </svg>
+            Tasks
           </button>
-        )}
-        {/* Start / Join — only enabled when start time is near */}
-        <button
-          onClick={() => active && onLaunch(session)}
-          disabled={!active}
-          className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
-          style={
-            active
-              ? { borderColor: "#7C3AED", color: "#7C3AED" }
-              : { borderColor: "#E5E7EB", color: "#D1D5DB", cursor: "default" }
-          }
-          title={active ? undefined : `Available ${formatScheduledFor(session.scheduledFor)}`}
-        >
-          {owned ? "Start" : "Join"}
-        </button>
-        {confirming ? (
-          <div className="flex items-center gap-2">
-            <span className="text-xs text-warm-gray">{owned ? "Cancel homeroom?" : "Leave homeroom?"}</span>
-            <button onClick={() => onRemove(session.id)} className="text-xs font-semibold text-red-500 hover:text-red-600 transition-colors">Yes</button>
-            <button onClick={() => setConfirming(false)} className="text-xs text-warm-gray hover:text-charcoal transition-colors">No</button>
-          </div>
-        ) : (
+          {owned && (
+            <button
+              onClick={() => onEdit(session)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-colors hover:border-sage hover:text-sage flex-1 justify-center"
+              style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit
+            </button>
+          )}
+          <button
+            onClick={() => active && onLaunch(session)}
+            disabled={!active}
+            className="text-xs font-semibold px-4 py-1.5 rounded-xl border transition-colors flex-1 justify-center flex items-center"
+            style={
+              active
+                ? { borderColor: "#7C3AED", color: "#7C3AED" }
+                : { borderColor: "#E5E7EB", color: "#D1D5DB", cursor: "default" }
+            }
+            title={active ? undefined : `Available ${formatScheduledFor(session.scheduledFor)}`}
+          >
+            {owned ? "Start" : "Join"}
+          </button>
           <button
             onClick={() => setConfirming(true)}
-            className="text-xs text-warm-gray hover:text-red-400 transition-colors"
+            className="text-xs text-warm-gray hover:text-red-400 transition-colors px-1"
           >
             {owned ? "Cancel" : "Leave"}
           </button>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1202,7 +1210,6 @@ export default function HomePage() {
                   type="date"
                   value={editDate}
                   min={minDateInput()}
-                  max={maxDateInput()}
                   onChange={(e) => setEditDate(e.target.value)}
                   className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-charcoal focus:outline-none focus:border-sage bg-white"
                 />
