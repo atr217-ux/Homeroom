@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -67,7 +67,6 @@ export default function ProfilePage() {
   const router = useRouter();
   const supabase = createClient();
   const [avatar, setAvatar]                 = useState<string | null>(null);
-  const [hoveringAvatar, setHoveringAvatar] = useState(false);
   const [showAvatarPicker, setShowAvatarPicker] = useState(false);
 
   const [username, setUsername]           = useState("your_username");
@@ -95,6 +94,15 @@ export default function ProfilePage() {
   const [newSquadPrivate, setNewSquadPrivate] = useState(false);
 
   const [removingId, setRemovingId] = useState<string | null>(null);
+  const [revealedId, setRevealedId] = useState<string | null>(null);
+  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  function startLongPress(id: string) {
+    longPressRef.current = setTimeout(() => setRevealedId(id), 400);
+  }
+  function endLongPress() {
+    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+  }
 
   const [inviteSquadId, setInviteSquadId]         = useState<string | null>(null);
   const [inviteSearch, setInviteSearch]             = useState("");
@@ -389,8 +397,6 @@ export default function ProfilePage() {
       <div className="text-center mb-8">
         <div
           className="relative w-20 h-20 mx-auto mb-3 cursor-pointer"
-          onMouseEnter={() => setHoveringAvatar(true)}
-          onMouseLeave={() => setHoveringAvatar(false)}
           onClick={() => setShowAvatarPicker(true)}
         >
           <div
@@ -399,14 +405,15 @@ export default function ProfilePage() {
           >
             {avatar ?? <span className="text-white text-2xl font-bold">?</span>}
           </div>
-          {hoveringAvatar && (
-            <div className="absolute inset-0 rounded-full flex items-center justify-center" style={{ background: "rgba(0,0,0,0.35)" }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </div>
-          )}
+          <div
+            className="absolute inset-0 rounded-full flex items-center justify-center transition-opacity sm:opacity-0 sm:hover:opacity-100"
+            style={{ background: "rgba(0,0,0,0.35)" }}
+          >
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </div>
         </div>
         {editingUsername ? (
           <div className="mt-1">
@@ -562,7 +569,13 @@ export default function ProfilePage() {
           <h2 className="text-sm font-semibold text-charcoal mb-3">Sent · {outgoingRequests.length}</h2>
           <div className="space-y-2">
             {outgoingRequests.map((f) => (
-              <div key={f.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group">
+              <div
+                key={f.id}
+                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group"
+                onTouchStart={() => startLongPress(f.id)}
+                onTouchEnd={endLongPress}
+                onTouchMove={endLongPress}
+              >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
                   style={{ background: f.color }}
@@ -575,8 +588,8 @@ export default function ProfilePage() {
                 </div>
                 <span className="text-xs text-warm-gray border border-gray-200 rounded-full px-2.5 py-1 flex-shrink-0">Requested</span>
                 <button
-                  onClick={() => cancelRequest(f.id)}
-                  className="opacity-0 group-hover:opacity-100 text-xs text-warm-gray hover:text-red-400 transition-all flex-shrink-0"
+                  onClick={() => { cancelRequest(f.id); setRevealedId(null); }}
+                  className={`text-xs text-warm-gray hover:text-red-400 transition-all flex-shrink-0 ${revealedId === f.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                 >
                   Cancel
                 </button>
@@ -598,7 +611,13 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-2">
             {friends.map((f) => (
-              <div key={f.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group">
+              <div
+                key={f.id}
+                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group"
+                onTouchStart={() => startLongPress(f.id)}
+                onTouchEnd={endLongPress}
+                onTouchMove={endLongPress}
+              >
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
                   style={{ background: f.color }}
@@ -617,8 +636,8 @@ export default function ProfilePage() {
                   </div>
                 ) : (
                   <button
-                    onClick={() => setRemovingId(f.id)}
-                    className="opacity-0 group-hover:opacity-100 text-xs text-warm-gray hover:text-red-400 transition-all"
+                    onClick={() => { setRemovingId(f.id); setRevealedId(null); }}
+                    className={`text-xs text-warm-gray hover:text-red-400 transition-all ${revealedId === f.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
                   >
                     Remove
                   </button>
