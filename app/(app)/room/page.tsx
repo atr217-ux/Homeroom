@@ -30,8 +30,6 @@ type Session = {
   sessionStartTime?: number;
   squadTags?: string[];
 };
-type FeedItem = { id: string; text: string; time: Date };
-
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -46,7 +44,6 @@ export default function RoomPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskInput, setTaskInput] = useState("");
   const [tick, setTick] = useState(0);
-  const [feed, setFeed] = useState<FeedItem[]>([]);
   const [chatMessages, setChatMessages] = useState<{ id: string; type: "chat" | "activity"; text: string; sender: string; time: Date; reactions: string[] }[]>([]);
   const [chatInput, setChatInput] = useState("");
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
@@ -58,7 +55,6 @@ export default function RoomPage() {
   const [listPickerSearch, setListPickerSearch]   = useState("");
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
-  const [feedExpanded, setFeedExpanded]           = useState(false);
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
   const [participantData, setParticipantData]     = useState<Record<string, { tasks: { id: string; text: string; done: boolean }[]; sharing: boolean }>>({});
   const [expandedCards, setExpandedCards]         = useState<Set<string>>(new Set());
@@ -85,10 +81,6 @@ export default function RoomPage() {
       });
       return { ...m, reactions: has ? m.reactions.filter((e) => e !== emoji) : [...m.reactions, emoji] };
     }));
-  }
-
-  function pushFeed(text: string) {
-    setFeed((prev) => [{ id: crypto.randomUUID(), text, time: new Date() }, ...prev]);
   }
 
   // Global tick every second so running timers re-render
@@ -130,8 +122,6 @@ export default function RoomPage() {
         const sid = s.sessionId;
         if (sid) {
           try {
-            const savedFeed = localStorage.getItem(`homeroom-feed-${sid}`);
-            if (savedFeed) setFeed(JSON.parse(savedFeed).map((i: { id: string; text: string; time: string }) => ({ ...i, time: new Date(i.time) })));
             const savedChat = localStorage.getItem(`homeroom-chat-${sid}`);
             if (savedChat) setChatMessages(JSON.parse(savedChat).map((m: { id: string; type: "chat" | "activity"; text: string; sender: string; time: string; reactions: string[] }) => ({ ...m, time: new Date(m.time) })));
           } catch { /* ignore */ }
@@ -198,10 +188,6 @@ export default function RoomPage() {
           if (!payload.added && has) return { ...m, reactions: m.reactions.filter((e) => e !== payload.emoji) };
           return m;
         }));
-        // Notify the task author in their personal feed
-        if (payload.added && payload.msgSender === me) {
-          pushFeed(`${payload.reactor} reacted ${payload.emoji} to "${payload.msgText}"`);
-        }
       })
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
@@ -258,8 +244,6 @@ export default function RoomPage() {
   }
 
   function startTimer(id: string) {
-    const target = tasks.find((t) => t.id === id);
-    if (target) pushFeed(`▶ Started ${target.text}`);
     setTasks((prev) => prev.map((t) => {
       if (t.id === id) return { ...t, startedAt: Date.now() };
       if (t.startedAt !== null) return { ...t, timeSpent: getElapsed(t), startedAt: null };
@@ -268,8 +252,6 @@ export default function RoomPage() {
   }
 
   function stopTimer(id: string) {
-    const target = tasks.find((t) => t.id === id);
-    if (target) pushFeed(`⏸ Paused ${target.text} · ${formatTime(getElapsed(target))}`);
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
@@ -280,8 +262,6 @@ export default function RoomPage() {
     if (!task) return;
     const timeSpent = getElapsed(task);
     if (!task.done) {
-      const feedText = timeSpent > 0 ? `Finished ${task.text} · ${formatTime(timeSpent)}` : `Finished ${task.text}`;
-      pushFeed(feedText);
       const activityMsg = { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsernameRef.current || myUsername, time: new Date(), reactions: [] };
       setChatMessages((prev) => [...prev, activityMsg]);
       realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...activityMsg, time: activityMsg.time.toISOString() } });
@@ -348,7 +328,6 @@ export default function RoomPage() {
         }
       } catch { /* ignore */ }
     } else {
-      pushFeed(`↩ Reopened "${task.text}"`);
       // Un-complete in My List so it shows up again
       try {
         const listRaw = localStorage.getItem("homeroom-tasks");
@@ -412,7 +391,6 @@ export default function RoomPage() {
   function addTask() {
     const text = taskInput.trim();
     if (!text) return;
-    pushFeed(`＋ Added "${text}"`);
     setTasks((prev) => [...prev, { id: crypto.randomUUID(), text, done: false, timeSpent: 0, startedAt: null }]);
     setTaskInput("");
   }
@@ -484,12 +462,7 @@ export default function RoomPage() {
     } catch { /* ignore */ }
   }, [tasks]);
 
-  // Persist feed and chat keyed by sessionId
-  useEffect(() => {
-    if (!session?.sessionId) return;
-    try { localStorage.setItem(`homeroom-feed-${session.sessionId}`, JSON.stringify(feed)); } catch { /* ignore */ }
-  }, [feed, session?.sessionId]);
-
+  // Persist chat keyed by sessionId
   useEffect(() => {
     if (!session?.sessionId) return;
     try { localStorage.setItem(`homeroom-chat-${session.sessionId}`, JSON.stringify(chatMessages)); } catch { /* ignore */ }
@@ -806,33 +779,6 @@ export default function RoomPage() {
               )}
             </div>
 
-            {/* Personal feed — stacked below tasks, max 3 items with expand */}
-            {feed.length > 0 && (
-              <div className="mt-4 pt-3 border-t border-gray-100">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide">Your feed</p>
-                  {feed.length > 3 && (
-                    <button
-                      onClick={() => setFeedExpanded(v => !v)}
-                      className="text-xs font-medium"
-                      style={{ color: "#7C3AED" }}
-                    >
-                      {feedExpanded ? "Show less" : `See all ${feed.length}`}
-                    </button>
-                  )}
-                </div>
-                <div className="space-y-2">
-                  {(feedExpanded ? feed : feed.slice(0, 3)).map((item) => (
-                    <div key={item.id}>
-                      <p className="text-xs text-charcoal leading-snug">{item.text}</p>
-                      <p className="text-xs text-warm-gray">
-                        {item.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                      </p>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
           </div>
         </div>
 
@@ -993,16 +939,53 @@ export default function RoomPage() {
           )}
 
           {session?.isPublic && (
-            <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-48 overflow-y-auto">
+            <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
               {chatMessages.filter((m) => m.type === "activity").length === 0 ? (
                 <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
               ) : [...chatMessages].filter((m) => m.type === "activity").reverse().map((msg) => {
                 const label = showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
                 return (
-                  <div key={msg.id} className="flex items-center gap-2 w-full">
-                    <div className="h-px flex-1 bg-gray-100" />
-                    <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
-                    <div className="h-px flex-1 bg-gray-100" />
+                  <div
+                    key={msg.id}
+                    className="flex flex-col items-center gap-1 py-0.5"
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId(null)}
+                  >
+                    <div className="flex items-center gap-2 w-full">
+                      <div className="h-px flex-1 bg-gray-100" />
+                      <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
+                      <div className="h-px flex-1 bg-gray-100" />
+                    </div>
+                    {hoveredMsgId === msg.id && (
+                      <div className="flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm">
+                        {REACTION_EMOJIS.map((emoji) => {
+                          const reacted = msg.reactions.includes(emoji);
+                          return (
+                            <button
+                              key={emoji}
+                              onClick={() => toggleReaction(msg.id, emoji)}
+                              className="text-base transition-transform hover:scale-125"
+                              style={{ opacity: reacted ? 1 : 0.5 }}
+                            >
+                              {emoji}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                    {msg.reactions.length > 0 && (
+                      <div className="flex gap-1 flex-wrap justify-center">
+                        {msg.reactions.map((emoji) => (
+                          <button
+                            key={emoji}
+                            onClick={() => toggleReaction(msg.id, emoji)}
+                            className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors"
+                          >
+                            {emoji}
+                          </button>
+                        ))}
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -1198,7 +1181,6 @@ export default function RoomPage() {
 
         function addSelected() {
           const toAdd = myListTasks.filter((t) => selectedListIds.includes(t.id));
-          toAdd.forEach((t) => pushFeed(`＋ Added ${t.text} from list`));
           setTasks((prev) => [
             ...prev,
             ...toAdd.map((t) => ({ id: crypto.randomUUID(), text: t.text, done: false, timeSpent: 0, startedAt: null })),
@@ -1322,7 +1304,6 @@ export default function RoomPage() {
           const sid = session?.sessionId;
           localStorage.removeItem("homeroom-session");
           if (sid) {
-            localStorage.removeItem(`homeroom-feed-${sid}`);
             localStorage.removeItem(`homeroom-chat-${sid}`);
           }
           window.location.href = "/home";
