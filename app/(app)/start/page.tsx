@@ -273,157 +273,149 @@ export default function StartPage() {
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
       {/* Header */}
-      <div className="pt-6 pb-4 flex items-center gap-3">
+      <div className="pt-6 pb-6 flex items-center gap-3">
         <Link href="/list" className="text-warm-gray hover:text-charcoal">
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
         </Link>
-        <h1 className="font-bold text-lg text-charcoal">Start a Homeroom</h1>
+        <h1 className="font-bold text-xl text-charcoal">Start a Homeroom</h1>
       </div>
 
-      {/* Two-column: left = settings, right = when */}
-      <div className="flex gap-4 mb-5">
-        {/* Left: status + duration + visibility */}
-        <div className="flex-1 min-w-0">
-          {/* Status */}
-          <div className="mb-5">
-            <div className="flex items-center gap-2">
-              <span className="text-sm font-semibold text-charcoal whitespace-nowrap">I am</span>
+      {/* Status */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-charcoal mb-2">What are you doing?</label>
+        <input
+          type="text"
+          value={status}
+          onChange={(e) => setStatus(e.target.value)}
+          placeholder="Short description of what you're trying to accomplish"
+          className="w-full text-sm border border-gray-200 rounded-xl px-3 py-3 bg-cream text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+        />
+        <p className="text-xs text-warm-gray mt-1.5">Will be shared as the title of your homeroom</p>
+      </div>
+
+      {/* When */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-charcoal mb-2">When?</label>
+        <div className="flex gap-2">
+          {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).map((opt) => (
+            <button
+              key={opt.value}
+              onClick={() => setScheduleMode(opt.value)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
+              style={scheduleMode === opt.value
+                ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
+                : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+            >
+              {opt.label}
+            </button>
+          ))}
+        </div>
+        {scheduleMode === "later" && (
+          <div className="mt-3 flex gap-3">
+            <div className="flex-1">
+              <label className="text-xs text-warm-gray mb-1 block">Date</label>
               <input
-                type="text"
-                value={status}
-                onChange={(e) => setStatus(e.target.value)}
-                placeholder="short description of what you're trying to accomplish"
-                className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+                type="date"
+                min={todayStr}
+                max={maxDateStr}
+                value={scheduleDate}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal focus:outline-none focus:border-sage transition-colors"
               />
             </div>
-            <p className="text-xs text-warm-gray mt-1.5 ml-9">Will be shared as title of homeroom</p>
-          </div>
-
-          {/* Duration */}
-          <div className="mb-5">
-            <label className="block text-sm font-semibold text-charcoal mb-3">How long are you committing?</label>
-            <div className="flex items-center gap-3">
-              <div className="flex flex-col items-center gap-1">
+            <div className="flex-1">
+              <label className="text-xs text-warm-gray mb-1 block">Time</label>
+              <div className="flex items-center gap-1.5">
+                <input
+                  type="number"
+                  min="1"
+                  max="12"
+                  value={scheduleHour}
+                  onChange={(e) => setScheduleHour(e.target.value)}
+                  placeholder="12"
+                  className="w-14 text-center text-base font-semibold border-2 rounded-xl px-1 py-2 focus:outline-none"
+                  style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
+                />
+                <span className="text-base font-semibold text-charcoal">:</span>
                 <input
                   type="number"
                   min="0"
-                  max="23"
-                  value={durationHours}
-                  onChange={(e) => setDurationHours(e.target.value)}
-                  placeholder="0"
-                  className="w-16 text-center text-xl font-semibold border-2 rounded-xl px-2 py-2 focus:outline-none"
+                  max="55"
+                  step="5"
+                  value={scheduleMinute}
+                  onChange={(e) => setScheduleMinute(e.target.value)}
+                  placeholder="00"
+                  className="w-14 text-center text-base font-semibold border-2 rounded-xl px-1 py-2 focus:outline-none"
                   style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
                 />
-                <span className="text-xs text-warm-gray">hours</span>
-              </div>
-              <span className="text-xl font-semibold text-charcoal pb-4">:</span>
-              <div className="flex flex-col items-center gap-1">
-                <input
-                  type="number"
-                  min="0"
-                  max="59"
-                  value={durationMinutes}
-                  onChange={(e) => setDurationMinutes(e.target.value)}
-                  placeholder="0"
-                  className="w-16 text-center text-xl font-semibold border-2 rounded-xl px-2 py-2 focus:outline-none"
-                  style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
-                />
-                <span className="text-xs text-warm-gray">minutes</span>
-              </div>
-              {finalDuration > 0 && (
-                <span className="text-sm text-warm-gray pb-4">{finalDuration} min</span>
-              )}
-            </div>
-          </div>
-
-          {/* Visibility */}
-          <div>
-            <label className="block text-sm font-semibold text-charcoal mb-3">Who can join?</label>
-            <div className="flex gap-2 flex-wrap">
-              {[{ label: "Public", value: true }, { label: "Friends only", value: false }].map((opt) => (
                 <button
-                  key={opt.label}
-                  onClick={() => setIsPublic(opt.value)}
-                  className="px-4 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                  style={isPublic === opt.value
-                    ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
-                    : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+                  onClick={() => setSchedulePeriod((p) => p === "AM" ? "PM" : "AM")}
+                  className="text-sm font-semibold px-2.5 py-2 rounded-xl border-2 transition-colors"
+                  style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
                 >
-                  {opt.label}
+                  {schedulePeriod}
                 </button>
-              ))}
+              </div>
             </div>
           </div>
-        </div>
+        )}
+      </div>
 
-        {/* Right: when */}
-        <div className="w-40 flex-shrink-0">
-          <label className="block text-sm font-semibold text-charcoal mb-3">When?</label>
-          <div className="flex flex-col gap-2 mb-3">
-            {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).map((opt) => (
-              <button
-                key={opt.value}
-                onClick={() => setScheduleMode(opt.value)}
-                className="w-full px-3 py-1.5 rounded-full text-sm font-medium border transition-colors text-left"
-                style={scheduleMode === opt.value
-                  ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
-                  : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
-              >
-                {opt.label}
-              </button>
-            ))}
+      {/* Duration */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-charcoal mb-3">How long are you committing?</label>
+        <div className="flex items-center gap-3">
+          <div className="flex flex-col items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              max="23"
+              value={durationHours}
+              onChange={(e) => setDurationHours(e.target.value)}
+              placeholder="0"
+              className="w-20 text-center text-xl font-semibold border-2 rounded-xl px-2 py-2.5 focus:outline-none"
+              style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
+            />
+            <span className="text-xs text-warm-gray">hours</span>
           </div>
-          {scheduleMode === "later" && (
-            <div className="flex flex-col gap-2">
-              <div>
-                <label className="text-xs text-warm-gray mb-1 block">Date</label>
-                <input
-                  type="date"
-                  min={todayStr}
-                  max={maxDateStr}
-                  value={scheduleDate}
-                  onChange={(e) => setScheduleDate(e.target.value)}
-                  className="w-full text-xs border border-gray-200 rounded-lg px-2 py-1.5 bg-cream text-charcoal focus:outline-none focus:border-sage transition-colors"
-                />
-              </div>
-              <div>
-                <label className="text-xs text-warm-gray mb-1 block">Time</label>
-                <div className="flex items-center gap-1">
-                  <input
-                    type="number"
-                    min="1"
-                    max="12"
-                    value={scheduleHour}
-                    onChange={(e) => setScheduleHour(e.target.value)}
-                    placeholder="12"
-                    className="w-12 text-center text-base font-semibold border-2 rounded-lg px-1 py-1.5 focus:outline-none"
-                    style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
-                  />
-                  <span className="text-base font-semibold text-charcoal">:</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="55"
-                    step="5"
-                    value={scheduleMinute}
-                    onChange={(e) => setScheduleMinute(e.target.value)}
-                    placeholder="00"
-                    className="w-12 text-center text-base font-semibold border-2 rounded-lg px-1 py-1.5 focus:outline-none"
-                    style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
-                  />
-                  <button
-                    onClick={() => setSchedulePeriod((p) => p === "AM" ? "PM" : "AM")}
-                    className="text-xs font-semibold px-2 py-1.5 rounded-lg border-2 transition-colors"
-                    style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
-                  >
-                    {schedulePeriod}
-                  </button>
-                </div>
-              </div>
-            </div>
+          <span className="text-xl font-semibold text-charcoal pb-5">:</span>
+          <div className="flex flex-col items-center gap-1">
+            <input
+              type="number"
+              min="0"
+              max="59"
+              value={durationMinutes}
+              onChange={(e) => setDurationMinutes(e.target.value)}
+              placeholder="0"
+              className="w-20 text-center text-xl font-semibold border-2 rounded-xl px-2 py-2.5 focus:outline-none"
+              style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
+            />
+            <span className="text-xs text-warm-gray">minutes</span>
+          </div>
+          {finalDuration > 0 && (
+            <span className="text-sm text-warm-gray pb-5">{finalDuration} min</span>
           )}
+        </div>
+      </div>
+
+      {/* Visibility */}
+      <div className="mb-6">
+        <label className="block text-sm font-semibold text-charcoal mb-2">Who can join?</label>
+        <div className="flex gap-2">
+          {[{ label: "Public", value: true }, { label: "Friends only", value: false }].map((opt) => (
+            <button
+              key={opt.label}
+              onClick={() => setIsPublic(opt.value)}
+              className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
+              style={isPublic === opt.value
+                ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
+                : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+            >
+              {opt.label}
+            </button>
+          ))}
         </div>
       </div>
 
