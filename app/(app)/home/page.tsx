@@ -649,7 +649,9 @@ export default function HomePage() {
   }
 
   function launchScheduled(session: ScheduledSession) {
+    const liveSessionId = session.id ?? crypto.randomUUID();
     localStorage.setItem("homeroom-session", JSON.stringify({
+      sessionId: liveSessionId,
       title: session.title,
       duration: session.duration,
       isPublic: session.isPublic,
