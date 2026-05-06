@@ -110,6 +110,16 @@ export default function RoomPage() {
         setSession(s);
         setTasks(s.tasks.map((t) => ({ id: t.id, text: t.text, done: t.done ?? false, timeSpent: t.timeSpent ?? 0, startedAt: t.startedAt ?? null })));
         tasksInitializedRef.current = true;
+        // Restore persisted feed and chat for this session
+        const sid = s.sessionId;
+        if (sid) {
+          try {
+            const savedFeed = localStorage.getItem(`homeroom-feed-${sid}`);
+            if (savedFeed) setFeed(JSON.parse(savedFeed).map((i: { id: string; text: string; time: string }) => ({ ...i, time: new Date(i.time) })));
+            const savedChat = localStorage.getItem(`homeroom-chat-${sid}`);
+            if (savedChat) setChatMessages(JSON.parse(savedChat).map((m: { id: string; type: "chat" | "activity"; text: string; sender: string; time: string; reactions: string[] }) => ({ ...m, time: new Date(m.time) })));
+          } catch { /* ignore */ }
+        }
       }
       const listStored = localStorage.getItem("homeroom-tasks");
       if (listStored) setMyListTasks(JSON.parse(listStored));
@@ -348,6 +358,17 @@ export default function RoomPage() {
       localStorage.setItem("homeroom-session", JSON.stringify({ ...s, tasks }));
     } catch { /* ignore */ }
   }, [tasks]);
+
+  // Persist feed and chat keyed by sessionId
+  useEffect(() => {
+    if (!session?.sessionId) return;
+    try { localStorage.setItem(`homeroom-feed-${session.sessionId}`, JSON.stringify(feed)); } catch { /* ignore */ }
+  }, [feed, session?.sessionId]);
+
+  useEffect(() => {
+    if (!session?.sessionId) return;
+    try { localStorage.setItem(`homeroom-chat-${session.sessionId}`, JSON.stringify(chatMessages)); } catch { /* ignore */ }
+  }, [chatMessages, session?.sessionId]);
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
@@ -1005,7 +1026,12 @@ export default function RoomPage() {
             const supabase = createClient();
             await supabase.from("active_sessions").delete().eq("session_id", session.sessionId);
           }
+          const sid = session?.sessionId;
           localStorage.removeItem("homeroom-session");
+          if (sid) {
+            localStorage.removeItem(`homeroom-feed-${sid}`);
+            localStorage.removeItem(`homeroom-chat-${sid}`);
+          }
           window.location.href = "/home";
         }
 
