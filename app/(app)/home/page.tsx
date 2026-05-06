@@ -55,6 +55,12 @@ type ListTask = {
 
 // ── Helpers ─────────────────────────────────────────────────────────────────
 
+function cleanTitle(title: string, hostUsername: string): string {
+  const prefix = `${hostUsername} is `;
+  if (title.startsWith(prefix)) return title.slice(prefix.length);
+  return title;
+}
+
 function formatScheduledFor(iso: string): string {
   const d = new Date(iso);
   const now = new Date();
@@ -621,7 +627,7 @@ export default function HomePage() {
   function joinPublicRoom(room: PublicActiveRoom) {
     localStorage.setItem("homeroom-session", JSON.stringify({
       sessionId: room.session_id,
-      title: `${room.host_username} is ${room.title}`,
+      title: room.title,
       duration: room.duration,
       isPublic: true,
       tasks: [],
@@ -984,6 +990,8 @@ export default function HomePage() {
 
       {/* Active session */}
       {activeSession && (() => {
+        const myUsername = localStorage.getItem("homeroom-username") ?? "";
+        const displayTitle = cleanTitle(activeSession.title || "Homeroom", myUsername);
         const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
         const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
         const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
@@ -995,7 +1003,7 @@ export default function HomePage() {
             <div className="bg-white rounded-2xl border border-purple-100 px-4 py-3">
               <div className="flex items-center justify-between mb-2">
                 <div>
-                  <p className="text-sm font-semibold text-charcoal">{activeSession.title || "Homeroom"}</p>
+                  <p className="text-sm font-semibold text-charcoal">{displayTitle}</p>
                   {remainingSec !== null && remainingSec > 0 ? (
                     <p className="text-xs text-warm-gray mt-0.5">{remMin}:{String(remSec).padStart(2, "0")} remaining</p>
                   ) : remainingSec === 0 ? (
@@ -1120,36 +1128,60 @@ export default function HomePage() {
         <div className="space-y-3">
           {/* Own active session card */}
           {activeSession?.isPublic && (() => {
-            const myUsername = typeof window !== "undefined" ? localStorage.getItem("homeroom-username") ?? "You" : "You";
+            const myUsername = localStorage.getItem("homeroom-username") ?? "You";
+            const ownDisplayTitle = cleanTitle(activeSession.title || "Homeroom", myUsername);
             const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
             const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
             const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
             const remSec = remainingSec !== null ? remainingSec % 60 : null;
             const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
+            const ownSessionId = activeSession.sessionId ?? "";
+            const participants = roomParticipants[ownSessionId] ?? [];
+            const friendSet = new Set(friends.map(f => f.name));
+            const friendsInRoom = participants.filter(u => friendSet.has(u) && u !== myUsername);
+            const expanded = expandedRooms.has(ownSessionId);
             return (
               <div className="bg-white rounded-2xl border border-purple-100 overflow-hidden">
-                <div className="px-4 py-3">
+                <div
+                  className="px-4 py-3 cursor-pointer"
+                  onClick={() => setExpandedRooms(prev => { const n = new Set(prev); n.has(ownSessionId) ? n.delete(ownSessionId) : n.add(ownSessionId); return n; })}
+                >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                        <p className="text-sm font-semibold text-charcoal truncate">{activeSession.title || "Homeroom"}</p>
+                        <p className="text-sm font-semibold text-charcoal truncate">{ownDisplayTitle}</p>
                       </div>
                       <p className="text-xs text-warm-gray mt-0.5">@{myUsername} · your room</p>
-                      <div className="flex items-center gap-2 mt-1.5">
+                      <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         {remainingSec !== null && remainingSec > 0
                           ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
                           : activeSession.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
                           : <span className="text-xs text-warm-gray">No time limit</span>}
+                        {participants.length > 0 && (
+                          <span className="text-xs text-warm-gray">{participants.length} in room</span>
+                        )}
+                        {friendsInRoom.length > 0 && (
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                            {friendsInRoom.length} friend{friendsInRoom.length !== 1 ? "s" : ""}
+                          </span>
+                        )}
+
                       </div>
                     </div>
-                    <Link
-                      href="/room"
-                      className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white ml-3 flex-shrink-0 transition-opacity hover:opacity-80"
-                      style={{ background: "#7C3AED" }}
-                    >
-                      Rejoin
-                    </Link>
+                    <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                      <Link
+                        href="/room"
+                        onClick={(e) => e.stopPropagation()}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                        style={{ background: "#7C3AED" }}
+                      >
+                        Rejoin
+                      </Link>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                        <path d="M6 9l6 6 6-6" />
+                      </svg>
+                    </div>
                   </div>
                   {activeSession.duration > 0 && (
                     <div className="bg-gray-100 rounded-full h-1 mt-2.5">
@@ -1157,6 +1189,33 @@ export default function HomePage() {
                     </div>
                   )}
                 </div>
+                {expanded && (
+                  <div className="border-t border-gray-50 px-4 py-3">
+                    {participants.length === 0 ? (
+                      <p className="text-xs text-warm-gray italic">No other participants yet.</p>
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {participants.map(uname => (
+                          <div key={uname} className="flex items-center gap-1.5">
+                            <div
+                              className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                              style={{ background: colorFromUsername(uname), fontSize: "10px", fontWeight: 600 }}
+                            >
+                              {uname.slice(0, 2).toUpperCase()}
+                            </div>
+                            <span className="text-xs text-charcoal font-medium">{uname}</span>
+                            {friendSet.has(uname) && uname !== myUsername && (
+                              <span className="text-xs text-sage font-semibold">friend</span>
+                            )}
+                            {uname === myUsername && (
+                              <span className="text-xs text-warm-gray">you</span>
+                            )}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </div>
             );
           })()}
