@@ -264,8 +264,39 @@ export default function RoomPage() {
           ));
         }
       } catch { /* ignore */ }
+
+      // Mark done in My List (match by ID for list tasks, or text for ad-hoc tasks)
+      try {
+        const listRaw = localStorage.getItem("homeroom-tasks");
+        if (listRaw) {
+          const listTasks = JSON.parse(listRaw);
+          localStorage.setItem("homeroom-tasks", JSON.stringify(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            listTasks.map((lt: any) =>
+              (lt.id === id || lt.text?.toLowerCase() === task.text.toLowerCase())
+                ? { ...lt, done: true }
+                : lt
+            )
+          ));
+        }
+      } catch { /* ignore */ }
     } else {
       pushFeed(`↩ Reopened "${task.text}"`);
+      // Un-complete in My List so it shows up again
+      try {
+        const listRaw = localStorage.getItem("homeroom-tasks");
+        if (listRaw) {
+          const listTasks = JSON.parse(listRaw);
+          localStorage.setItem("homeroom-tasks", JSON.stringify(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            listTasks.map((lt: any) =>
+              (lt.id === id || lt.text?.toLowerCase() === task.text.toLowerCase())
+                ? { ...lt, done: false }
+                : lt
+            )
+          ));
+        }
+      } catch { /* ignore */ }
     }
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, done: !t.done, timeSpent, startedAt: null } : t
