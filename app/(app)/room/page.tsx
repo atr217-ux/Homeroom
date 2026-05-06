@@ -49,6 +49,8 @@ export default function RoomPage() {
   const [editingTaskText, setEditingTaskText] = useState("");
   const [showListPicker, setShowListPicker]       = useState(false);
   const [listPickerSearch, setListPickerSearch]   = useState("");
+  const [tasksCollapsed, setTasksCollapsed]       = useState(false);
+  const [feedExpanded, setFeedExpanded]           = useState(false);
   const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
   const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
 
@@ -406,7 +408,19 @@ export default function RoomPage() {
                 <span className="ml-1.5 text-xs text-warm-gray">{elapsedMin} / {duration} min</span>
               </div>
             </div>
+            <div className="flex items-center gap-2">
               <span className="text-xs text-warm-gray">{doneTasks}/{tasks.length} tasks</span>
+              <button
+                onClick={() => setTasksCollapsed(v => !v)}
+                className="text-warm-gray p-1 transition-transform duration-200"
+                style={{ transform: tasksCollapsed ? "rotate(-90deg)" : "rotate(0deg)" }}
+                title={tasksCollapsed ? "Expand tasks" : "Collapse tasks"}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            </div>
           </div>
 
           <div className="bg-gray-100 rounded-full h-1.5 mb-3" title={duration > 0 ? `${remainingMin}:${String(remainingSs).padStart(2,"0")} remaining` : undefined}>
@@ -434,7 +448,10 @@ export default function RoomPage() {
                 <div className="text-sm text-warm-gray text-center py-4">No tasks added yet.</div>
               ) : (
                 <div className="space-y-2 mb-3">
-                  {tasks.map((t) => {
+                  {(tasksCollapsed
+                    ? [tasks.find(t => t.startedAt !== null) ?? tasks.find(t => !t.done) ?? tasks[0]]
+                    : tasks
+                  ).filter(Boolean).map((t) => {
                     const elapsed = getElapsed(t);
                     const running = t.startedAt !== null;
                     return (
@@ -518,7 +535,17 @@ export default function RoomPage() {
                 </div>
               )}
 
-              <div className="flex items-center gap-2 mt-2">
+              {tasksCollapsed && tasks.filter(t => !t.done).length > 1 && (
+                <button
+                  onClick={() => setTasksCollapsed(false)}
+                  className="text-xs text-warm-gray mt-1 mb-2"
+                  style={{ color: "#7C3AED" }}
+                >
+                  + {tasks.filter(t => !t.done).length - 1} more task{tasks.filter(t => !t.done).length - 1 !== 1 ? "s" : ""}
+                </button>
+              )}
+
+              {!tasksCollapsed && <div className="flex items-center gap-2 mt-2">
                 <input
                   type="text"
                   value={taskInput}
@@ -532,28 +559,41 @@ export default function RoomPage() {
                     <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
                   </svg>
                 </button>
-              </div>
+              </div>}
 
               {/* Add from list */}
-              <button
-                onClick={() => { setShowListPicker(true); setListPickerSearch(""); setSelectedListIds([]); }}
-                className="mt-2 w-full text-xs text-warm-gray hover:text-sage flex items-center gap-1.5 transition-colors"
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" />
-                  <line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" />
-                  <line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-                </svg>
-                Add task from list
-              </button>
+              {!tasksCollapsed && (
+                <button
+                  onClick={() => { setShowListPicker(true); setListPickerSearch(""); setSelectedListIds([]); }}
+                  className="mt-2 w-full text-xs text-warm-gray hover:text-sage flex items-center gap-1.5 transition-colors"
+                >
+                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" />
+                    <line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" />
+                    <line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
+                  </svg>
+                  Add task from list
+                </button>
+              )}
             </div>
 
-            {/* Personal feed — stacked below tasks */}
+            {/* Personal feed — stacked below tasks, max 3 items with expand */}
             {feed.length > 0 && (
               <div className="mt-4 pt-3 border-t border-gray-100">
-                <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Your feed</p>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide">Your feed</p>
+                  {feed.length > 3 && (
+                    <button
+                      onClick={() => setFeedExpanded(v => !v)}
+                      className="text-xs font-medium"
+                      style={{ color: "#7C3AED" }}
+                    >
+                      {feedExpanded ? "Show less" : `See all ${feed.length}`}
+                    </button>
+                  )}
+                </div>
                 <div className="space-y-2">
-                  {feed.map((item) => (
+                  {(feedExpanded ? feed : feed.slice(0, 3)).map((item) => (
                     <div key={item.id}>
                       <p className="text-xs text-charcoal leading-snug">{item.text}</p>
                       <p className="text-xs text-warm-gray">
