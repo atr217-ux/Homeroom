@@ -313,8 +313,8 @@ export default function StartPage() {
           ))}
         </div>
         {scheduleMode === "later" && (
-          <div className="mt-3 flex gap-3">
-            <div className="flex-1">
+          <div className="mt-3 space-y-3">
+            <div>
               <label className="text-xs text-warm-gray mb-1 block">Date</label>
               <input
                 type="date"
@@ -325,9 +325,9 @@ export default function StartPage() {
                 className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal focus:outline-none focus:border-sage transition-colors"
               />
             </div>
-            <div className="flex-1">
+            <div>
               <label className="text-xs text-warm-gray mb-1 block">Time</label>
-              <div className="flex items-center gap-1.5">
+              <div className="flex items-center gap-2">
                 <input
                   type="number"
                   min="1"
@@ -335,7 +335,7 @@ export default function StartPage() {
                   value={scheduleHour}
                   onChange={(e) => setScheduleHour(e.target.value)}
                   placeholder="12"
-                  className="w-14 text-center text-base font-semibold border-2 rounded-xl px-1 py-2 focus:outline-none"
+                  className="w-16 text-center text-base font-semibold border-2 rounded-xl px-1 py-2.5 focus:outline-none"
                   style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
                 />
                 <span className="text-base font-semibold text-charcoal">:</span>
@@ -347,12 +347,12 @@ export default function StartPage() {
                   value={scheduleMinute}
                   onChange={(e) => setScheduleMinute(e.target.value)}
                   placeholder="00"
-                  className="w-14 text-center text-base font-semibold border-2 rounded-xl px-1 py-2 focus:outline-none"
+                  className="w-16 text-center text-base font-semibold border-2 rounded-xl px-1 py-2.5 focus:outline-none"
                   style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
                 />
                 <button
                   onClick={() => setSchedulePeriod((p) => p === "AM" ? "PM" : "AM")}
-                  className="text-sm font-semibold px-2.5 py-2 rounded-xl border-2 transition-colors"
+                  className="text-sm font-semibold px-4 py-2.5 rounded-xl border-2 transition-colors"
                   style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}
                 >
                   {schedulePeriod}
