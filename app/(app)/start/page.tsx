@@ -40,7 +40,6 @@ export default function StartPage() {
   const [isPublic, setIsPublic] = useState(true);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
   const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleDateError, setScheduleDateError] = useState("");
   const [scheduleHour, setScheduleHour] = useState("");
   const [scheduleMinute, setScheduleMinute] = useState("");
   const [schedulePeriod, setSchedulePeriod] = useState<"AM" | "PM">("AM");
@@ -61,11 +60,6 @@ export default function StartPage() {
   }
 
   const todayStr = new Date().toISOString().slice(0, 10);
-  const maxDateStr = (() => {
-    const d = new Date();
-    d.setDate(d.getDate() + 14);
-    return d.toISOString().slice(0, 10);
-  })();
 
   useEffect(() => {
     try {
@@ -153,10 +147,6 @@ export default function StartPage() {
     const allTasks = [...extraTasks, ...selectedFromList];
     const invitedFriends = friends.filter((f) => invitedIds.has(f.id));
 
-    if (scheduleDate && (scheduleDate < todayStr || scheduleDate > maxDateStr)) {
-      setScheduleDateError("Please pick a date within the next 2 weeks.");
-      return;
-    }
     if (scheduleMode === "later" && scheduleDate && scheduleHour) {
       const h24 = schedulePeriod === "PM"
         ? (parseInt(scheduleHour) % 12) + 12
@@ -324,24 +314,10 @@ export default function StartPage() {
               <input
                 type="date"
                 min={todayStr}
-                max={maxDateStr}
                 value={scheduleDate}
-                onChange={(e) => {
-                  const val = e.target.value;
-                  setScheduleDate(val);
-                  if (val && (val < todayStr || val > maxDateStr)) {
-                    setScheduleDateError("Please pick a date within the next 2 weeks.");
-                  } else {
-                    setScheduleDateError("");
-                  }
-                }}
-                className="w-full text-sm border rounded-xl px-3 py-2.5 bg-cream text-charcoal focus:outline-none transition-colors"
-                style={{ borderColor: scheduleDateError ? "#F87171" : "#E5E7EB" }}
+                onChange={(e) => setScheduleDate(e.target.value)}
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal focus:outline-none focus:border-sage transition-colors"
               />
-              {scheduleDateError
-                ? <p className="text-xs text-red-400 mt-1">{scheduleDateError}</p>
-                : <p className="text-xs text-warm-gray mt-1">Up to 2 weeks out</p>
-              }
             </div>
             <div>
               <label className="text-xs text-warm-gray mb-1 block">Time</label>
