@@ -20,3 +20,10 @@ body {
   color: #1C1917;
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
+
+/* Prevent iOS from zooming on input focus (requires font-size >= 16px on mobile) */
+@media (max-width: 640px) {
+  input, textarea, select {
+    font-size: 16px !important;
+  }
+}
