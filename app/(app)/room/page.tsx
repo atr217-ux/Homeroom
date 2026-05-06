@@ -50,7 +50,9 @@ export default function RoomPage() {
   const [showListPicker, setShowListPicker]       = useState(false);
   const [listPickerSearch, setListPickerSearch]   = useState("");
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
+  const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [feedExpanded, setFeedExpanded]           = useState(false);
+  const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
   const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
 
@@ -494,7 +496,7 @@ export default function RoomPage() {
                 <div className="space-y-2 mb-3">
                   {(tasksCollapsed
                     ? [tasks.find(t => t.startedAt !== null) ?? tasks.find(t => !t.done) ?? tasks[0]]
-                    : tasks
+                    : tasksExpanded ? tasks : tasks.slice(0, TASK_VISIBLE_LIMIT)
                   ).filter(Boolean).map((t) => {
                     const elapsed = getElapsed(t);
                     const running = t.startedAt !== null;
@@ -577,6 +579,16 @@ export default function RoomPage() {
                     );
                   })}
                 </div>
+              )}
+
+              {!tasksCollapsed && tasks.length > TASK_VISIBLE_LIMIT && (
+                <button
+                  onClick={() => setTasksExpanded(v => !v)}
+                  className="text-xs font-medium mb-2"
+                  style={{ color: "#7C3AED" }}
+                >
+                  {tasksExpanded ? "Show less" : `+ ${tasks.length - TASK_VISIBLE_LIMIT} more task${tasks.length - TASK_VISIBLE_LIMIT !== 1 ? "s" : ""}`}
+                </button>
               )}
 
               {tasksCollapsed && tasks.filter(t => !t.done).length > 1 && (
