@@ -512,7 +512,8 @@ export default function HomePage() {
         });
 
       // Load active public rooms
-      supabase.from("active_sessions").select("*").then(({ data }) => {
+      supabase.from("active_sessions").select("*").then(({ data, error }) => {
+        console.log("[active_sessions] fetch:", data?.length ?? 0, "rows", error ? "ERROR:" + error.message : "");
         if (data) setPublicRooms(data as PublicActiveRoom[]);
       });
 
