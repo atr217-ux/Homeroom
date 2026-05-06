@@ -33,6 +33,7 @@ function formatTime(seconds: number): string {
 export default function RoomPage() {
   const [myUsername, setMyUsername] = useState("You");
   const myUsernameRef = useRef<string>("");
+  const [myAvatar, setMyAvatar] = useState<string>("");
   const [session, setSession] = useState<Session | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskInput, setTaskInput] = useState("");
@@ -71,12 +72,11 @@ export default function RoomPage() {
   }, []);
 
   useEffect(() => {
-    // Populate ref immediately from localStorage so toggleTask never uses "You"
+    // Populate immediately from localStorage
     const local = localStorage.getItem("homeroom-username");
-    if (local) {
-      myUsernameRef.current = local;
-      setMyUsername(local);
-    }
+    if (local) { myUsernameRef.current = local; setMyUsername(local); }
+    const localAvatar = localStorage.getItem("homeroom-avatar");
+    if (localAvatar) setMyAvatar(localAvatar);
     // Always verify against Supabase — overrides stale or missing localStorage
     const supabase = createClient();
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -86,7 +86,7 @@ export default function RoomPage() {
         myUsernameRef.current = data.username;
         setMyUsername(data.username);
         localStorage.setItem("homeroom-username", data.username);
-        if (data.avatar) localStorage.setItem("homeroom-avatar", data.avatar);
+        if (data.avatar) { setMyAvatar(data.avatar); localStorage.setItem("homeroom-avatar", data.avatar); }
       });
     });
     try {
@@ -336,9 +336,11 @@ export default function RoomPage() {
         <div className="mt-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
-              <div className="w-9 h-9 rounded-full bg-sage flex items-center justify-center text-white font-semibold text-sm">?</div>
+              <div className="w-9 h-9 rounded-full bg-sage flex items-center justify-center text-white font-semibold text-sm overflow-hidden">
+                {myAvatar ? <span className="text-xl leading-none">{myAvatar}</span> : <span>?</span>}
+              </div>
               <div>
-                <span className="font-semibold text-sm text-charcoal">You</span>
+                <span className="font-semibold text-sm text-charcoal">{myUsername}</span>
                 <span className="ml-1.5 text-xs text-warm-gray">{elapsedMin} / {duration} min</span>
               </div>
             </div>
