@@ -219,7 +219,6 @@ export default function RoomPage() {
   useEffect(() => {
     if (!session?.sessionId || !session.isPublic || !myUsername || myUsername === "You") return;
     const supabase = createClient();
-    console.log("[active_sessions] upserting for", session.sessionId, "isPublic:", session.isPublic, "user:", myUsername);
     supabase.from("active_sessions").upsert({
       session_id: session.sessionId,
       host_username: myUsername,
@@ -227,14 +226,9 @@ export default function RoomPage() {
       duration: session.duration,
       started_at: session.sessionStartTime ? new Date(session.sessionStartTime).toISOString() : new Date().toISOString(),
       squad_tags: session.squadTags ?? [],
-    }, { onConflict: "session_id", ignoreDuplicates: false }).then(({ error }) => {
-      if (error) console.error("[active_sessions] upsert error:", error.message, error.code);
-      else console.log("[active_sessions] upsert success");
-    });
+    }, { onConflict: "session_id", ignoreDuplicates: false });
     return () => {
-      supabase.from("active_sessions").delete().eq("session_id", session.sessionId!).then(({ error }) => {
-        if (error) console.error("[active_sessions] delete error:", error.message);
-      });
+      supabase.from("active_sessions").delete().eq("session_id", session.sessionId!).then();
     };
   }, [session?.sessionId, session?.isPublic, myUsername]);
 
