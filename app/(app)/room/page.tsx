@@ -60,6 +60,8 @@ export default function RoomPage() {
   const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [feedExpanded, setFeedExpanded]           = useState(false);
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
+  const [participantData, setParticipantData]     = useState<Record<string, { tasks: { id: string; text: string; done: boolean }[]; sharing: boolean }>>({});
+  const [expandedCards, setExpandedCards]         = useState<Set<string>>(new Set());
   const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
   const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
@@ -145,13 +147,21 @@ export default function RoomPage() {
         }
       })
       .on("broadcast", { event: "request-session-info" }, () => {
-        // Someone just joined — send them our start time
+        // Someone just joined — send them our start time and current task data
         const raw = localStorage.getItem("homeroom-session");
         if (!raw) return;
         const s = JSON.parse(raw);
         if (s.sessionStartTime) {
           channel.send({ type: "broadcast", event: "session-info", payload: { sessionStartTime: s.sessionStartTime } });
         }
+        channel.send({
+          type: "broadcast", event: "task-share",
+          payload: {
+            username: myUsernameRef.current,
+            tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
+            sharing: showTodosRef.current,
+          },
+        });
       })
       .on("broadcast", { event: "session-info" }, ({ payload }) => {
         // Adopt the earliest start time so all users share the same clock
@@ -163,6 +173,13 @@ export default function RoomPage() {
           localStorage.setItem("homeroom-session", JSON.stringify(updated));
           return updated;
         });
+      })
+      .on("broadcast", { event: "task-share" }, ({ payload }) => {
+        if (!payload.username) return;
+        setParticipantData((prev) => ({
+          ...prev,
+          [payload.username]: { tasks: payload.tasks ?? [], sharing: payload.sharing ?? false },
+        }));
       })
       .on("broadcast", { event: "reaction" }, ({ payload }) => {
         const me = myUsernameRef.current || myUsername;
@@ -189,8 +206,17 @@ export default function RoomPage() {
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({ username: myUsernameRef.current || myUsername, avatar: myAvatar || "" });
+          // Share our tasks with anyone already in the room
+          channel.send({
+            type: "broadcast", event: "task-share",
+            payload: {
+              username: myUsernameRef.current || myUsername,
+              tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
+              sharing: showTodosRef.current,
+            },
+          });
         }
-        // After subscribing, ask existing members for the authoritative start time
+        // Ask existing members for the authoritative start time (and they'll respond with task-share too)
         channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
       });
     realtimeChannelRef.current = channel;
@@ -332,6 +358,15 @@ export default function RoomPage() {
     ));
   }
 
+  function toggleCard(username: string) {
+    setExpandedCards((prev) => {
+      const next = new Set(prev);
+      if (next.has(username)) next.delete(username);
+      else next.add(username);
+      return next;
+    });
+  }
+
   function saveTaskEdit() {
     const text = editingTaskText.trim();
     if (text && editingTaskId) {
@@ -362,9 +397,15 @@ export default function RoomPage() {
   }
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const realtimeChannelRef = useRef<any>(null);
   const tasksInitializedRef = useRef(false);
   const timerEndedRef = useRef(false);
+  const tasksRef     = useRef<Task[]>([]);
+  const showTodosRef = useRef(true);
+
+  // Sync mutable ref so channel closures always see current task list
+  useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
   // Persist task state (done, timeSpent) back to the session in localStorage
   useEffect(() => {
@@ -390,6 +431,22 @@ export default function RoomPage() {
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
+
+  // Sync refs after showTodos is declared
+  useEffect(() => { showTodosRef.current = showTodos; }, [showTodos]);
+
+  // Broadcast own task data whenever tasks or sharing preference change
+  useEffect(() => {
+    if (!realtimeChannelRef.current) return;
+    realtimeChannelRef.current.send({
+      type: "broadcast", event: "task-share",
+      payload: {
+        username: myUsernameRef.current || myUsername,
+        tasks: tasks.map((t) => ({ id: t.id, text: t.text, done: t.done })),
+        sharing: showTodos,
+      },
+    });
+  }, [showTodos, tasks, myUsername]);
   const doneTasks = tasks.filter((t) => t.done).length;
   const duration = session?.duration ?? 0;
 
@@ -899,15 +956,69 @@ export default function RoomPage() {
                   No one else here yet.
                 </div>
               ) : (
-                <div className="space-y-2">
-                  {others.map((p) => (
-                    <div key={p.username} className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3">
-                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl flex-shrink-0" style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}>
-                        {p.avatar || <span className="text-white text-sm font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
+                <div className="grid grid-cols-2 gap-3">
+                  {others.map((p) => {
+                    const pData = participantData[p.username];
+                    const isExpanded = expandedCards.has(p.username);
+                    const doneCount = pData?.tasks.filter((t) => t.done).length ?? 0;
+                    const totalCount = pData?.tasks.length ?? 0;
+                    return (
+                      <div key={p.username} className="bg-white rounded-2xl border border-gray-100 p-3 flex flex-col">
+                        <div className="flex items-start justify-between mb-2">
+                          <div
+                            className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
+                            style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}
+                          >
+                            {p.avatar || <span className="text-white text-sm font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
+                          </div>
+                          <button
+                            onClick={() => toggleCard(p.username)}
+                            className="text-warm-gray p-1 transition-transform duration-200 flex-shrink-0"
+                            style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
+                          >
+                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="6 9 12 15 18 9" />
+                            </svg>
+                          </button>
+                        </div>
+                        <p className="text-sm font-semibold text-charcoal truncate">{p.username}</p>
+                        <p className="text-xs text-warm-gray mt-0.5">
+                          {pData ? `${doneCount}/${totalCount} tasks` : "joining…"}
+                        </p>
+                        {isExpanded && (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            {pData?.sharing ? (
+                              pData.tasks.length === 0 ? (
+                                <p className="text-xs text-warm-gray italic">No tasks yet</p>
+                              ) : (
+                                <div className="space-y-1.5">
+                                  {pData.tasks.map((t) => (
+                                    <div key={t.id} className="flex items-center gap-1.5">
+                                      <div
+                                        className="w-3 h-3 rounded flex-shrink-0 flex items-center justify-center"
+                                        style={t.done
+                                          ? { background: "#7C3AED", border: "2px solid #7C3AED" }
+                                          : { border: "2px solid #D1D5DB" }}
+                                      >
+                                        {t.done && (
+                                          <svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                            <polyline points="20 6 9 17 4 12" />
+                                          </svg>
+                                        )}
+                                      </div>
+                                      <span className={`text-xs truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
+                                    </div>
+                                  ))}
+                                </div>
+                              )
+                            ) : (
+                              <p className="text-xs text-warm-gray italic">Tasks are private</p>
+                            )}
+                          </div>
+                        )}
                       </div>
-                      <span className="text-sm font-semibold text-charcoal">{p.username}</span>
-                    </div>
-                  ))}
+                    );
+                  })}
                 </div>
               )}
             </div>
