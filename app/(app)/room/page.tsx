@@ -406,8 +406,8 @@ export default function RoomPage() {
             <span className="text-xs text-warm-gray">Share tasks with room</span>
           </div>
 
-          <div className="relative pr-40">
-            {/* Left: tasks — sets the container height */}
+          <div className="">
+            {/* Tasks */}
             <div className="">
               {tasks.length === 0 ? (
                 <div className="text-sm text-warm-gray text-center py-4">No tasks added yet.</div>
@@ -527,22 +527,22 @@ export default function RoomPage() {
               </button>
             </div>
 
-            {/* Right: personal feed — absolutely fills the height of the left column */}
-            <div className="absolute top-0 right-0 bottom-0 w-36 border-l border-gray-100 pl-3 flex flex-col">
-              <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2 flex-shrink-0">Your feed</p>
-              <div className="flex-1 overflow-y-auto space-y-2">
-                {feed.length === 0 ? (
-                  <p className="text-xs text-warm-gray italic">No activity yet.</p>
-                ) : feed.map((item) => (
-                  <div key={item.id}>
-                    <p className="text-xs text-charcoal leading-snug">{item.text}</p>
-                    <p className="text-xs text-warm-gray">
-                      {item.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                    </p>
-                  </div>
-                ))}
+            {/* Personal feed — stacked below tasks */}
+            {feed.length > 0 && (
+              <div className="mt-4 pt-3 border-t border-gray-100">
+                <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Your feed</p>
+                <div className="space-y-2">
+                  {feed.map((item) => (
+                    <div key={item.id}>
+                      <p className="text-xs text-charcoal leading-snug">{item.text}</p>
+                      <p className="text-xs text-warm-gray">
+                        {item.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                      </p>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
           </div>
         </div>
 
