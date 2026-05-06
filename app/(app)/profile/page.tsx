@@ -106,6 +106,9 @@ export default function ProfilePage() {
   const [inviteSearch, setInviteSearch]             = useState("");
   const [invitedToSquad, setInvitedToSquad]         = useState<Record<string, string[]>>({});
   const [createSquadError, setCreateSquadError]     = useState("");
+  const [squadInvites, setSquadInvites]             = useState<{ id: string; squad_id: string; squad_name: string; squad_emoji: string; from_username: string }[]>([]);
+  const [publicSquads, setPublicSquads]             = useState<Squad[]>([]);
+  const [publicSquadsLoading, setPublicSquadsLoading] = useState(false);
 
   useEffect(() => {
     try {
@@ -134,15 +137,12 @@ export default function ProfilePage() {
 
     loadFriendData(currentUsername);
     loadSquads(currentUsername);
+    loadSquadInvites(currentUsername);
 
-    // Real-time: refresh friend state whenever any relevant row changes
     const channel = supabase
-      .channel("friend-requests:" + currentUsername)
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "friend_requests" },
-        () => loadFriendData(currentUsername)
-      )
+      .channel("profile-realtime:" + currentUsername)
+      .on("postgres_changes", { event: "*", schema: "public", table: "friend_requests" }, () => loadFriendData(currentUsername))
+      .on("postgres_changes", { event: "*", schema: "public", table: "squad_invites" }, () => loadSquadInvites(currentUsername))
       .subscribe();
 
     return () => { supabase.removeChannel(channel); };
@@ -163,6 +163,50 @@ export default function ProfilePage() {
     });
     setMySquads(squads);
     setJoinedSquads(squads.map((s) => s.id));
+  }
+
+  async function loadSquadInvites(uname: string) {
+    const { data } = await supabase
+      .from("squad_invites")
+      .select("id, squad_id, from_username, squads(name, emoji)")
+      .eq("to_username", uname)
+      .eq("status", "pending");
+    if (!data) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setSquadInvites((data as any[]).map((row) => {
+      const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
+      return { id: row.id, squad_id: row.squad_id, from_username: row.from_username, squad_name: s?.name ?? "Squad", squad_emoji: s?.emoji ?? "🏆" };
+    }));
+  }
+
+  async function loadPublicSquads() {
+    setPublicSquadsLoading(true);
+    const { data } = await supabase
+      .from("squads")
+      .select("id, name, emoji, description, is_public, member_count")
+      .eq("is_public", true)
+      .order("member_count", { ascending: false });
+    if (data) setPublicSquads(data.map((s) => ({ id: s.id, name: s.name, members: s.member_count ?? 0, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public })));
+    setPublicSquadsLoading(false);
+  }
+
+  async function acceptSquadInvite(invite: { id: string; squad_id: string; squad_name: string; squad_emoji: string }) {
+    const currentUsername = localStorage.getItem("homeroom-username") || username;
+    const { error } = await supabase.from("squad_members").insert({ squad_id: invite.squad_id, username: currentUsername, role: "member" });
+    if (error) { console.error("acceptSquadInvite failed:", error.message); return; }
+    await supabase.from("squad_invites").update({ status: "accepted" }).eq("id", invite.id);
+    const { data: squadData } = await supabase.from("squads").select("id, name, emoji, description, is_public, member_count").eq("id", invite.squad_id).single();
+    if (squadData) {
+      await supabase.from("squads").update({ member_count: (squadData.member_count ?? 0) + 1 }).eq("id", invite.squad_id);
+      setMySquads((prev) => [...prev, { id: squadData.id, name: squadData.name, members: (squadData.member_count ?? 0) + 1, description: squadData.description ?? "", emoji: squadData.emoji, isPublic: squadData.is_public }]);
+      setJoinedSquads((prev) => [...prev, invite.squad_id]);
+    }
+    setSquadInvites((prev) => prev.filter((i) => i.id !== invite.id));
+  }
+
+  async function declineSquadInvite(inviteId: string) {
+    await supabase.from("squad_invites").update({ status: "declined" }).eq("id", inviteId);
+    setSquadInvites((prev) => prev.filter((i) => i.id !== inviteId));
   }
 
   function toFriend(uname: string): Friend {
@@ -374,10 +418,6 @@ export default function ProfilePage() {
   );
 
   const allSquads = [...mySquads];
-  const squadResults = allSquads.filter((s) =>
-    s.name.toLowerCase().includes(squadSearch.toLowerCase()) ||
-    s.description.toLowerCase().includes(squadSearch.toLowerCase())
-  );
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
@@ -489,7 +529,7 @@ export default function ProfilePage() {
           Find friends
         </button>
         <button
-          onClick={() => setShowSquads(true)}
+          onClick={() => { setShowSquads(true); loadPublicSquads(); }}
           className="flex-1 flex items-center justify-center gap-2 bg-white border border-gray-200 rounded-2xl py-3 text-sm font-semibold text-charcoal hover:border-sage hover:text-sage transition-colors"
         >
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -528,6 +568,37 @@ export default function ProfilePage() {
                   className="text-xs text-warm-gray hover:text-red-400 transition-colors flex-shrink-0"
                 >
                   Leave
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Squad invites */}
+      {squadInvites.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-charcoal mb-3">Squad Invites · {squadInvites.length}</h2>
+          <div className="space-y-2">
+            {squadInvites.map((invite) => (
+              <div key={invite.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3">
+                <span className="text-xl flex-shrink-0">{invite.squad_emoji}</span>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-semibold text-charcoal">{invite.squad_name}</p>
+                  <p className="text-xs text-warm-gray">from @{invite.from_username}</p>
+                </div>
+                <button
+                  onClick={() => acceptSquadInvite(invite)}
+                  className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
+                  style={{ background: "#7C3AED", color: "white" }}
+                >
+                  Accept
+                </button>
+                <button
+                  onClick={() => declineSquadInvite(invite.id)}
+                  className="text-xs text-warm-gray hover:text-red-400 transition-colors flex-shrink-0"
+                >
+                  Decline
                 </button>
               </div>
             ))}
@@ -826,28 +897,38 @@ export default function ProfilePage() {
             )}
           </div>
           <div className="flex-1 overflow-y-auto px-5 pb-5 space-y-2">
-            {squadResults.map((squad) => {
-              const joined = joinedSquads.includes(squad.id);
-              return (
-                <div key={squad.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
-                  <span className="text-2xl flex-shrink-0">{squad.emoji}</span>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-semibold text-charcoal">{squad.name}</p>
-                    <p className="text-xs text-warm-gray truncate">{squad.description}</p>
-                    <p className="text-xs text-warm-gray mt-0.5">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
-                  </div>
-                  <button
-                    onClick={() => joined ? leaveSquad(squad.id) : joinSquad(squad)}
-                    className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors flex-shrink-0"
-                    style={joined
-                      ? { border: "1px solid #D1D5DB", color: "#78716C" }
-                      : { background: "#7C3AED", color: "white", border: "1px solid #7C3AED" }}
-                  >
-                    {joined ? "Leave" : "Join"}
-                  </button>
-                </div>
+            {publicSquadsLoading ? (
+              <p className="text-sm text-warm-gray text-center py-6">Loading…</p>
+            ) : (() => {
+              const filtered = publicSquads.filter((s) =>
+                !squadSearch ||
+                s.name.toLowerCase().includes(squadSearch.toLowerCase()) ||
+                s.description.toLowerCase().includes(squadSearch.toLowerCase())
               );
-            })}
+              if (filtered.length === 0) return <p className="text-sm text-warm-gray text-center py-6">No public squads yet.</p>;
+              return filtered.map((squad) => {
+                const joined = joinedSquads.includes(squad.id);
+                return (
+                  <div key={squad.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                    <span className="text-2xl flex-shrink-0">{squad.emoji}</span>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-charcoal">{squad.name}</p>
+                      {squad.description && <p className="text-xs text-warm-gray truncate">{squad.description}</p>}
+                      <p className="text-xs text-warm-gray mt-0.5">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
+                    </div>
+                    <button
+                      onClick={() => joined ? leaveSquad(squad.id) : joinSquad(squad)}
+                      className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors flex-shrink-0"
+                      style={joined
+                        ? { border: "1px solid #D1D5DB", color: "#78716C" }
+                        : { background: "#7C3AED", color: "white", border: "1px solid #7C3AED" }}
+                    >
+                      {joined ? "Leave" : "Join"}
+                    </button>
+                  </div>
+                );
+              });
+            })()}
           </div>
         </Modal>
       )}
@@ -864,17 +945,23 @@ export default function ProfilePage() {
 
         async function inviteFriend(friend: Friend) {
           if (alreadyInvited.includes(friend.id)) return;
-          const { data: existing } = await supabase
+          const { data: alreadyMember } = await supabase
             .from("squad_members").select("squad_id")
             .eq("squad_id", inviteSquadId!).eq("username", friend.username).maybeSingle();
-          if (existing) {
+          if (alreadyMember) {
             setInvitedToSquad((prev) => ({ ...prev, [inviteSquadId!]: [...(prev[inviteSquadId!] ?? []), friend.id] }));
             return;
           }
-          const { error } = await supabase.from("squad_members").insert({ squad_id: inviteSquadId!, username: friend.username, role: "member" });
-          if (error) return;
-          await supabase.from("squads").update({ member_count: squad.members + 1 }).eq("id", inviteSquadId!);
-          setMySquads((prev) => prev.map((s) => s.id === inviteSquadId ? { ...s, members: s.members + 1 } : s));
+          const { data: existingInvite } = await supabase
+            .from("squad_invites").select("id")
+            .eq("squad_id", inviteSquadId!).eq("to_username", friend.username).eq("status", "pending").maybeSingle();
+          if (existingInvite) {
+            setInvitedToSquad((prev) => ({ ...prev, [inviteSquadId!]: [...(prev[inviteSquadId!] ?? []), friend.id] }));
+            return;
+          }
+          const currentUsername = localStorage.getItem("homeroom-username") || username;
+          const { error } = await supabase.from("squad_invites").insert({ squad_id: inviteSquadId!, from_username: currentUsername, to_username: friend.username, status: "pending" });
+          if (error) { console.error("squad invite failed:", error.message); return; }
           setInvitedToSquad((prev) => ({ ...prev, [inviteSquadId!]: [...(prev[inviteSquadId!] ?? []), friend.id] }));
         }
 
