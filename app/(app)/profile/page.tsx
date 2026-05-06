@@ -427,11 +427,11 @@ export default function ProfilePage() {
           >
             {avatar ?? <span className="text-white text-2xl font-bold">?</span>}
           </div>
+          {/* Pencil badge — always visible, sits bottom-right */}
           <div
-            className="absolute inset-0 rounded-full flex items-center justify-center transition-opacity sm:opacity-0 sm:hover:opacity-100"
-            style={{ background: "rgba(0,0,0,0.35)" }}
+            className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center"
           >
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
