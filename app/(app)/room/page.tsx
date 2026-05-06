@@ -347,6 +347,7 @@ export default function RoomPage() {
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const realtimeChannelRef = useRef<any>(null);
   const tasksInitializedRef = useRef(false);
+  const timerEndedRef = useRef(false);
 
   // Persist task state (done, timeSpent) back to the session in localStorage
   useEffect(() => {
@@ -383,6 +384,15 @@ export default function RoomPage() {
   const remainingMin = Math.floor(remainingSec / 60);
   const remainingSs  = remainingSec % 60;
   const progressPct  = duration > 0 ? Math.min(100, (elapsedSec / (duration * 60)) * 100) : 0;
+
+  // Auto-end when session timer hits zero
+  useEffect(() => {
+    if (duration > 0 && remainingSec === 0 && !timerEndedRef.current && tasksInitializedRef.current) {
+      timerEndedRef.current = true;
+      leaveRoom();
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [remainingSec]);
 
   function leaveRoom() {
     setTasks((prev) => prev.map((t) =>
