@@ -17,7 +17,7 @@ type Session = {
   title: string;
   duration: number;
   isPublic: boolean;
-  tasks: { id: string; text: string }[];
+  tasks: { id: string; text: string; done?: boolean; timeSpent?: number }[];
   invitedFriends: Friend[];
   scheduledFor: string | null;
   sessionStartTime?: number;
@@ -106,7 +106,8 @@ export default function RoomPage() {
           localStorage.setItem("homeroom-session", JSON.stringify(s));
         }
         setSession(s);
-        setTasks(s.tasks.map((t) => ({ ...t, done: false, timeSpent: 0, startedAt: null })));
+        setTasks(s.tasks.map((t) => ({ id: t.id, text: t.text, done: t.done ?? false, timeSpent: t.timeSpent ?? 0, startedAt: null })));
+        tasksInitializedRef.current = true;
       }
       const listStored = localStorage.getItem("homeroom-tasks");
       if (listStored) setMyListTasks(JSON.parse(listStored));
@@ -302,6 +303,18 @@ export default function RoomPage() {
 
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const realtimeChannelRef = useRef<any>(null);
+  const tasksInitializedRef = useRef(false);
+
+  // Persist task state (done, timeSpent) back to the session in localStorage
+  useEffect(() => {
+    if (!tasksInitializedRef.current) return;
+    try {
+      const raw = localStorage.getItem("homeroom-session");
+      if (!raw) return;
+      const s = JSON.parse(raw);
+      localStorage.setItem("homeroom-session", JSON.stringify({ ...s, tasks }));
+    } catch { /* ignore */ }
+  }, [tasks]);
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
