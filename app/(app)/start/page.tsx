@@ -23,7 +23,6 @@ function colorFromUsername(u: string): string {
   return USER_COLORS[Math.abs(h) % USER_COLORS.length];
 }
 
-const SQUADS: { id: string; name: string; memberIds: string[] }[] = [];
 
 export default function StartPage() {
   const router = useRouter();
@@ -48,6 +47,7 @@ export default function StartPage() {
   const [showFriendsModal, setShowFriendsModal] = useState(false);
   const [friendSearch, setFriendSearch] = useState("");
   const [selectedSquads, setSelectedSquads] = useState<Set<string>>(new Set());
+  const [userSquads, setUserSquads] = useState<{ id: string; name: string; emoji: string }[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
   const [myUsername, setMyUsername] = useState("");
 
@@ -86,7 +86,6 @@ export default function StartPage() {
     } catch { /* ignore */ }
 
     const username = localStorage.getItem("homeroom-username") ?? "";
-    console.log("[start] homeroom-username:", username);
     setMyUsername(username);
     if (username) {
       const supabase = createClient();
@@ -95,19 +94,27 @@ export default function StartPage() {
         .select("*")
         .eq("status", "accepted")
         .or(`from_username.eq.${username},to_username.eq.${username}`)
-        .then(({ data, error }) => {
-          console.log("[start] friend_requests query:", { data, error });
+        .then(({ data }) => {
           if (data) {
-            const mapped = data.map((r) => {
+            setFriends(data.map((r) => {
               const uname = r.from_username === username ? r.to_username : r.from_username;
               return { id: uname.toLowerCase(), name: uname, initials: uname.slice(0, 2).toUpperCase(), color: colorFromUsername(uname), username: uname };
-            });
-            console.log("[start] friends mapped:", mapped);
-            setFriends(mapped);
+            }));
           }
         });
-    } else {
-      console.warn("[start] no username in localStorage — friends won't load");
+      supabase
+        .from("squad_members")
+        .select("squad_id, squads(id, name, emoji)")
+        .eq("username", username)
+        .then(({ data }) => {
+          if (data) {
+            setUserSquads(
+              data.flatMap((row: { squads: { id: string; name: string; emoji: string }[] }) =>
+                Array.isArray(row.squads) ? row.squads : [row.squads]
+              ).filter(Boolean)
+            );
+          }
+        });
     }
   }, []);
 
@@ -150,9 +157,22 @@ export default function StartPage() {
         ? (parseInt(scheduleHour) % 12) + 12
         : parseInt(scheduleHour) % 12;
       const scheduledFor = `${scheduleDate}T${String(h24).padStart(2, "0")}:${scheduleMinute.padStart(2, "0") || "00"}`;
-      const session = { id: crypto.randomUUID(), title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor, ownedByMe: true };
+      const squadTagIds = [...selectedSquads];
+      const session = { id: crypto.randomUUID(), title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor, ownedByMe: true, squadTags: squadTagIds };
       const existing = (() => { try { return JSON.parse(localStorage.getItem("homeroom-scheduled") ?? "[]"); } catch { return []; } })();
       localStorage.setItem("homeroom-scheduled", JSON.stringify([...existing, session]));
+
+      if (isPublic && myUsername) {
+        const supabase = createClient();
+        supabase.from("public_scheduled_sessions").upsert({
+          session_id: session.id,
+          host_username: myUsername,
+          title: status || "Homeroom",
+          duration: finalDuration,
+          scheduled_for: scheduledFor,
+          squad_tags: squadTagIds,
+        }, { onConflict: "session_id", ignoreDuplicates: true });
+      }
 
       if (invitedFriends.length > 0) {
         if (!myUsername) {
@@ -219,7 +239,7 @@ export default function StartPage() {
       }
       const liveSessionId = crypto.randomUUID();
       localStorage.setItem("homeroom-session", JSON.stringify({
-        sessionId: liveSessionId, title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null,
+        sessionId: liveSessionId, title: status, duration: finalDuration, isPublic, tasks: allTasks, invitedFriends, scheduledFor: null, squadTags: [...selectedSquads],
       }));
 
       if (invitedFriends.length > 0) {
@@ -407,6 +427,29 @@ export default function StartPage() {
         </div>
       </div>
 
+      {/* Squad tags */}
+      {userSquads.length > 0 && (
+        <div className="mb-5">
+          <label className="text-sm font-semibold text-charcoal mb-2 block">Tag a squad</label>
+          <div className="flex flex-wrap gap-2">
+            {userSquads.map((s) => {
+              const active = selectedSquads.has(s.id);
+              return (
+                <button
+                  key={s.id}
+                  onClick={() => toggleSquad(s.id)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
+                  style={active ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+                >
+                  <span>{s.emoji}</span>
+                  <span>{s.name}</span>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Invite friends — full width, same as tasks below */}
       <div className="mb-5">
         <div className="flex items-center justify-between mb-3">
@@ -456,11 +499,7 @@ export default function StartPage() {
 
       {/* All friends modal */}
       {showFriendsModal && (() => {
-        const squadMemberIds = selectedSquads.size > 0
-          ? new Set(SQUADS.filter((s) => selectedSquads.has(s.id)).flatMap((s) => s.memberIds))
-          : null;
         const visibleFriends = friends.filter((f: Friend) => {
-          if (squadMemberIds && !squadMemberIds.has(f.id)) return false;
           if (friendSearch && !f.name.toLowerCase().includes(friendSearch.toLowerCase())) return false;
           return true;
         });
@@ -506,7 +545,7 @@ export default function StartPage() {
 
               {/* Squad filter — multi-select pills */}
               <div className="flex flex-wrap gap-1.5 mb-3">
-                {SQUADS.map((s) => {
+                {userSquads.map((s) => {
                   const active = selectedSquads.has(s.id);
                   return (
                     <button

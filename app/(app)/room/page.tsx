@@ -21,6 +21,7 @@ type Session = {
   invitedFriends: Friend[];
   scheduledFor: string | null;
   sessionStartTime?: number;
+  squadTags?: string[];
 };
 type FeedItem = { id: string; text: string; time: Date };
 
@@ -142,6 +143,23 @@ export default function RoomPage() {
     realtimeChannelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
   }, [session?.sessionId, myUsername]);
+
+  // Register / deregister this session in active_sessions for public rooms
+  useEffect(() => {
+    if (!session?.sessionId || !session.isPublic || !myUsername || myUsername === "You") return;
+    const supabase = createClient();
+    supabase.from("active_sessions").upsert({
+      session_id: session.sessionId,
+      host_username: myUsername,
+      title: session.title || "",
+      duration: session.duration,
+      started_at: session.sessionStartTime ? new Date(session.sessionStartTime).toISOString() : new Date().toISOString(),
+      squad_tags: session.squadTags ?? [],
+    }, { onConflict: "session_id", ignoreDuplicates: true });
+    return () => {
+      supabase.from("active_sessions").delete().eq("session_id", session.sessionId!).then();
+    };
+  }, [session?.sessionId, session?.isPublic, myUsername]);
 
   function getElapsed(t: Task): number {
     if (t.startedAt === null) return t.timeSpent;
@@ -865,7 +883,11 @@ export default function RoomPage() {
           ? "less than a minute"
           : elapsedMin === 1 ? "1 minute" : `${elapsedMin} minutes`;
 
-        function goHome() {
+        async function goHome() {
+          if (session?.sessionId && session.isPublic) {
+            const supabase = createClient();
+            await supabase.from("active_sessions").delete().eq("session_id", session.sessionId);
+          }
           localStorage.removeItem("homeroom-session");
           window.location.href = "/home";
         }

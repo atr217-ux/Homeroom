@@ -17,12 +17,10 @@ function colorFromUsername(u: string): string {
   return USER_COLORS[Math.abs(h) % USER_COLORS.length];
 }
 
-const ALL_SQUADS: { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean }[] = [];
-
 const FRIEND_SQUAD_MEMBERSHIPS: Record<string, string[]> = {};
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string };
-type Squad  = typeof ALL_SQUADS[number];
+type Squad = { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean; invite_code?: string };
 
 const LockIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -109,10 +107,6 @@ export default function ProfilePage() {
       if (a) setAvatar(a);
       const u = localStorage.getItem("homeroom-username");
       if (u) setUsername(u);
-      const js = localStorage.getItem("homeroom-joined-squads");
-      setJoinedSquads(js ? JSON.parse(js) : []);
-      const ms = localStorage.getItem("homeroom-my-squads");
-      setMySquads(ms ? JSON.parse(ms) : []);
     } catch { /* ignore */ }
 
     supabase.from("profiles").select("username").then(({ data }) => {
@@ -130,9 +124,28 @@ export default function ProfilePage() {
     });
 
     const currentUsername = localStorage.getItem("homeroom-username");
-    if (currentUsername) loadFriendData(currentUsername);
+    if (currentUsername) {
+      loadFriendData(currentUsername);
+      loadSquads(currentUsername);
+    }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
+
+  async function loadSquads(uname: string) {
+    const { data } = await supabase
+      .from("squad_members")
+      .select("squad_id, squads(id, name, emoji, description, is_public, invite_code, member_count, created_by)")
+      .eq("username", uname);
+    if (!data) return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const squads: Squad[] = (data as any[]).flatMap((row) => {
+      const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
+      if (!s) return [];
+      return [{ id: s.id, name: s.name, members: s.member_count, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public, invite_code: s.invite_code }];
+    });
+    setMySquads(squads);
+    setJoinedSquads(squads.map((s) => s.id));
+  }
 
   function toFriend(uname: string): Friend {
     return {
@@ -218,15 +231,9 @@ export default function ProfilePage() {
     setShowAvatarPicker(false);
   }
 
-  function saveJoinedSquads(updated: string[]) {
-    setJoinedSquads(updated);
-    localStorage.setItem("homeroom-joined-squads", JSON.stringify(updated));
-  }
-
-  function saveMySquads(updated: Squad[]) {
-    setMySquads(updated);
-    localStorage.setItem("homeroom-my-squads", JSON.stringify(updated));
-  }
+  const [joinCodeInput, setJoinCodeInput] = useState("");
+  const [joinCodeError, setJoinCodeError] = useState("");
+  const [showJoinCode, setShowJoinCode] = useState(false);
 
   async function requestFriend(user: Friend) {
     if (friends.some((f) => f.id === user.id)) return;
@@ -281,11 +288,28 @@ export default function ProfilePage() {
     setRemovingId(null);
   }
 
-  function toggleSquad(squadId: string) {
-    const updated = joinedSquads.includes(squadId)
-      ? joinedSquads.filter((id) => id !== squadId)
-      : [...joinedSquads, squadId];
-    saveJoinedSquads(updated);
+  async function leaveSquad(squadId: string) {
+    await supabase.from("squad_members").delete().eq("squad_id", squadId).eq("username", username);
+    await supabase.from("squads").update({ member_count: supabase.rpc("greatest", { a: 0, b: 0 }) });
+    setMySquads((prev) => prev.filter((s) => s.id !== squadId));
+    setJoinedSquads((prev) => prev.filter((id) => id !== squadId));
+  }
+
+  async function joinSquadByCode() {
+    const code = joinCodeInput.trim().toUpperCase();
+    if (!code) return;
+    const { data: squad } = await supabase.from("squads").select("*").eq("invite_code", code).single();
+    if (!squad) { setJoinCodeError("Squad not found."); return; }
+    if (joinedSquads.includes(squad.id)) { setJoinCodeError("You're already in this squad."); return; }
+    const { error } = await supabase.from("squad_members").insert({ squad_id: squad.id, username, role: "member" });
+    if (error) { setJoinCodeError("Could not join squad."); return; }
+    await supabase.from("squads").update({ member_count: squad.member_count + 1 }).eq("id", squad.id);
+    const newSquad: Squad = { id: squad.id, name: squad.name, members: squad.member_count + 1, description: squad.description ?? "", emoji: squad.emoji, isPublic: squad.is_public, invite_code: squad.invite_code };
+    setMySquads((prev) => [...prev, newSquad]);
+    setJoinedSquads((prev) => [...prev, squad.id]);
+    setJoinCodeInput("");
+    setJoinCodeError("");
+    setShowJoinCode(false);
   }
 
   function handleSquadNameChange(raw: string) {
@@ -299,26 +323,32 @@ export default function ProfilePage() {
     }
   }
 
-  function createSquad() {
+  async function createSquad() {
     const name = newSquadName.trim();
     if (!name || newSquadNameError) return;
-    const squad: Squad = {
-      id: `custom-${Date.now()}`,
+    const { data, error } = await supabase.from("squads").insert({
       name: `#${name}`,
       description: newSquadDesc.trim(),
       emoji: newSquadEmoji,
-      members: 1,
-      isPublic: !newSquadPrivate,
-    };
-    const updatedMySquads = [...mySquads, squad];
-    saveMySquads(updatedMySquads);
-    saveJoinedSquads([...joinedSquads, squad.id]);
-    setNewSquadName("");
-    setNewSquadNameError("");
-    setNewSquadDesc("");
-    setNewSquadEmoji("🏆");
-    setNewSquadPrivate(false);
-    setShowCreateSquad(false);
+      is_public: !newSquadPrivate,
+      created_by: username,
+      member_count: 1,
+    }).select().single();
+    if (error || !data) return;
+    await supabase.from("squad_members").insert({ squad_id: data.id, username, role: "owner" });
+    const squad: Squad = { id: data.id, name: data.name, members: 1, description: data.description ?? "", emoji: data.emoji, isPublic: data.is_public, invite_code: data.invite_code };
+    setMySquads((prev) => [...prev, squad]);
+    setJoinedSquads((prev) => [...prev, data.id]);
+    setNewSquadName(""); setNewSquadNameError(""); setNewSquadDesc(""); setNewSquadEmoji("🏆"); setNewSquadPrivate(false); setShowCreateSquad(false);
+  }
+
+  async function joinSquad(squad: Squad) {
+    if (joinedSquads.includes(squad.id)) return;
+    const { error } = await supabase.from("squad_members").insert({ squad_id: squad.id, username, role: "member" });
+    if (error) return;
+    await supabase.from("squads").update({ member_count: squad.members + 1 }).eq("id", squad.id);
+    setMySquads((prev) => [...prev, { ...squad, members: squad.members + 1 }]);
+    setJoinedSquads((prev) => [...prev, squad.id]);
   }
 
   const friendResults = allRegisteredUsers.filter((u) =>
@@ -331,7 +361,7 @@ export default function ProfilePage() {
       u.username.toLowerCase().includes(friendSearch.toLowerCase()))
   );
 
-  const allSquads = [...ALL_SQUADS, ...mySquads];
+  const allSquads = [...mySquads];
   const squadResults = allSquads.filter((s) =>
     s.name.toLowerCase().includes(squadSearch.toLowerCase()) ||
     s.description.toLowerCase().includes(squadSearch.toLowerCase())
@@ -474,15 +504,12 @@ export default function ProfilePage() {
                     </span>
                   </div>
                   <p className="text-xs text-warm-gray">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
+                  {squad.invite_code && (
+                    <p className="text-xs text-warm-gray mt-0.5">Code: <span className="font-mono font-semibold text-charcoal">{squad.invite_code}</span></p>
+                  )}
                 </div>
                 <button
-                  onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); setInviteSquadFilter([]); }}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-xl border border-gray-200 text-charcoal hover:border-sage hover:text-sage transition-colors flex-shrink-0"
-                >
-                  Invite
-                </button>
-                <button
-                  onClick={() => toggleSquad(squad.id)}
+                  onClick={() => leaveSquad(squad.id)}
                   className="text-xs text-warm-gray hover:text-red-400 transition-colors flex-shrink-0"
                 >
                   Leave
@@ -689,15 +716,44 @@ export default function ProfilePage() {
                 autoFocus
               />
             </div>
-            <button
-              onClick={() => setShowCreateSquad((v) => !v)}
-              className="w-full flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl py-2.5 text-sm font-semibold text-warm-gray hover:border-sage hover:text-sage transition-colors mb-1"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
-              </svg>
-              Create a squad
-            </button>
+            <div className="flex gap-2 mb-1">
+              <button
+                onClick={() => { setShowCreateSquad((v) => !v); setShowJoinCode(false); }}
+                className="flex-1 flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl py-2.5 text-sm font-semibold text-warm-gray hover:border-sage hover:text-sage transition-colors"
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
+                </svg>
+                Create
+              </button>
+              <button
+                onClick={() => { setShowJoinCode((v) => !v); setShowCreateSquad(false); }}
+                className="flex-1 flex items-center justify-center gap-2 border border-dashed border-gray-300 rounded-xl py-2.5 text-sm font-semibold text-warm-gray hover:border-sage hover:text-sage transition-colors"
+              >
+                Join by code
+              </button>
+            </div>
+            {showJoinCode && (
+              <div className="bg-gray-50 rounded-2xl p-4 mb-2 space-y-2">
+                <input
+                  type="text"
+                  value={joinCodeInput}
+                  onChange={(e) => { setJoinCodeInput(e.target.value.toUpperCase()); setJoinCodeError(""); }}
+                  onKeyDown={(e) => e.key === "Enter" && joinSquadByCode()}
+                  placeholder="Enter invite code…"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage font-mono uppercase"
+                />
+                {joinCodeError && <p className="text-xs text-red-400">{joinCodeError}</p>}
+                <button
+                  onClick={joinSquadByCode}
+                  disabled={!joinCodeInput.trim()}
+                  className="w-full text-xs font-semibold py-2 rounded-xl text-white transition-opacity"
+                  style={{ background: "#7C3AED", opacity: joinCodeInput.trim() ? 1 : 0.4 }}
+                >
+                  Join squad
+                </button>
+              </div>
+            )}
             {showCreateSquad && (
               <div className="bg-gray-50 rounded-2xl p-4 mb-2 space-y-3">
                 <div className="flex items-center gap-2">
@@ -780,13 +836,13 @@ export default function ProfilePage() {
                     <p className="text-xs text-warm-gray mt-0.5">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
                   </div>
                   <button
-                    onClick={() => toggleSquad(squad.id)}
+                    onClick={() => joined ? leaveSquad(squad.id) : joinSquad(squad)}
                     className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors flex-shrink-0"
                     style={joined
                       ? { border: "1px solid #D1D5DB", color: "#78716C" }
                       : { background: "#7C3AED", color: "white", border: "1px solid #7C3AED" }}
                   >
-                    {joined ? "Joined" : "Join"}
+                    {joined ? "Leave" : "Join"}
                   </button>
                 </div>
               );
@@ -876,7 +932,7 @@ export default function ProfilePage() {
                 const invited = alreadyInvited.includes(f.id);
                 const friendSquads = (FRIEND_SQUAD_MEMBERSHIPS[f.id] ?? [])
                   .map((sid) => allSquads.find((s) => s.id === sid))
-                  .filter(Boolean) as typeof ALL_SQUADS;
+                  .filter(Boolean) as Squad[];
                 return (
                   <div key={f.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
                     <div

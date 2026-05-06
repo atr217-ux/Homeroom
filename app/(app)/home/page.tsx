@@ -3,7 +3,6 @@
 import { useState, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ROOMS } from "@/lib/data";
 import { createClient } from "@/lib/supabase/client";
 
 const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
@@ -379,6 +378,28 @@ type ActiveSession = {
   sessionStartTime: number;
 };
 
+type PublicActiveRoom = {
+  id: string;
+  session_id: string;
+  host_username: string;
+  title: string;
+  duration: number;
+  started_at: string;
+  squad_tags: string[];
+};
+
+type PublicScheduledSession = {
+  id: string;
+  session_id: string;
+  host_username: string;
+  title: string;
+  duration: number;
+  scheduled_for: string;
+  squad_tags: string[];
+};
+
+type UserSquad = { id: string; name: string; emoji: string };
+
 export default function HomePage() {
   const router = useRouter();
   const [avatar, setAvatar] = useState<string | null>(null);
@@ -390,6 +411,12 @@ export default function HomePage() {
   const [now, setNow] = useState(Date.now());
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [tick, setTick] = useState(0);
+  const [publicRooms, setPublicRooms] = useState<PublicActiveRoom[]>([]);
+  const [publicScheduled, setPublicScheduled] = useState<PublicScheduledSession[]>([]);
+  const [userSquads, setUserSquads] = useState<UserSquad[]>([]);
+  const [squadFilter, setSquadFilter] = useState<string | null>(null);
+  const [pubSchedDateFilter, setPubSchedDateFilter] = useState<string | null>(null);
+  const [savedSessionIds, setSavedSessionIds] = useState<Set<string>>(new Set());
 
   // Time change notifications
   const [timeChanges] = useState<TimeChangeNotif[]>([]);
@@ -475,7 +502,49 @@ export default function HomePage() {
             })));
           }
         });
+
+      // Load active public rooms
+      supabase.from("active_sessions").select("*").then(({ data }) => {
+        if (data) setPublicRooms(data as PublicActiveRoom[]);
+      });
+
+      // Load public scheduled sessions (future only)
+      supabase.from("public_scheduled_sessions").select("*")
+        .gt("scheduled_for", new Date().toISOString())
+        .order("scheduled_for", { ascending: true })
+        .then(({ data }) => {
+          if (data) setPublicScheduled(data as PublicScheduledSession[]);
+        });
+
+      // Load user's squads for filtering
+      supabase.from("squad_members")
+        .select("squad_id, squads(id, name, emoji)")
+        .eq("username", currentUsername)
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        .then(({ data }) => {
+          if (data) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            setUserSquads((data as any[]).flatMap((row) => {
+              const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
+              return s ? [{ id: s.id, name: s.name, emoji: s.emoji }] : [];
+            }));
+          }
+        });
     }
+  }, []);
+
+  // Realtime: update active public rooms as they appear/disappear
+  useEffect(() => {
+    const supabase = createClient();
+    const channel = supabase
+      .channel("active_sessions_changes")
+      .on("postgres_changes", { event: "*", schema: "public", table: "active_sessions" }, () => {
+        supabase.from("active_sessions").select("*").then(({ data }) => {
+          if (data) setPublicRooms(data as PublicActiveRoom[]);
+        });
+      })
+      .subscribe();
+    return () => { supabase.removeChannel(channel); };
   }, []);
 
   // Tick every 30s so Start/Join button enables at the right time
@@ -484,12 +553,43 @@ export default function HomePage() {
     return () => clearInterval(id);
   }, []);
 
-  // Tick every second for the active session countdown
+  // Tick every second for the active session countdown and public room elapsed times
   useEffect(() => {
-    if (!activeSession) return;
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
-  }, [activeSession]);
+  }, []);
+
+  function savePublicScheduled(session: PublicScheduledSession) {
+    if (savedSessionIds.has(session.session_id)) return;
+    const newEntry: ScheduledSession = {
+      id: crypto.randomUUID(),
+      title: `${session.host_username}'s ${session.title}`,
+      duration: session.duration,
+      isPublic: true,
+      scheduledFor: session.scheduled_for,
+      invitedFriends: [],
+      tasks: [],
+      ownedByMe: false,
+    };
+    const updated = [...scheduled, newEntry];
+    setScheduled(updated);
+    localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
+    setSavedSessionIds((prev) => new Set([...prev, session.session_id]));
+    showToast("Added to your scheduled homerooms");
+  }
+
+  function joinPublicRoom(room: PublicActiveRoom) {
+    localStorage.setItem("homeroom-session", JSON.stringify({
+      sessionId: room.session_id,
+      title: `${room.host_username} is ${room.title}`,
+      duration: room.duration,
+      isPublic: true,
+      tasks: [],
+      invitedFriends: [],
+      scheduledFor: null,
+    }));
+    router.push("/room");
+  }
 
   function showToast(msg: string) {
     setToast(msg);
@@ -941,40 +1041,142 @@ export default function HomePage() {
         );
       })()}
 
-      {/* Active rooms */}
-      <div className="mb-3" id="active-rooms">
-        <h2 className="text-sm font-semibold text-charcoal mb-3">Active rooms</h2>
-        <div className="space-y-3">
-          {ROOMS.length === 0 ? (
-            <div className="text-center py-10 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
-              No active rooms right now.
-            </div>
-          ) : ROOMS.map((room) => (
-            <Link
-              key={room.id}
-              href="/room"
-              className="block bg-white rounded-2xl p-4 border border-gray-100 hover:shadow-md hover:-translate-y-0.5 transition-all"
+      {/* Squad filter chips */}
+      {userSquads.length > 0 && (
+        <div className="mb-4 flex flex-wrap gap-2">
+          <button
+            onClick={() => setSquadFilter(null)}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+            style={squadFilter === null ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+          >
+            All
+          </button>
+          {userSquads.map((sq) => (
+            <button
+              key={sq.id}
+              onClick={() => setSquadFilter(squadFilter === sq.id ? null : sq.id)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+              style={squadFilter === sq.id ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
             >
-              <div className="flex items-start justify-between">
-                <div className="flex items-center gap-3">
-                  <span className="text-2xl">{room.emoji}</span>
-                  <div>
-                    <div className="font-semibold text-charcoal text-sm">{room.name}</div>
-                    <div className="text-xs text-warm-gray mt-0.5">{room.desc}</div>
-                  </div>
-                </div>
-                <div className="flex-shrink-0 text-right ml-3">
-                  <div className="flex items-center gap-1 justify-end">
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-clay" />
-                    <span className="text-xs font-semibold text-charcoal">{room.count}</span>
-                  </div>
-                  <div className="text-xs text-warm-gray">people</div>
-                </div>
-              </div>
-            </Link>
+              <span>{sq.emoji}</span>
+              <span>{sq.name}</span>
+            </button>
           ))}
         </div>
+      )}
+
+      {/* Active public rooms */}
+      <div className="mb-6" id="active-rooms">
+        <h2 className="text-sm font-semibold text-charcoal mb-3">
+          Active rooms
+          {publicRooms.length > 0 && <span className="ml-1.5 text-warm-gray font-normal">· {publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter)).length}</span>}
+        </h2>
+        <div className="space-y-3">
+          {(() => {
+            const filtered = publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter));
+            if (filtered.length === 0) return (
+              <div className="text-center py-10 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
+                No active rooms right now.
+              </div>
+            );
+            return filtered.map((room) => {
+              const elapsedSec = Math.floor((Date.now() - new Date(room.started_at).getTime()) / 1000);
+              const remainingSec = room.duration > 0 ? Math.max(0, room.duration * 60 - elapsedSec) : null;
+              const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
+              const remSec = remainingSec !== null ? remainingSec % 60 : null;
+              const progressPct = room.duration > 0 ? Math.min(100, (elapsedSec / (room.duration * 60)) * 100) : 0;
+              return (
+                <div key={room.id} className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+                  <div className="flex items-start justify-between mb-2">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                        <p className="text-sm font-semibold text-charcoal truncate">{room.host_username} is {room.title || "in a homeroom"}</p>
+                      </div>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        {remainingSec !== null && remainingSec > 0
+                          ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
+                          : room.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
+                          : <span className="text-xs text-warm-gray">No time limit</span>}
+                        {room.squad_tags.length > 0 && userSquads.filter(s => room.squad_tags.includes(s.id)).map(s => (
+                          <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>{s.emoji} {s.name}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => joinPublicRoom(room)}
+                      className="ml-3 flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                      style={{ background: "#7C3AED" }}
+                    >
+                      Join
+                    </button>
+                  </div>
+                  {room.duration > 0 && (
+                    <div className="bg-gray-100 rounded-full h-1">
+                      <div className="h-1 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
+                    </div>
+                  )}
+                </div>
+              );
+            });
+          })()}
+        </div>
       </div>
+
+      {/* Public scheduled sessions */}
+      {(() => {
+        const filtered = publicScheduled.filter(s => !squadFilter || s.squad_tags.includes(squadFilter));
+        const dateFiltered = pubSchedDateFilter
+          ? filtered.filter(s => s.scheduled_for.startsWith(pubSchedDateFilter))
+          : filtered;
+        if (filtered.length === 0) return null;
+        return (
+          <div className="mb-6">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="text-sm font-semibold text-charcoal">
+                Scheduled sessions
+                <span className="ml-1.5 text-warm-gray font-normal">· {filtered.length}</span>
+              </h2>
+              <input
+                type="date"
+                value={pubSchedDateFilter ?? ""}
+                onChange={(e) => setPubSchedDateFilter(e.target.value || null)}
+                className="text-xs border border-gray-200 rounded-lg px-2 py-1 text-charcoal focus:outline-none focus:border-sage bg-white"
+              />
+            </div>
+            <div className="space-y-2">
+              {dateFiltered.map((session) => {
+                const saved = savedSessionIds.has(session.session_id);
+                return (
+                  <div key={session.id} className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-semibold text-charcoal truncate">{session.host_username} is {session.title || "hosting a homeroom"}</p>
+                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                        <span className="text-xs font-medium" style={{ color: "#7C3AED" }}>{formatScheduledFor(session.scheduled_for)}</span>
+                        {session.duration > 0 && <span className="text-xs text-warm-gray">· {formatDuration(session.duration)}</span>}
+                        {session.squad_tags.length > 0 && userSquads.filter(s => session.squad_tags.includes(s.id)).map(s => (
+                          <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>{s.emoji} {s.name}</span>
+                        ))}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => savePublicScheduled(session)}
+                      disabled={saved}
+                      className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
+                      style={saved ? { borderColor: "#D1D5DB", color: "#78716C" } : { borderColor: "#7C3AED", color: "#7C3AED" }}
+                    >
+                      {saved ? "Saved" : "Save"}
+                    </button>
+                  </div>
+                );
+              })}
+              {dateFiltered.length === 0 && (
+                <p className="text-sm text-warm-gray text-center py-4">No sessions on that date.</p>
+              )}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Edit session modal */}
       {editingSession && (
