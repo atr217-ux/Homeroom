@@ -132,10 +132,22 @@ export default function ProfilePage() {
     });
 
     const currentUsername = localStorage.getItem("homeroom-username");
-    if (currentUsername) {
-      loadFriendData(currentUsername);
-      loadSquads(currentUsername);
-    }
+    if (!currentUsername) return;
+
+    loadFriendData(currentUsername);
+    loadSquads(currentUsername);
+
+    // Real-time: refresh friend state whenever any relevant row changes
+    const channel = supabase
+      .channel("friend-requests:" + currentUsername)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "friend_requests" },
+        () => loadFriendData(currentUsername)
+      )
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -244,14 +256,24 @@ export default function ProfilePage() {
   const [showJoinCode, setShowJoinCode] = useState(false);
 
   async function requestFriend(user: Friend) {
-    if (friends.some((f) => f.id === user.id)) return;
-    if (outgoingRequests.some((f) => f.id === user.id)) return;
-    if (incomingRequests.some((f) => f.id === user.id)) return;
+    const currentUsername = localStorage.getItem("homeroom-username") || username;
+    // Check DB directly — local state may be stale (e.g. just removed as friend)
+    const { data: existing } = await supabase
+      .from("friend_requests")
+      .select("id")
+      .or(
+        `and(from_username.eq.${currentUsername},to_username.eq.${user.username}),` +
+        `and(from_username.eq.${user.username},to_username.eq.${currentUsername})`
+      )
+      .maybeSingle();
+    if (existing) return;
+
     await supabase.from("friend_requests").insert({
-      from_username: username,
+      from_username: currentUsername,
       to_username: user.username,
       status: "pending",
     });
+    // Realtime will refresh, but also update optimistically
     setOutgoingRequests((prev) => [...prev, user]);
   }
 
