@@ -951,6 +951,42 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Active session */}
+      {activeSession && (() => {
+        const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
+        const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
+        const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
+        const remSec = remainingSec !== null ? remainingSec % 60 : null;
+        const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
+        return (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-charcoal mb-3">Active session</h2>
+            <div className="bg-white rounded-2xl border border-purple-100 px-4 py-3">
+              <div className="flex items-center justify-between mb-2">
+                <div>
+                  <p className="text-sm font-semibold text-charcoal">{activeSession.title || "Homeroom"}</p>
+                  {remainingSec !== null && remainingSec > 0 ? (
+                    <p className="text-xs text-warm-gray mt-0.5">{remMin}:{String(remSec).padStart(2, "0")} remaining</p>
+                  ) : remainingSec === 0 ? (
+                    <p className="text-xs font-semibold mt-0.5" style={{ color: "#DC2626" }}>Time&apos;s up</p>
+                  ) : (
+                    <p className="text-xs text-warm-gray mt-0.5">No time limit</p>
+                  )}
+                </div>
+                <Link href="/room" className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
+                  Rejoin
+                </Link>
+              </div>
+              {activeSession.duration > 0 && (
+                <div className="bg-gray-100 rounded-full h-1.5">
+                  <div className="h-1.5 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
+                </div>
+              )}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Scheduled homerooms */}
       {scheduled.length > 0 && (
         <div className="mb-6">
@@ -1015,42 +1051,6 @@ export default function HomePage() {
           )}
         </div>
       )}
-
-      {/* Active session */}
-      {activeSession && (() => {
-        const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
-        const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
-        const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
-        const remSec = remainingSec !== null ? remainingSec % 60 : null;
-        const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
-        return (
-          <div className="mb-6">
-            <h2 className="text-sm font-semibold text-charcoal mb-3">Active session</h2>
-            <div className="bg-white rounded-2xl border border-purple-100 px-4 py-3">
-              <div className="flex items-center justify-between mb-2">
-                <div>
-                  <p className="text-sm font-semibold text-charcoal">{activeSession.title || "Homeroom"}</p>
-                  {remainingSec !== null && remainingSec > 0 ? (
-                    <p className="text-xs text-warm-gray mt-0.5">{remMin}:{String(remSec).padStart(2, "0")} remaining</p>
-                  ) : remainingSec === 0 ? (
-                    <p className="text-xs font-semibold mt-0.5" style={{ color: "#DC2626" }}>Time&apos;s up</p>
-                  ) : (
-                    <p className="text-xs text-warm-gray mt-0.5">No time limit</p>
-                  )}
-                </div>
-                <Link href="/room" className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
-                  Rejoin
-                </Link>
-              </div>
-              {activeSession.duration > 0 && (
-                <div className="bg-gray-100 rounded-full h-1.5">
-                  <div className="h-1.5 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
-                </div>
-              )}
-            </div>
-          </div>
-        );
-      })()}
 
       {/* Squad filter chips */}
       {userSquads.length > 0 && (
