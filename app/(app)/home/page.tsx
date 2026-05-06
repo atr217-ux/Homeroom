@@ -492,6 +492,17 @@ export default function HomePage() {
       }
     } catch { /* ignore */ }
 
+    // Load active public rooms for everyone — no username required
+    {
+      const supabase = createClient();
+      supabase.from("active_sessions").select("*").then(({ data }) => {
+        if (data) {
+          setPublicRooms(data as PublicActiveRoom[]);
+          loadRoomParticipants(data.map(r => r.session_id));
+        }
+      });
+    }
+
     const currentUsername = localStorage.getItem("homeroom-username");
     if (currentUsername) {
       const supabase = createClient();
@@ -530,14 +541,6 @@ export default function HomePage() {
             })));
           }
         });
-
-      // Load active public rooms + participants
-      supabase.from("active_sessions").select("*").then(({ data }) => {
-        if (data) {
-          setPublicRooms(data as PublicActiveRoom[]);
-          loadRoomParticipants(data.map(r => r.session_id));
-        }
-      });
 
       // Load public scheduled sessions (future only)
       supabase.from("public_scheduled_sessions").select("*")
@@ -1119,11 +1122,12 @@ export default function HomePage() {
       <div className="mb-6" id="active-rooms">
         <h2 className="text-sm font-semibold text-charcoal mb-3">
           Active rooms
-          {(publicRooms.length > 0 || (activeSession?.isPublic)) && (
-            <span className="ml-1.5 text-warm-gray font-normal">
-              · {publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter)).length + (activeSession?.isPublic ? 1 : 0)}
-            </span>
-          )}
+          {(publicRooms.length > 0 || activeSession?.isPublic) && (() => {
+            const ownSessionId = activeSession?.isPublic ? activeSession.sessionId : undefined;
+            const othersCount = publicRooms.filter(r => r.session_id !== ownSessionId && (!squadFilter || r.squad_tags.includes(squadFilter))).length;
+            const total = othersCount + (activeSession?.isPublic ? 1 : 0);
+            return <span className="ml-1.5 text-warm-gray font-normal">· {total}</span>;
+          })()}
         </h2>
         <div className="space-y-3">
           {/* Own active session card */}
@@ -1220,7 +1224,11 @@ export default function HomePage() {
             );
           })()}
           {(() => {
-            const filtered = publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter));
+            const ownSessionId = activeSession?.isPublic ? activeSession.sessionId : undefined;
+            const filtered = publicRooms.filter(r =>
+              r.session_id !== ownSessionId &&
+              (!squadFilter || r.squad_tags.includes(squadFilter))
+            );
             if (filtered.length === 0 && !activeSession?.isPublic) return (
               <div className="text-center py-10 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
                 No active rooms right now.
