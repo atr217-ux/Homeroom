@@ -519,14 +519,16 @@ export default function RoomPage() {
   const remainingSs  = remainingSec % 60;
   const progressPct  = duration > 0 ? Math.min(100, (elapsedSec / (duration * 60)) * 100) : 0;
 
-  // Auto-end when session timer hits zero
+  // Auto-end when session timer hits zero.
+  // Include `duration` in deps so this also fires when the session first loads
+  // and the timer is already expired (remainingSec stays 0 → 0, no change otherwise).
   useEffect(() => {
-    if (duration > 0 && remainingSec === 0 && !timerEndedRef.current && tasksInitializedRef.current) {
+    if (duration > 0 && remainingSec === 0 && !timerEndedRef.current) {
       timerEndedRef.current = true;
       leaveRoom();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [remainingSec]);
+  }, [remainingSec, duration]);
 
   function leaveRoom() {
     setTasks((prev) => prev.map((t) =>
