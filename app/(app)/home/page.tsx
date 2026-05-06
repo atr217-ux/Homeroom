@@ -384,6 +384,8 @@ type ActiveSession = {
   title: string;
   duration: number;
   sessionStartTime: number;
+  sessionId?: string;
+  isPublic?: boolean;
 };
 
 type PublicActiveRoom = {
@@ -476,10 +478,10 @@ export default function HomePage() {
         if (s.sessionStartTime && s.duration > 0) {
           const elapsed = Math.floor((Date.now() - s.sessionStartTime) / 1000);
           if (elapsed < s.duration * 60) {
-            setActiveSession({ title: s.title, duration: s.duration, sessionStartTime: s.sessionStartTime });
+            setActiveSession({ title: s.title, duration: s.duration, sessionStartTime: s.sessionStartTime, sessionId: s.sessionId, isPublic: s.isPublic });
           }
         } else if (s.sessionStartTime) {
-          setActiveSession({ title: s.title, duration: s.duration, sessionStartTime: s.sessionStartTime });
+          setActiveSession({ title: s.title, duration: s.duration, sessionStartTime: s.sessionStartTime, sessionId: s.sessionId, isPublic: s.isPublic });
         }
       }
     } catch { /* ignore */ }
@@ -1109,16 +1111,63 @@ export default function HomePage() {
       <div className="mb-6" id="active-rooms">
         <h2 className="text-sm font-semibold text-charcoal mb-3">
           Active rooms
-          {publicRooms.length > 0 && <span className="ml-1.5 text-warm-gray font-normal">· {publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter)).length}</span>}
+          {(publicRooms.length > 0 || (activeSession?.isPublic)) && (
+            <span className="ml-1.5 text-warm-gray font-normal">
+              · {publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter)).length + (activeSession?.isPublic ? 1 : 0)}
+            </span>
+          )}
         </h2>
         <div className="space-y-3">
+          {/* Own active session card */}
+          {activeSession?.isPublic && (() => {
+            const myUsername = typeof window !== "undefined" ? localStorage.getItem("homeroom-username") ?? "You" : "You";
+            const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
+            const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
+            const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
+            const remSec = remainingSec !== null ? remainingSec % 60 : null;
+            const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
+            return (
+              <div className="bg-white rounded-2xl border border-purple-100 overflow-hidden">
+                <div className="px-4 py-3">
+                  <div className="flex items-start justify-between">
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                        <p className="text-sm font-semibold text-charcoal truncate">{activeSession.title || "Homeroom"}</p>
+                      </div>
+                      <p className="text-xs text-warm-gray mt-0.5">@{myUsername} · your room</p>
+                      <div className="flex items-center gap-2 mt-1.5">
+                        {remainingSec !== null && remainingSec > 0
+                          ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
+                          : activeSession.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
+                          : <span className="text-xs text-warm-gray">No time limit</span>}
+                      </div>
+                    </div>
+                    <Link
+                      href="/room"
+                      className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white ml-3 flex-shrink-0 transition-opacity hover:opacity-80"
+                      style={{ background: "#7C3AED" }}
+                    >
+                      Rejoin
+                    </Link>
+                  </div>
+                  {activeSession.duration > 0 && (
+                    <div className="bg-gray-100 rounded-full h-1 mt-2.5">
+                      <div className="h-1 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })()}
           {(() => {
             const filtered = publicRooms.filter(r => !squadFilter || r.squad_tags.includes(squadFilter));
-            if (filtered.length === 0) return (
+            if (filtered.length === 0 && !activeSession?.isPublic) return (
               <div className="text-center py-10 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
                 No active rooms right now.
               </div>
             );
+            if (filtered.length === 0) return null;
             return filtered.map((room) => {
               const elapsedSec = Math.floor((Date.now() - new Date(room.started_at).getTime()) / 1000);
               const remainingSec = room.duration > 0 ? Math.max(0, room.duration * 60 - elapsedSec) : null;
