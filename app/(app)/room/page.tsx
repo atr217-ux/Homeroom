@@ -52,6 +52,7 @@ export default function RoomPage() {
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [feedExpanded, setFeedExpanded]           = useState(false);
+  const [presentUsernames, setPresentUsernames]   = useState<Set<string>>(new Set());
   const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
   const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
@@ -172,7 +173,16 @@ export default function RoomPage() {
           pushFeed(`${payload.reactor} reacted ${payload.emoji} to "${payload.msgText}"`);
         }
       })
-      .subscribe(() => {
+      .on("presence", { event: "sync" }, () => {
+        const state = channel.presenceState();
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const names = new Set(Object.values(state).flatMap((arr: any) => arr.map((p: any) => p.username as string)));
+        setPresentUsernames(names);
+      })
+      .subscribe(async (status) => {
+        if (status === "SUBSCRIBED") {
+          await channel.track({ username: myUsernameRef.current || myUsername });
+        }
         // After subscribing, ask existing members for the authoritative start time
         channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
       });
@@ -694,25 +704,6 @@ export default function RoomPage() {
           </div>
         </div>
 
-        {/* Invited friends */}
-        {session?.invitedFriends && session.invitedFriends.length > 0 && (
-          <div className="mt-5 mb-3">
-            <h2 className="text-sm font-semibold text-charcoal mb-2">Invited</h2>
-            <div className="flex flex-wrap gap-2">
-              {session.invitedFriends.map((f) => (
-                <div key={f.id} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full px-2.5 py-1">
-                  <div
-                    className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                    style={{ background: f.color }}
-                  >
-                    {f.initials}
-                  </div>
-                  <span className="text-xs text-charcoal">{f.name}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Activity + Chat */}
         <div className="mt-4 mb-4">
@@ -895,6 +886,30 @@ export default function RoomPage() {
         <div className="text-center py-8 text-warm-gray text-sm">
           No one else here yet.
         </div>
+
+        {/* Invited but not yet joined */}
+        {(() => {
+          const pending = (session?.invitedFriends ?? []).filter(f => !presentUsernames.has(f.name));
+          if (pending.length === 0) return null;
+          return (
+            <div className="mt-5">
+              <h2 className="text-sm font-semibold text-charcoal mb-2">Invited · waiting to join</h2>
+              <div className="flex flex-wrap gap-2">
+                {pending.map((f) => (
+                  <div key={f.id} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full px-2.5 py-1">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                      style={{ background: f.color }}
+                    >
+                      {f.initials}
+                    </div>
+                    <span className="text-xs text-warm-gray">{f.name}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          );
+        })()}
       </div>
 
       {/* Add from list modal */}
