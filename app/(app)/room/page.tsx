@@ -20,6 +20,7 @@ type Session = {
   tasks: { id: string; text: string }[];
   invitedFriends: Friend[];
   scheduledFor: string | null;
+  sessionStartTime?: number;
 };
 type FeedItem = { id: string; text: string; time: Date };
 
@@ -31,6 +32,7 @@ function formatTime(seconds: number): string {
 
 export default function RoomPage() {
   const [myUsername, setMyUsername] = useState("You");
+  const myUsernameRef = useRef<string>("");
   const [session, setSession] = useState<Session | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskInput, setTaskInput] = useState("");
@@ -69,12 +71,32 @@ export default function RoomPage() {
   }, []);
 
   useEffect(() => {
-    const u = localStorage.getItem("homeroom-username");
-    if (u) setMyUsername(u);
+    // Populate ref immediately from localStorage so toggleTask never uses "You"
+    const local = localStorage.getItem("homeroom-username");
+    if (local) {
+      myUsernameRef.current = local;
+      setMyUsername(local);
+    }
+    // Always verify against Supabase — overrides stale or missing localStorage
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      supabase.from("profiles").select("username, avatar").eq("id", user.id).single().then(({ data }) => {
+        if (!data) return;
+        myUsernameRef.current = data.username;
+        setMyUsername(data.username);
+        localStorage.setItem("homeroom-username", data.username);
+        if (data.avatar) localStorage.setItem("homeroom-avatar", data.avatar);
+      });
+    });
     try {
       const stored = localStorage.getItem("homeroom-session");
       if (stored) {
         const s: Session = JSON.parse(stored);
+        if (!s.sessionStartTime) {
+          s.sessionStartTime = Date.now();
+          localStorage.setItem("homeroom-session", JSON.stringify(s));
+        }
         setSession(s);
         setTasks(s.tasks.map((t) => ({ ...t, done: false, timeSpent: 0, startedAt: null })));
       }
@@ -84,7 +106,7 @@ export default function RoomPage() {
   }, []);
 
   useEffect(() => {
-    if (!session?.sessionId || session.isPublic) return;
+    if (!session?.sessionId) return;
     const supabase = createClient();
     const channel = supabase
       .channel(`room:${session.sessionId}`)
@@ -128,7 +150,7 @@ export default function RoomPage() {
     if (!task.done) {
       const feedText = timeSpent > 0 ? `Finished ${task.text} · ${formatTime(timeSpent)}` : `Finished ${task.text}`;
       pushFeed(feedText);
-      const activityMsg = { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsername, time: new Date(), reactions: [] };
+      const activityMsg = { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsernameRef.current || myUsername, time: new Date(), reactions: [] };
       setChatMessages((prev) => [...prev, activityMsg]);
       realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...activityMsg, time: activityMsg.time.toISOString() } });
       if (timeSpent > 0) {
@@ -214,7 +236,6 @@ export default function RoomPage() {
     setTaskInput("");
   }
 
-  const sessionStartRef = useRef<number | null>(null);
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const realtimeChannelRef = useRef<any>(null);
 
@@ -223,12 +244,8 @@ export default function RoomPage() {
   const doneTasks = tasks.filter((t) => t.done).length;
   const duration = session?.duration ?? 0;
 
-  if (sessionStartRef.current === null && session !== null) {
-    sessionStartRef.current = Date.now();
-  }
-
-  const elapsedSec = tick >= 0 && sessionStartRef.current !== null
-    ? Math.floor((Date.now() - sessionStartRef.current) / 1000)
+  const elapsedSec = tick >= 0 && session?.sessionStartTime
+    ? Math.floor((Date.now() - session.sessionStartTime) / 1000)
     : 0;
   const elapsedMin = Math.floor(elapsedSec / 60);
   const remainingSec = duration > 0 ? Math.max(0, duration * 60 - elapsedSec) : 0;
@@ -520,9 +537,7 @@ export default function RoomPage() {
                 ) : (
                   [...chatMessages].reverse().map((msg) => {
                     if (msg.type === "activity") {
-                      const label = showTodos
-                        ? `You finished "${msg.text}"`
-                        : "You completed a task";
+                      const label = showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
                       return (
                         <div
                           key={msg.id}
@@ -664,7 +679,20 @@ export default function RoomPage() {
           )}
 
           {session?.isPublic && (
-            <div className="text-sm text-warm-gray italic">Activity feed coming soon for public rooms.</div>
+            <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-48 overflow-y-auto">
+              {chatMessages.filter((m) => m.type === "activity").length === 0 ? (
+                <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
+              ) : [...chatMessages].filter((m) => m.type === "activity").reverse().map((msg) => {
+                const label = showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
+                return (
+                  <div key={msg.id} className="flex items-center gap-2 w-full">
+                    <div className="h-px flex-1 bg-gray-100" />
+                    <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
+                    <div className="h-px flex-1 bg-gray-100" />
+                  </div>
+                );
+              })}
+            </div>
           )}
         </div>
 
