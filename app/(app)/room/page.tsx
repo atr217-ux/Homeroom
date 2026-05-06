@@ -232,6 +232,16 @@ export default function RoomPage() {
     };
   }, [session?.sessionId, session?.isPublic, myUsername]);
 
+  // Track participation so home page can show who's in the room
+  useEffect(() => {
+    if (!session?.sessionId || !myUsername || myUsername === "You") return;
+    const supabase = createClient();
+    supabase.from("room_participants").upsert({ session_id: session.sessionId, username: myUsername }, { onConflict: "session_id,username", ignoreDuplicates: true });
+    return () => {
+      supabase.from("room_participants").delete().eq("session_id", session.sessionId!).eq("username", myUsername).then();
+    };
+  }, [session?.sessionId, myUsername]);
+
   function getElapsed(t: Task): number {
     if (t.startedAt === null) return t.timeSpent;
     return t.timeSpent + Math.floor((Date.now() - t.startedAt) / 1000);

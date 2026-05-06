@@ -439,12 +439,24 @@ export default function HomePage() {
   const [prepopSearch, setPrepopSearch] = useState("");
 
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
+  const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
 
   // Edit session modal
   const [editingSession, setEditingSession] = useState<ScheduledSession | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
   const [editInvitedIds, setEditInvitedIds] = useState<Set<string>>(new Set());
+
+  async function loadRoomParticipants(sessionIds: string[]) {
+    if (!sessionIds.length) return;
+    const supabase = createClient();
+    const { data } = await supabase.from("room_participants").select("session_id, username").in("session_id", sessionIds);
+    if (!data) return;
+    const map: Record<string, string[]> = {};
+    data.forEach((p) => { if (!map[p.session_id]) map[p.session_id] = []; map[p.session_id].push(p.username); });
+    setRoomParticipants(map);
+  }
 
   useEffect(() => {
     try {
@@ -511,9 +523,12 @@ export default function HomePage() {
           }
         });
 
-      // Load active public rooms
+      // Load active public rooms + participants
       supabase.from("active_sessions").select("*").then(({ data }) => {
-        if (data) setPublicRooms(data as PublicActiveRoom[]);
+        if (data) {
+          setPublicRooms(data as PublicActiveRoom[]);
+          loadRoomParticipants(data.map(r => r.session_id));
+        }
       });
 
       // Load public scheduled sessions (future only)
@@ -541,18 +556,23 @@ export default function HomePage() {
     }
   }, []);
 
-  // Realtime: update active public rooms as they appear/disappear
+  // Realtime: update active public rooms and participants as they change
   useEffect(() => {
     const supabase = createClient();
+    async function refresh() {
+      const { data } = await supabase.from("active_sessions").select("*");
+      if (data) {
+        setPublicRooms(data as PublicActiveRoom[]);
+        loadRoomParticipants(data.map(r => r.session_id));
+      }
+    }
     const channel = supabase
       .channel("active_sessions_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "active_sessions" }, () => {
-        supabase.from("active_sessions").select("*").then(({ data }) => {
-          if (data) setPublicRooms(data as PublicActiveRoom[]);
-        });
-      })
+      .on("postgres_changes", { event: "*", schema: "public", table: "active_sessions" }, refresh)
+      .on("postgres_changes", { event: "*", schema: "public", table: "room_participants" }, refresh)
       .subscribe();
     return () => { supabase.removeChannel(channel); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   // Tick every 30s so Start/Join button enables at the right time
@@ -1095,35 +1115,80 @@ export default function HomePage() {
               const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
               const remSec = remainingSec !== null ? remainingSec % 60 : null;
               const progressPct = room.duration > 0 ? Math.min(100, (elapsedSec / (room.duration * 60)) * 100) : 0;
+              const participants = roomParticipants[room.session_id] ?? [];
+              const friendSet = new Set(friends.map(f => f.name));
+              const friendsInRoom = participants.filter(u => friendSet.has(u));
+              const expanded = expandedRooms.has(room.session_id);
               return (
-                <div key={room.id} className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-2 flex-wrap">
-                        <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
-                        <p className="text-sm font-semibold text-charcoal truncate">{room.host_username} is {room.title || "in a homeroom"}</p>
+                <div key={room.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
+                  <div
+                    className="px-4 py-3 cursor-pointer"
+                    onClick={() => setExpandedRooms(prev => { const n = new Set(prev); n.has(room.session_id) ? n.delete(room.session_id) : n.add(room.session_id); return n; })}
+                  >
+                    <div className="flex items-start justify-between">
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
+                          <p className="text-sm font-semibold text-charcoal truncate">{room.title || "Homeroom"}</p>
+                        </div>
+                        <p className="text-xs text-warm-gray mt-0.5">@{room.host_username}</p>
+                        <div className="flex items-center gap-2 mt-1.5 flex-wrap">
+                          {remainingSec !== null && remainingSec > 0
+                            ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
+                            : room.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
+                            : <span className="text-xs text-warm-gray">No time limit</span>}
+                          {participants.length > 0 && (
+                            <span className="text-xs text-warm-gray">{participants.length} in room</span>
+                          )}
+                          {friendsInRoom.length > 0 && (
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                              {friendsInRoom.length} friend{friendsInRoom.length !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                          {room.squad_tags.length > 0 && userSquads.filter(s => room.squad_tags.includes(s.id)).map(s => (
+                            <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>{s.emoji} {s.name}</span>
+                          ))}
+                        </div>
                       </div>
-                      <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        {remainingSec !== null && remainingSec > 0
-                          ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
-                          : room.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
-                          : <span className="text-xs text-warm-gray">No time limit</span>}
-                        {room.squad_tags.length > 0 && userSquads.filter(s => room.squad_tags.includes(s.id)).map(s => (
-                          <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>{s.emoji} {s.name}</span>
-                        ))}
+                      <div className="flex items-center gap-2 ml-3 flex-shrink-0">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); joinPublicRoom(room); }}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                          style={{ background: "#7C3AED" }}
+                        >
+                          Join
+                        </button>
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ transform: expanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                          <path d="M6 9l6 6 6-6" />
+                        </svg>
                       </div>
                     </div>
-                    <button
-                      onClick={() => joinPublicRoom(room)}
-                      className="ml-3 flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                      style={{ background: "#7C3AED" }}
-                    >
-                      Join
-                    </button>
+                    {room.duration > 0 && (
+                      <div className="bg-gray-100 rounded-full h-1 mt-2.5">
+                        <div className="h-1 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
+                      </div>
+                    )}
                   </div>
-                  {room.duration > 0 && (
-                    <div className="bg-gray-100 rounded-full h-1">
-                      <div className="h-1 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
+                  {expanded && (
+                    <div className="border-t border-gray-50 px-4 py-3">
+                      {participants.length === 0 ? (
+                        <p className="text-xs text-warm-gray italic">No participants yet.</p>
+                      ) : (
+                        <div className="flex flex-wrap gap-2">
+                          {participants.map(uname => (
+                            <div key={uname} className="flex items-center gap-1.5">
+                              <div
+                                className="w-6 h-6 rounded-full flex items-center justify-center text-white flex-shrink-0"
+                                style={{ background: colorFromUsername(uname), fontSize: "10px", fontWeight: 600 }}
+                              >
+                                {uname.slice(0, 2).toUpperCase()}
+                              </div>
+                              <span className="text-xs text-charcoal font-medium">{uname}</span>
+                              {friendSet.has(uname) && <span className="text-xs text-sage font-semibold">friend</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
