@@ -62,6 +62,12 @@ export default function RoomPage() {
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
   const [participantData, setParticipantData]     = useState<Record<string, { tasks: { id: string; text: string; done: boolean }[]; sharing: boolean }>>({});
   const [expandedCards, setExpandedCards]         = useState<Set<string>>(new Set());
+  const [myFriendUsernames, setMyFriendUsernames] = useState<Set<string>>(new Set());
+  const [mySquads, setMySquads]                   = useState<{ id: string; name: string; emoji: string }[]>([]);
+  const [squadMemberMap, setSquadMemberMap]       = useState<Record<string, Set<string>>>({});
+  const [activeFilters, setActiveFilters]         = useState<Set<string>>(new Set());
+  const [participantsExpanded, setParticipantsExpanded] = useState(false);
+  const PARTICIPANTS_VISIBLE = 6;
   const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
   const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
@@ -358,6 +364,15 @@ export default function RoomPage() {
     ));
   }
 
+  function toggleFilter(key: string) {
+    setActiveFilters((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  }
+
   function toggleCard(username: string) {
     setExpandedCards((prev) => {
       const next = new Set(prev);
@@ -403,6 +418,51 @@ export default function RoomPage() {
   const timerEndedRef = useRef(false);
   const tasksRef     = useRef<Task[]>([]);
   const showTodosRef = useRef(true);
+
+  // Load friends and squads once username is known
+  useEffect(() => {
+    if (!myUsername || myUsername === "You") return;
+    const supabase = createClient();
+    supabase.from("friend_requests")
+      .select("from_username, to_username")
+      .eq("status", "accepted")
+      .or(`from_username.eq.${myUsername},to_username.eq.${myUsername}`)
+      .then(({ data }) => {
+        if (!data) return;
+        setMyFriendUsernames(new Set(
+          (data as { from_username: string; to_username: string }[]).map((r) =>
+            r.from_username === myUsername ? r.to_username : r.from_username
+          )
+        ));
+      });
+    supabase.from("squad_members")
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      .select("squad_id, squads(id, name, emoji)" as any)
+      .eq("username", myUsername)
+      .then(({ data }) => {
+        if (!data) return;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const squads = (data as any[]).flatMap((row) => {
+          const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
+          if (!s) return [];
+          return [{ id: s.id as string, name: s.name as string, emoji: (s.emoji as string) || "👥" }];
+        });
+        setMySquads(squads);
+        if (squads.length === 0) return;
+        supabase.from("squad_members")
+          .select("squad_id, username")
+          .in("squad_id", squads.map((s) => s.id))
+          .then(({ data: members }) => {
+            if (!members) return;
+            const map: Record<string, Set<string>> = {};
+            (members as { squad_id: string; username: string }[]).forEach((m) => {
+              if (!map[m.squad_id]) map[m.squad_id] = new Set();
+              map[m.squad_id].add(m.username);
+            });
+            setSquadMemberMap(map);
+          });
+      });
+  }, [myUsername]);
 
   // Sync mutable ref so channel closures always see current task list
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
@@ -945,81 +1005,142 @@ export default function RoomPage() {
         {/* Participants */}
         {(() => {
           const others = presentUsers.filter(p => p.username !== (myUsernameRef.current || myUsername));
+          const filteredOthers = activeFilters.size === 0 ? others : others.filter((p) => {
+            for (const f of activeFilters) {
+              if (f === "friends" && myFriendUsernames.has(p.username)) return true;
+              if (f !== "friends" && squadMemberMap[f]?.has(p.username)) return true;
+            }
+            return false;
+          });
+          const visibleOthers = participantsExpanded ? filteredOthers : filteredOthers.slice(0, PARTICIPANTS_VISIBLE);
+          const hiddenCount = filteredOthers.length - PARTICIPANTS_VISIBLE;
           return (
             <div className="mt-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-charcoal">In this room</h2>
                 <span className="text-xs text-warm-gray">{others.length} {others.length === 1 ? "other" : "others"}</span>
               </div>
+
+              {/* Filter chips — only show when there are others present */}
+              {others.length > 0 && (
+                <div className="flex flex-wrap gap-2 mb-3">
+                  <button
+                    onClick={() => toggleFilter("friends")}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                    style={activeFilters.has("friends")
+                      ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
+                      : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
+                  >
+                    👤 Friends
+                  </button>
+                  {mySquads.map((s) => (
+                    <button
+                      key={s.id}
+                      onClick={() => toggleFilter(s.id)}
+                      className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
+                      style={activeFilters.has(s.id)
+                        ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
+                        : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
+                    >
+                      {s.emoji} {s.name}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               {others.length === 0 ? (
                 <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
                   No one else here yet.
                 </div>
-              ) : (
-                <div className="grid grid-cols-2 gap-3">
-                  {others.map((p) => {
-                    const pData = participantData[p.username];
-                    const isExpanded = expandedCards.has(p.username);
-                    const doneCount = pData?.tasks.filter((t) => t.done).length ?? 0;
-                    const totalCount = pData?.tasks.length ?? 0;
-                    return (
-                      <div key={p.username} className="bg-white rounded-2xl border border-gray-100 p-3 flex flex-col">
-                        <div className="flex items-start justify-between mb-2">
-                          <div
-                            className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
-                            style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}
-                          >
-                            {p.avatar || <span className="text-white text-sm font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
-                          </div>
-                          <button
-                            onClick={() => toggleCard(p.username)}
-                            className="text-warm-gray p-1 transition-transform duration-200 flex-shrink-0"
-                            style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
-                          >
-                            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="6 9 12 15 18 9" />
-                            </svg>
-                          </button>
-                        </div>
-                        <p className="text-sm font-semibold text-charcoal truncate">{p.username}</p>
-                        <p className="text-xs text-warm-gray mt-0.5">
-                          {pData ? `${doneCount}/${totalCount} tasks` : "joining…"}
-                        </p>
-                        {isExpanded && (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            {pData?.sharing ? (
-                              pData.tasks.length === 0 ? (
-                                <p className="text-xs text-warm-gray italic">No tasks yet</p>
-                              ) : (
-                                <div className="space-y-1.5">
-                                  {pData.tasks.map((t) => (
-                                    <div key={t.id} className="flex items-center gap-1.5">
-                                      <div
-                                        className="w-3 h-3 rounded flex-shrink-0 flex items-center justify-center"
-                                        style={t.done
-                                          ? { background: "#7C3AED", border: "2px solid #7C3AED" }
-                                          : { border: "2px solid #D1D5DB" }}
-                                      >
-                                        {t.done && (
-                                          <svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                            <polyline points="20 6 9 17 4 12" />
-                                          </svg>
-                                        )}
-                                      </div>
-                                      <span className={`text-xs truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
-                                    </div>
-                                  ))}
-                                </div>
-                              )
-                            ) : (
-                              <p className="text-xs text-warm-gray italic">Tasks are private</p>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
+              ) : filteredOthers.length === 0 ? (
+                <div className="text-center py-5 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
+                  No one here matches this filter.
                 </div>
+              ) : (
+                <>
+                  <div className="grid grid-cols-3 gap-2">
+                    {visibleOthers.map((p) => {
+                      const pData = participantData[p.username];
+                      const isExpanded = expandedCards.has(p.username);
+                      const doneCount = pData?.tasks.filter((t) => t.done).length ?? 0;
+                      const totalCount = pData?.tasks.length ?? 0;
+                      return (
+                        <div key={p.username} className="bg-white rounded-2xl border border-gray-100 p-2.5 flex flex-col">
+                          <div className="flex items-start justify-between mb-1.5">
+                            <div
+                              className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0"
+                              style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}
+                            >
+                              {p.avatar || <span className="text-white text-xs font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
+                            </div>
+                            <button
+                              onClick={() => toggleCard(p.username)}
+                              className="text-warm-gray p-0.5 transition-transform duration-200 flex-shrink-0"
+                              style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </button>
+                          </div>
+                          <p className="text-xs font-semibold text-charcoal truncate leading-tight">{p.username}</p>
+                          <p className="text-xs text-warm-gray mt-0.5">
+                            {pData ? `${doneCount}/${totalCount} tasks` : "joining…"}
+                          </p>
+                          {isExpanded && (
+                            <div className="mt-2 pt-2 border-t border-gray-100">
+                              {pData?.sharing ? (
+                                pData.tasks.length === 0 ? (
+                                  <p className="text-xs text-warm-gray italic">No tasks</p>
+                                ) : (
+                                  <div className="space-y-1">
+                                    {pData.tasks.map((t) => (
+                                      <div key={t.id} className="flex items-center gap-1">
+                                        <div
+                                          className="w-2.5 h-2.5 rounded flex-shrink-0 flex items-center justify-center"
+                                          style={t.done
+                                            ? { background: "#7C3AED", border: "2px solid #7C3AED" }
+                                            : { border: "2px solid #D1D5DB" }}
+                                        >
+                                          {t.done && (
+                                            <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+                                              <polyline points="20 6 9 17 4 12" />
+                                            </svg>
+                                          )}
+                                        </div>
+                                        <span className={`text-xs truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
+                                      </div>
+                                    ))}
+                                  </div>
+                                )
+                              ) : (
+                                <p className="text-xs text-warm-gray italic">Private</p>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                  {!participantsExpanded && hiddenCount > 0 && (
+                    <button
+                      onClick={() => setParticipantsExpanded(true)}
+                      className="mt-2 text-xs font-medium"
+                      style={{ color: "#7C3AED" }}
+                    >
+                      + {hiddenCount} more {hiddenCount === 1 ? "person" : "people"}
+                    </button>
+                  )}
+                  {participantsExpanded && filteredOthers.length > PARTICIPANTS_VISIBLE && (
+                    <button
+                      onClick={() => setParticipantsExpanded(false)}
+                      className="mt-2 text-xs font-medium"
+                      style={{ color: "#7C3AED" }}
+                    >
+                      Show less
+                    </button>
+                  )}
+                </>
               )}
             </div>
           );
