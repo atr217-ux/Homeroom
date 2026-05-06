@@ -17,7 +17,7 @@ type Session = {
   title: string;
   duration: number;
   isPublic: boolean;
-  tasks: { id: string; text: string; done?: boolean; timeSpent?: number }[];
+  tasks: { id: string; text: string; done?: boolean; timeSpent?: number; startedAt?: number | null }[];
   invitedFriends: Friend[];
   scheduledFor: string | null;
   sessionStartTime?: number;
@@ -108,7 +108,7 @@ export default function RoomPage() {
           localStorage.setItem("homeroom-session", JSON.stringify(s));
         }
         setSession(s);
-        setTasks(s.tasks.map((t) => ({ id: t.id, text: t.text, done: t.done ?? false, timeSpent: t.timeSpent ?? 0, startedAt: null })));
+        setTasks(s.tasks.map((t) => ({ id: t.id, text: t.text, done: t.done ?? false, timeSpent: t.timeSpent ?? 0, startedAt: t.startedAt ?? null })));
         tasksInitializedRef.current = true;
       }
       const listStored = localStorage.getItem("homeroom-tasks");
