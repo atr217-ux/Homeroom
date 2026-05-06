@@ -115,7 +115,30 @@ export default function RoomPage() {
           setChatMessages((prev) => [...prev, { ...payload, time: new Date(payload.time) }]);
         }
       })
-      .subscribe();
+      .on("broadcast", { event: "request-session-info" }, () => {
+        // Someone just joined — send them our start time
+        const raw = localStorage.getItem("homeroom-session");
+        if (!raw) return;
+        const s = JSON.parse(raw);
+        if (s.sessionStartTime) {
+          channel.send({ type: "broadcast", event: "session-info", payload: { sessionStartTime: s.sessionStartTime } });
+        }
+      })
+      .on("broadcast", { event: "session-info" }, ({ payload }) => {
+        // Adopt the earliest start time so all users share the same clock
+        if (!payload.sessionStartTime) return;
+        setSession((prev) => {
+          if (!prev) return prev;
+          if (prev.sessionStartTime && prev.sessionStartTime <= payload.sessionStartTime) return prev;
+          const updated = { ...prev, sessionStartTime: payload.sessionStartTime };
+          localStorage.setItem("homeroom-session", JSON.stringify(updated));
+          return updated;
+        });
+      })
+      .subscribe(() => {
+        // After subscribing, ask existing members for the authoritative start time
+        channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
+      });
     realtimeChannelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
   }, [session?.sessionId, myUsername]);
