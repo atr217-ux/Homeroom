@@ -58,6 +58,11 @@ export default function RoomPage() {
     setChatMessages((prev) => prev.map((m) => {
       if (m.id !== msgId) return m;
       const has = m.reactions.includes(emoji);
+      const added = !has;
+      realtimeChannelRef.current?.send({
+        type: "broadcast", event: "reaction",
+        payload: { msgId, emoji, reactor: myUsernameRef.current || myUsername, added, msgSender: m.sender, msgText: m.text },
+      });
       return { ...m, reactions: has ? m.reactions.filter((e) => e !== emoji) : [...m.reactions, emoji] };
     }));
   }
@@ -135,6 +140,22 @@ export default function RoomPage() {
           localStorage.setItem("homeroom-session", JSON.stringify(updated));
           return updated;
         });
+      })
+      .on("broadcast", { event: "reaction" }, ({ payload }) => {
+        const me = myUsernameRef.current || myUsername;
+        if (payload.reactor === me) return; // we already updated our own state
+        // Update the message reactions for everyone else
+        setChatMessages((prev) => prev.map((m) => {
+          if (m.id !== payload.msgId) return m;
+          const has = m.reactions.includes(payload.emoji);
+          if (payload.added && !has) return { ...m, reactions: [...m.reactions, payload.emoji] };
+          if (!payload.added && has) return { ...m, reactions: m.reactions.filter((e) => e !== payload.emoji) };
+          return m;
+        }));
+        // Notify the task author in their personal feed
+        if (payload.added && payload.msgSender === me) {
+          pushFeed(`${payload.reactor} reacted ${payload.emoji} to "${payload.msgText}"`);
+        }
       })
       .subscribe(() => {
         // After subscribing, ask existing members for the authoritative start time
