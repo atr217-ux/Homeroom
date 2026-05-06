@@ -559,19 +559,29 @@ export default function HomePage() {
   // Realtime: update active public rooms and participants as they change
   useEffect(() => {
     const supabase = createClient();
-    async function refresh() {
+    async function refreshRooms() {
       const { data } = await supabase.from("active_sessions").select("*");
       if (data) {
         setPublicRooms(data as PublicActiveRoom[]);
         loadRoomParticipants(data.map(r => r.session_id));
       }
     }
-    const channel = supabase
-      .channel("active_sessions_changes")
-      .on("postgres_changes", { event: "*", schema: "public", table: "active_sessions" }, refresh)
-      .on("postgres_changes", { event: "*", schema: "public", table: "room_participants" }, refresh)
+    async function refreshParticipants() {
+      const { data: rooms } = await supabase.from("active_sessions").select("session_id");
+      if (rooms) loadRoomParticipants(rooms.map(r => r.session_id));
+    }
+    const activeCh = supabase
+      .channel("active_sessions_ch")
+      .on("postgres_changes", { event: "*", schema: "public", table: "active_sessions" }, refreshRooms)
       .subscribe();
-    return () => { supabase.removeChannel(channel); };
+    const participantsCh = supabase
+      .channel("room_participants_ch")
+      .on("postgres_changes", { event: "*", schema: "public", table: "room_participants" }, refreshParticipants)
+      .subscribe();
+    return () => {
+      supabase.removeChannel(activeCh);
+      supabase.removeChannel(participantsCh);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
