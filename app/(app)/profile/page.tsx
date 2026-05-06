@@ -166,12 +166,11 @@ export default function ProfilePage() {
   }
 
   async function loadSquadInvites(uname: string) {
-    const { data, error } = await supabase
+    const { data } = await supabase
       .from("squad_invites")
       .select("id, squad_id, from_username, squads(name, emoji)")
       .eq("to_username", uname)
       .eq("status", "pending");
-    console.log("[squad_invites] load for", uname, "→ rows:", data?.length ?? 0, error?.message ?? "ok");
     if (!data) return;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setSquadInvites((data as any[]).map((row) => {
@@ -964,7 +963,6 @@ export default function ProfilePage() {
           }
           const currentUsername = localStorage.getItem("homeroom-username") || username;
           const { error } = await supabase.from("squad_invites").insert({ squad_id: inviteSquadId!, from_username: currentUsername, to_username: friend.username, status: "pending" });
-          console.log("[squad_invites] insert to_username:", friend.username, "from:", currentUsername, error ? "ERROR:" + error.message : "ok");
           if (error) { console.error("squad invite failed:", error.message); return; }
           setInvitedToSquad((prev) => ({ ...prev, [inviteSquadId!]: [...(prev[inviteSquadId!] ?? []), friend.id] }));
         }

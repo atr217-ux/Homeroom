@@ -418,7 +418,7 @@ export default function HomePage() {
   const [toast, setToast] = useState<string | null>(null);
   const [now, setNow] = useState(Date.now());
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
-  const [tick, setTick] = useState(0);
+  const [, setTick] = useState(0);
   const [publicRooms, setPublicRooms] = useState<PublicActiveRoom[]>([]);
   const [publicScheduled, setPublicScheduled] = useState<PublicScheduledSession[]>([]);
   const [userSquads, setUserSquads] = useState<UserSquad[]>([]);
@@ -512,8 +512,7 @@ export default function HomePage() {
         });
 
       // Load active public rooms
-      supabase.from("active_sessions").select("*").then(({ data, error }) => {
-        console.log("[active_sessions] fetch:", data?.length ?? 0, "rows", error ? "ERROR:" + error.message : "");
+      supabase.from("active_sessions").select("*").then(({ data }) => {
         if (data) setPublicRooms(data as PublicActiveRoom[]);
       });
 
