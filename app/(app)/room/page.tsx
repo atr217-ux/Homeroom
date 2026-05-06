@@ -4,6 +4,13 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
+function colorFromUsername(u: string): string {
+  let h = 0;
+  for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) & 0xffffffff;
+  return USER_COLORS[Math.abs(h) % USER_COLORS.length];
+}
+
 type Task = {
   id: string;
   text: string;
@@ -52,7 +59,7 @@ export default function RoomPage() {
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [feedExpanded, setFeedExpanded]           = useState(false);
-  const [presentUsernames, setPresentUsernames]   = useState<Set<string>>(new Set());
+  const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
   const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
   const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
@@ -176,12 +183,12 @@ export default function RoomPage() {
       .on("presence", { event: "sync" }, () => {
         const state = channel.presenceState();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const names = new Set(Object.values(state).flatMap((arr: any) => arr.map((p: any) => p.username as string)));
-        setPresentUsernames(names);
+        const users = Object.values(state).flatMap((arr: any) => arr.map((p: any) => ({ username: p.username as string, avatar: (p.avatar as string) || "" })));
+        setPresentUsers(users);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
-          await channel.track({ username: myUsernameRef.current || myUsername });
+          await channel.track({ username: myUsernameRef.current || myUsername, avatar: myAvatar || "" });
         }
         // After subscribing, ask existing members for the authoritative start time
         channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
@@ -879,17 +886,38 @@ export default function RoomPage() {
         </div>
 
         {/* Participants */}
-        <div className="flex items-center justify-between mt-5 mb-3">
-          <h2 className="text-sm font-semibold text-charcoal">In this room</h2>
-          <span className="text-xs text-warm-gray">0 others</span>
-        </div>
-        <div className="text-center py-8 text-warm-gray text-sm">
-          No one else here yet.
-        </div>
+        {(() => {
+          const others = presentUsers.filter(p => p.username !== (myUsernameRef.current || myUsername));
+          return (
+            <div className="mt-5">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-charcoal">In this room</h2>
+                <span className="text-xs text-warm-gray">{others.length} {others.length === 1 ? "other" : "others"}</span>
+              </div>
+              {others.length === 0 ? (
+                <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
+                  No one else here yet.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {others.map((p) => (
+                    <div key={p.username} className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3">
+                      <div className="w-9 h-9 rounded-full flex items-center justify-center text-xl flex-shrink-0" style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}>
+                        {p.avatar || <span className="text-white text-sm font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
+                      </div>
+                      <span className="text-sm font-semibold text-charcoal">{p.username}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          );
+        })()}
 
         {/* Invited but not yet joined */}
         {(() => {
-          const pending = (session?.invitedFriends ?? []).filter(f => !presentUsernames.has(f.name));
+          const presentSet = new Set(presentUsers.map(p => p.username));
+          const pending = (session?.invitedFriends ?? []).filter(f => !presentSet.has(f.name));
           if (pending.length === 0) return null;
           return (
             <div className="mt-5">
