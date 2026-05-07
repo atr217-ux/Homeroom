@@ -58,6 +58,7 @@ export default function RoomPage() {
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
+  const [dbParticipants, setDbParticipants]       = useState<{ userId: string; username: string; avatar: string }[]>([]);
   const [participantData, setParticipantData]     = useState<Record<string, { tasks: { id: string; text: string; done: boolean }[]; sharing: boolean }>>({});
   const [expandedCards, setExpandedCards]         = useState<Set<string>>(new Set());
   const [myFriendUsernames, setMyFriendUsernames] = useState<Set<string>>(new Set());
@@ -194,6 +195,15 @@ export default function RoomPage() {
         tasksInitializedRef.current = true;
       }
 
+      // Load all joined participants from DB
+      const loadDbParticipants = async (hId: string) => {
+        const { data: parts } = await supabase.from("homeroom_participants").select("user_id").eq("homeroom_id", hId);
+        if (!parts || parts.length === 0) return;
+        const { data: profs } = await supabase.from("profiles").select("id, username, avatar").in("id", parts.map(p => p.user_id));
+        if (profs) setDbParticipants(profs.map(p => ({ userId: p.id, username: p.username, avatar: p.avatar ?? "" })));
+      };
+      await loadDbParticipants(homeroom.id);
+
       // Restore chat
       try {
         const savedChat = localStorage.getItem(`homeroom-chat-${homeroom.id}`);
@@ -295,7 +305,19 @@ export default function RoomPage() {
         channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
       });
     realtimeChannelRef.current = channel;
-    return () => { supabase.removeChannel(channel); };
+
+    // Keep DB participant list live
+    const partsCh = supabase
+      .channel(`participants-db-${session.homeroomId}`)
+      .on("postgres_changes", { event: "*", schema: "public", table: "homeroom_participants", filter: `homeroom_id=eq.${session.homeroomId}` }, async () => {
+        const { data: parts } = await supabase.from("homeroom_participants").select("user_id").eq("homeroom_id", session.homeroomId);
+        if (!parts) return;
+        const { data: profs } = await supabase.from("profiles").select("id, username, avatar").in("id", parts.map(p => p.user_id));
+        if (profs) setDbParticipants(profs.map(p => ({ userId: p.id, username: p.username, avatar: p.avatar ?? "" })));
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); supabase.removeChannel(partsCh); };
   }, [session?.homeroomId, myUsername]);
 
   // Register in homeroom_participants when session + userId are known
@@ -595,6 +617,12 @@ export default function RoomPage() {
     setTasks((prev) => prev.map((t) =>
       t.startedAt !== null ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
+    // Remove from persistent participant list so others stop seeing this user's card
+    if (session?.homeroomId && myUserId) {
+      const supabase = createClient();
+      supabase.from("homeroom_participants").delete()
+        .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId).then(() => {});
+    }
     setShowSummary(true);
   }
 
@@ -1030,7 +1058,9 @@ export default function RoomPage() {
 
         {/* Participants */}
         {(() => {
-          const others = presentUsers.filter(p => p.username !== (myUsernameRef.current || myUsername));
+          const presentSet = new Set(presentUsers.map(p => p.username));
+          const me = myUsernameRef.current || myUsername;
+          const others = dbParticipants.filter(p => p.username !== me);
           const filteredOthers = activeFilters.size === 0 ? others : others.filter((p) => {
             for (const f of activeFilters) {
               if (f === "friends" && myFriendUsernames.has(p.username)) return true;
@@ -1108,6 +1138,12 @@ export default function RoomPage() {
                           </div>
                           <p className="text-xs font-semibold text-charcoal truncate leading-tight">{p.username}</p>
                           <p className="text-xs text-warm-gray mt-0.5">{pData ? `${doneCount}/${totalCount} tasks` : "joining…"}</p>
+                          {presentSet.has(p.username) && (
+                            <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                              Here now
+                            </span>
+                          )}
                           {isExpanded && (
                             <div className="mt-2 pt-2 border-t border-gray-100">
                               {pData?.sharing ? (
