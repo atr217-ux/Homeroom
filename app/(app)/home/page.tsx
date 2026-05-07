@@ -1248,7 +1248,12 @@ export default function HomePage() {
           Active rooms
           {(publicRooms.length > 0 || activeSession?.isPublic) && (() => {
             const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
-            const othersCount = publicRooms.filter(r => r.id !== ownRoomId && (!squadFilter || r.squad_tags.includes(squadFilter))).length;
+            const othersCount = publicRooms.filter(r => {
+              if (r.id === ownRoomId) return false;
+              if (squadFilter && !r.squad_tags.includes(squadFilter)) return false;
+              if (r.duration > 0 && (Date.now() - new Date(r.started_at).getTime()) / 1000 >= r.duration * 60) return false;
+              return true;
+            }).length;
             const total = othersCount + (activeSession?.isPublic ? 1 : 0);
             return <span className="ml-1.5 text-warm-gray font-normal">· {total}</span>;
           })()}
