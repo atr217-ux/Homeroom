@@ -1350,10 +1350,20 @@ export default function HomePage() {
           {/* Other active rooms */}
           {(() => {
             const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
-            const filtered = publicRooms.filter(r =>
-              r.id !== ownRoomId &&
-              (!squadFilter || r.squad_tags.includes(squadFilter))
-            );
+            const filtered = publicRooms.filter(r => {
+              if (r.id === ownRoomId) return false;
+              if (squadFilter && !r.squad_tags.includes(squadFilter)) return false;
+              // Hide rooms whose timer has expired — mark them completed in the background
+              if (r.duration > 0) {
+                const elapsed = (Date.now() - new Date(r.started_at).getTime()) / 1000;
+                if (elapsed >= r.duration * 60) {
+                  const supabase = createClient();
+                  supabase.from("homerooms").update({ status: "completed", ended_at: new Date().toISOString() }).eq("id", r.id).then(() => {});
+                  return false;
+                }
+              }
+              return true;
+            });
             if (filtered.length === 0 && !activeSession?.isPublic) return (
               <div className="text-center py-10 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
                 No active rooms right now.
