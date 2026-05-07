@@ -195,15 +195,6 @@ export default function RoomPage() {
         tasksInitializedRef.current = true;
       }
 
-      // Load all joined participants from DB
-      const loadDbParticipants = async (hId: string) => {
-        const { data: parts } = await supabase.from("homeroom_participants").select("user_id").eq("homeroom_id", hId);
-        if (!parts || parts.length === 0) return;
-        const { data: profs } = await supabase.from("profiles").select("id, username, avatar").in("id", parts.map(p => p.user_id));
-        if (profs) setDbParticipants(profs.map(p => ({ userId: p.id, username: p.username, avatar: p.avatar ?? "" })));
-      };
-      await loadDbParticipants(homeroom.id);
-
       // Restore chat
       try {
         const savedChat = localStorage.getItem(`homeroom-chat-${homeroom.id}`);
@@ -235,20 +226,10 @@ export default function RoomPage() {
           ...prev,
           [payload.username]: { tasks: payload.tasks ?? [], sharing: payload.sharing ?? false },
         }));
-        // Re-sync DB participant list whenever someone announces themselves
+        // Build participant list directly from broadcast — no DB fetch needed
         setDbParticipants((prev) => {
           if (prev.some(p => p.username === payload.username)) return prev;
-          // New person — re-fetch the full list from DB
-          const homeroomId = session?.homeroomId;
-          if (!homeroomId) return prev;
-          const supabase = createClient();
-          supabase.from("homeroom_participants").select("user_id").eq("homeroom_id", homeroomId)
-            .then(async ({ data: parts }) => {
-              if (!parts?.length) return;
-              const { data: profs } = await supabase.from("profiles").select("id, username, avatar").in("id", parts.map(p => p.user_id));
-              if (profs) setDbParticipants(profs.map(p => ({ userId: p.id, username: p.username, avatar: p.avatar ?? "" })));
-            });
-          return prev;
+          return [...prev, { userId: "", username: payload.username, avatar: payload.avatar ?? "" }];
         });
       })
       .on("broadcast", { event: "user-left" }, ({ payload }) => {
@@ -263,6 +244,7 @@ export default function RoomPage() {
           type: "broadcast", event: "task-share",
           payload: {
             username: me,
+            avatar: myAvatar || "",
             tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
             sharing: showTodosRef.current,
           },
@@ -317,6 +299,7 @@ export default function RoomPage() {
             type: "broadcast", event: "task-share",
             payload: {
               username: myUsernameRef.current || myUsername,
+              avatar: myAvatar || "",
               tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
               sharing: showTodosRef.current,
             },
@@ -585,6 +568,7 @@ export default function RoomPage() {
       type: "broadcast", event: "task-share",
       payload: {
         username: myUsernameRef.current || myUsername,
+        avatar: myAvatar || "",
         tasks: tasks.map((t) => ({ id: t.id, text: t.text, done: t.done })),
         sharing: showTodos,
       },
