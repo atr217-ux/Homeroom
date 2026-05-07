@@ -455,6 +455,7 @@ export default function HomePage() {
   const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
 
   const [editingSession, setEditingSession] = useState<ScheduledSession | null>(null);
+  const [editTitle, setEditTitle] = useState("");
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
   const [editInvitedIds, setEditInvitedIds] = useState<Set<string>>(new Set());
@@ -926,6 +927,7 @@ export default function HomePage() {
   }
 
   function openEdit(session: ScheduledSession) {
+    setEditTitle(session.title || "");
     setEditDate(isoToDateInput(session.scheduledFor));
     setEditTime(isoToTimeInput(session.scheduledFor));
     setEditInvitedIds(new Set(session.invitedFriends.map(f => f.id)));
@@ -937,7 +939,7 @@ export default function HomePage() {
     const newIso = new Date(`${editDate}T${editTime}`).toISOString();
     const supabase = createClient();
 
-    await supabase.from("homerooms").update({ scheduled_for: newIso }).eq("id", editingSession.id);
+    await supabase.from("homerooms").update({ scheduled_for: newIso, title: editTitle.trim() || editingSession.title }).eq("id", editingSession.id);
 
     const newInvited = friends.filter(f => editInvitedIds.has(f.id));
     const prevIds = new Set(editingSession.invitedFriends.map(f => f.id));
@@ -960,7 +962,7 @@ export default function HomePage() {
     }
 
     setScheduled(prev => prev.map(s =>
-      s.id === editingSession.id ? { ...s, scheduledFor: newIso, invitedFriends: newInvited } : s
+      s.id === editingSession.id ? { ...s, title: editTitle.trim() || s.title, scheduledFor: newIso, invitedFriends: newInvited } : s
     ));
 
     if (newInvited.length > 0) {
@@ -1644,10 +1646,7 @@ export default function HomePage() {
           <div className="absolute inset-0 bg-black/40" onClick={() => setEditingSession(null)} />
           <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-5">
             <div className="flex items-center justify-between mb-4">
-              <div>
-                <h2 className="font-semibold text-charcoal">Edit time</h2>
-                <p className="text-xs text-warm-gray mt-0.5">{editingSession.title || "Homeroom"}</p>
-              </div>
+              <h2 className="font-semibold text-charcoal">Edit homeroom</h2>
               <button onClick={() => setEditingSession(null)} className="text-warm-gray hover:text-charcoal p-1">
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M18 6L6 18M6 6l12 12" />
@@ -1656,6 +1655,16 @@ export default function HomePage() {
             </div>
 
             <div className="space-y-3">
+              <div>
+                <label className="text-xs font-medium text-warm-gray block mb-1">Name</label>
+                <input
+                  type="text"
+                  value={editTitle}
+                  onChange={(e) => setEditTitle(e.target.value)}
+                  placeholder="Homeroom name…"
+                  className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 text-charcoal focus:outline-none focus:border-sage bg-white"
+                />
+              </div>
               <div>
                 <label className="text-xs font-medium text-warm-gray block mb-1">Date</label>
                 <input
