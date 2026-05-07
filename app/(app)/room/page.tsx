@@ -1085,8 +1085,8 @@ export default function RoomPage() {
                   {friendsWithIds.length > 0 && (
                     <button
                       onClick={() => { setShowInviteModal(true); setInviteSearch(""); }}
-                      className="flex items-center gap-1 text-xs font-medium transition-colors"
-                      style={{ color: "#7C3AED" }}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
+                      style={{ color: "#7C3AED", borderColor: "#DDD6FE" }}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
@@ -1368,11 +1368,11 @@ export default function RoomPage() {
           (!inviteSearch || f.username.toLowerCase().includes(inviteSearch.toLowerCase()))
         );
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
-            <div className="bg-white rounded-3xl w-full max-w-md max-h-[70vh] flex flex-col shadow-xl">
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setShowInviteModal(false)}>
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl pb-safe" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }} onClick={e => e.stopPropagation()}>
               <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
                 <h2 className="font-bold text-charcoal text-base">Invite friends</h2>
-                <button onClick={() => setShowInviteModal(false)} className="text-warm-gray hover:text-charcoal p-1">
+                <button onClick={() => setShowInviteModal(false)} className="text-warm-gray hover:text-charcoal p-2">
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
