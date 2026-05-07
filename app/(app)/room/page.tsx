@@ -873,7 +873,6 @@ export default function RoomPage() {
                       .from("tasks")
                       .select("id, text")
                       .eq("user_id", myUserId)
-                      .is("homeroom_id", null)
                       .eq("done", false)
                       .order("sort_order", { ascending: true });
                     setMyListTasks((data ?? []).map(t => ({ id: t.id, text: t.text, done: false })));
