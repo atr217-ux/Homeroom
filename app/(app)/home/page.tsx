@@ -450,6 +450,9 @@ export default function HomePage() {
   const [endingBgSession, setEndingBgSession] = useState<BgSessionSummary | null>(null);
 
   const [allListTasks, setAllListTasks] = useState<ListTask[]>([]);
+  const [homeTasks, setHomeTasks] = useState<ListTask[]>([]);
+  const [homeTasksExpanded, setHomeTasksExpanded] = useState(false);
+  const [homeTasksPage, setHomeTasksPage] = useState(1);
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
   const [prepopSearch, setPrepopSearch] = useState("");
@@ -737,6 +740,15 @@ export default function HomePage() {
           localStorage.setItem("homeroom-bg-sessions", JSON.stringify(filteredBgIds.filter(id => activeSet.has(id))));
         }
       } catch { /* ignore */ }
+
+      // Undone tasks for homepage preview
+      const { data: taskRows } = await supabase
+        .from("tasks")
+        .select("id, text, done, homeroom_id")
+        .eq("user_id", user.id)
+        .eq("done", false)
+        .order("sort_order", { ascending: true });
+      if (taskRows) setHomeTasks(taskRows.map(t => ({ id: t.id, text: t.text, done: false, homeroom_id: t.homeroom_id })));
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1706,6 +1718,82 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* My tasks preview */}
+      {homeTasks.length > 0 && (() => {
+        const PAGE_SIZE = 10;
+        const PREVIEW = 5;
+        const totalPages = Math.ceil(homeTasks.length / PAGE_SIZE);
+        const visibleTasks = homeTasksExpanded
+          ? homeTasks.slice((homeTasksPage - 1) * PAGE_SIZE, homeTasksPage * PAGE_SIZE)
+          : homeTasks.slice(0, PREVIEW);
+        return (
+          <div className="mb-6">
+            <h2 className="text-sm font-semibold text-charcoal mb-3">
+              My tasks
+              <span className="ml-1.5 text-warm-gray font-normal">· {homeTasks.length}</span>
+            </h2>
+            <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
+              {visibleTasks.map(task => (
+                <div key={task.id} className="px-4 py-3 flex items-center gap-3">
+                  <span className="w-4 h-4 rounded border border-gray-300 flex-shrink-0" />
+                  <span className="text-sm text-charcoal flex-1 leading-snug">{task.text}</span>
+                  {task.homeroom_id && (
+                    <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                      Scheduled
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* Expand / paginate */}
+            {!homeTasksExpanded && homeTasks.length > PREVIEW && (
+              <button
+                onClick={() => { setHomeTasksExpanded(true); setHomeTasksPage(1); }}
+                className="mt-2 w-full text-xs font-semibold py-2.5 rounded-xl border transition-colors hover:bg-gray-50"
+                style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+              >
+                Show more ({homeTasks.length - PREVIEW} remaining)
+              </button>
+            )}
+
+            {homeTasksExpanded && totalPages > 1 && (
+              <div className="mt-2 flex items-center justify-between">
+                <button
+                  onClick={() => setHomeTasksPage(p => Math.max(1, p - 1))}
+                  disabled={homeTasksPage === 1}
+                  className="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors hover:bg-gray-50 disabled:opacity-30"
+                  style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+                >
+                  ← Prev
+                </button>
+                <span className="text-xs text-warm-gray">
+                  {homeTasksPage} / {totalPages}
+                </span>
+                <button
+                  onClick={() => setHomeTasksPage(p => Math.min(totalPages, p + 1))}
+                  disabled={homeTasksPage === totalPages}
+                  className="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors hover:bg-gray-50 disabled:opacity-30"
+                  style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+                >
+                  Next →
+                </button>
+              </div>
+            )}
+
+            {homeTasksExpanded && totalPages === 1 && (
+              <button
+                onClick={() => setHomeTasksExpanded(false)}
+                className="mt-2 w-full text-xs font-semibold py-2.5 rounded-xl border transition-colors hover:bg-gray-50"
+                style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+              >
+                Show less
+              </button>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Edit session modal */}
       {editingSession && (
