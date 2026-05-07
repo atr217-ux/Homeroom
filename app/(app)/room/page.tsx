@@ -1368,8 +1368,8 @@ export default function RoomPage() {
           (!inviteSearch || f.username.toLowerCase().includes(inviteSearch.toLowerCase()))
         );
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setShowInviteModal(false)}>
-            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl pb-safe" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }} onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={(e) => { if (e.target === e.currentTarget) setShowInviteModal(false); }}>
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
               <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
                 <h2 className="font-bold text-charcoal text-base">Invite friends</h2>
                 <button onClick={() => setShowInviteModal(false)} className="text-warm-gray hover:text-charcoal p-2">
