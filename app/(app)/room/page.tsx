@@ -205,6 +205,18 @@ export default function RoomPage() {
           [payload.username]: { tasks: payload.tasks ?? [], sharing: payload.sharing ?? false },
         }));
       })
+      .on("broadcast", { event: "request-session-info" }, () => {
+        const me = myUsernameRef.current || myUsername;
+        if (!me) return;
+        channel.send({
+          type: "broadcast", event: "task-share",
+          payload: {
+            username: me,
+            tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
+            sharing: showTodosRef.current,
+          },
+        });
+      })
       .on("broadcast", { event: "reaction" }, ({ payload }) => {
         const me = myUsernameRef.current || myUsername;
         if (payload.reactor === me) return;
