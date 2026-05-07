@@ -555,6 +555,16 @@ export default function RoomPage() {
   useEffect(() => {
     if (duration > 0 && remainingSec === 0 && !timerEndedRef.current) {
       timerEndedRef.current = true;
+      // Mark completed immediately so the home page removes it from active rooms
+      const supabase = createClient();
+      const homeroomId = session?.homeroomId;
+      if (homeroomId) {
+        realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
+        supabase.from("homerooms")
+          .update({ status: "completed", ended_at: new Date().toISOString() })
+          .eq("id", homeroomId)
+          .then(() => {});
+      }
       leaveRoom();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -1232,13 +1242,6 @@ export default function RoomPage() {
             await Promise.all(tasksWithTime.map(t =>
               supabase.from("tasks").update({ time_spent: t.timeSpent }).eq("id", t.id)
             ));
-          }
-          // Only mark session ended for everyone when the timer ran out
-          if (timerEndedRef.current) {
-            realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
-            await supabase.from("homerooms")
-              .update({ status: "completed", ended_at: new Date().toISOString() })
-              .eq("id", session!.homeroomId);
           }
           localStorage.removeItem("homeroom-active-id");
           localStorage.removeItem(`homeroom-chat-${session!.homeroomId}`);
