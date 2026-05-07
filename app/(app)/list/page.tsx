@@ -142,6 +142,19 @@ export default function ListPage() {
             ? await supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
             : { data: [] };
           const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
+
+          // Clear homeroom_id from undone tasks whose homeroom has ended or no longer exists
+          const staleIds = (allTasks ?? [])
+            .filter(t => !t.done && t.homeroom_id && (!hrMap[t.homeroom_id] || hrMap[t.homeroom_id].status === "completed"))
+            .map(t => t.id);
+          if (staleIds.length > 0) {
+            await supabase.from("tasks").update({ homeroom_id: null }).in("id", staleIds);
+            staleIds.forEach(id => {
+              const t = (allTasks ?? []).find(x => x.id === id);
+              if (t) t.homeroom_id = null;
+            });
+          }
+
           setTasks((allTasks ?? []).map(t => {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
             return {
