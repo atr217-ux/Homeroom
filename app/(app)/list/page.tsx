@@ -121,7 +121,11 @@ export default function ListPage() {
               completedAt: t.completed_at ?? null,
               lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
               scheduledForTitle: hr ? hr.title : undefined,
-              scheduledForDate: hr?.status === "scheduled" ? hr.scheduled_for : null,
+              scheduledForDate: (() => {
+                if (hr?.status !== "scheduled" || !hr.scheduled_for) return null;
+                const today = new Date(); today.setHours(0, 0, 0, 0);
+                return new Date(hr.scheduled_for) >= today ? hr.scheduled_for : null;
+              })(),
               homeroomId: t.homeroom_id,
               homeroomStatus: hr?.status ?? null,
             };
