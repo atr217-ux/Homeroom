@@ -297,12 +297,23 @@ type CalendarViewProps = {
 };
 
 function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: CalendarViewProps) {
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
-
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today);
   maxDate.setDate(today.getDate() + 14);
+
+  const sessionsByDate: Record<string, ScheduledSession[]> = {};
+  scheduled.forEach((s) => {
+    const key = sessionDateKey(s.scheduledFor);
+    if (!sessionsByDate[key]) sessionsByDate[key] = [];
+    sessionsByDate[key].push(s);
+  });
+
+  const todayKey = dateKey(today);
+  const [selectedKey, setSelectedKey] = useState<string>(() => {
+    const upcoming = Object.keys(sessionsByDate).filter(k => k >= todayKey).sort();
+    return upcoming.length > 0 ? upcoming[0] : todayKey;
+  });
 
   const gridStart = new Date(today);
   gridStart.setDate(today.getDate() - today.getDay());
@@ -326,17 +337,10 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
     }
   });
 
-  const sessionsByDate: Record<string, ScheduledSession[]> = {};
-  scheduled.forEach((s) => {
-    const key = sessionDateKey(s.scheduledFor);
-    if (!sessionsByDate[key]) sessionsByDate[key] = [];
-    sessionsByDate[key].push(s);
-  });
-
   function isDisabled(d: Date) { return d < today || d > maxDate; }
   function isToday(d: Date) { return dateKey(d) === dateKey(today); }
 
-  const selectedSessions = selectedKey ? (sessionsByDate[selectedKey] ?? []) : [];
+  const selectedSessions = sessionsByDate[selectedKey] ?? [];
 
   return (
     <div>
@@ -368,7 +372,7 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
             <button
               key={key}
               disabled={disabled}
-              onClick={() => setSelectedKey(selected ? null : key)}
+              onClick={() => setSelectedKey(key)}
               className="flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors"
               style={selected ? { background: "#7C3AED" } : todayDay ? { background: "#EDE9FE" } : {}}
             >
@@ -392,29 +396,27 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
         })}
       </div>
 
-      {selectedKey && (
-        <div className="mt-3 space-y-2">
-          {selectedSessions.length === 0 ? (
-            <p className="text-xs text-warm-gray text-center py-3">No homerooms on this day.</p>
-          ) : (
-            selectedSessions
-              .slice()
-              .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
-              .map((session) => (
-                <SessionCard
-                  key={session.id}
-                  session={session}
-                  now={now}
-                  onLaunch={onLaunch}
-                  onRemove={onRemove}
-                  onPrepop={onPrepop}
-                  onEdit={onEdit}
-                  showTime
-                />
-              ))
-          )}
-        </div>
-      )}
+      <div className="mt-3 space-y-2">
+        {selectedSessions.length === 0 ? (
+          <p className="text-xs text-warm-gray text-center py-3">No homerooms on this day.</p>
+        ) : (
+          selectedSessions
+            .slice()
+            .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
+            .map((session) => (
+              <SessionCard
+                key={session.id}
+                session={session}
+                now={now}
+                onLaunch={onLaunch}
+                onRemove={onRemove}
+                onPrepop={onPrepop}
+                onEdit={onEdit}
+                showTime
+              />
+            ))
+        )}
+      </div>
     </div>
   );
 }
@@ -426,7 +428,6 @@ export default function HomePage() {
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledSession[]>([]);
-  const [schedView, setSchedView] = useState<"list" | "calendar">("list");
   const [invites, setInvites] = useState<Invite[]>([]);
   const [declinedInvites, setDeclinedInvites] = useState<Set<string>>(new Set());
   const [toast, setToast] = useState<string | null>(null);
@@ -1275,71 +1276,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Scheduled homerooms */}
-      {scheduled.length > 0 && (
-        <div className="mb-6">
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-charcoal">
-              Scheduled
-              <span className="ml-1.5 text-warm-gray font-normal">· {scheduled.length}</span>
-            </h2>
-            <div className="flex items-center gap-0.5 bg-gray-100 rounded-lg p-0.5">
-              <button
-                onClick={() => setSchedView("list")}
-                className="px-2.5 py-1 rounded-md transition-colors"
-                style={schedView === "list" ? { background: "white", boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : {}}
-                title="List view"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={schedView === "list" ? "#1C1917" : "#78716C"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01" />
-                </svg>
-              </button>
-              <button
-                onClick={() => setSchedView("calendar")}
-                className="px-2.5 py-1 rounded-md transition-colors"
-                style={schedView === "calendar" ? { background: "white", boxShadow: "0 1px 2px rgba(0,0,0,0.08)" } : {}}
-                title="Calendar view"
-              >
-                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={schedView === "calendar" ? "#1C1917" : "#78716C"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <path d="M16 2v4M8 2v4M3 10h18" />
-                </svg>
-              </button>
-            </div>
-          </div>
-
-          {schedView === "list" ? (
-            <div className="space-y-2">
-              {scheduled
-                .slice()
-                .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
-                .map((session) => (
-                  <SessionCard
-                    key={session.id}
-                    session={session}
-                    now={now}
-                    onLaunch={launchScheduled}
-                    onRemove={removeScheduled}
-                    onPrepop={openPrepop}
-                    onEdit={openEdit}
-                  />
-                ))}
-            </div>
-          ) : (
-            <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4">
-              <CalendarView
-                scheduled={scheduled}
-                now={now}
-                onLaunch={launchScheduled}
-                onRemove={removeScheduled}
-                onPrepop={openPrepop}
-                onEdit={openEdit}
-              />
-            </div>
-          )}
-        </div>
-      )}
-
       {/* Squad filter chips */}
       {userSquads.length > 0 && (
         <div className="mb-4 flex flex-wrap gap-2">
@@ -1642,6 +1578,26 @@ export default function HomePage() {
           </div>
         );
       })()}
+
+      {/* Scheduled homerooms */}
+      {scheduled.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-charcoal mb-3">
+            Scheduled
+            <span className="ml-1.5 text-warm-gray font-normal">· {scheduled.length}</span>
+          </h2>
+          <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4">
+            <CalendarView
+              scheduled={scheduled}
+              now={now}
+              onLaunch={launchScheduled}
+              onRemove={removeScheduled}
+              onPrepop={openPrepop}
+              onEdit={openEdit}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Edit session modal */}
       {editingSession && (
