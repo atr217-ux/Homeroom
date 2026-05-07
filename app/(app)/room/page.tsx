@@ -98,7 +98,8 @@ export default function RoomPage() {
   const realtimeChannelRef = useRef<any>(null);
   const tasksInitializedRef = useRef(false);
   const timerEndedRef = useRef(false);
-  const tasksRef     = useRef<Task[]>([]);
+  const tasksRef        = useRef<Task[]>([]);
+  const chatMessagesRef = useRef<typeof chatMessages>([]);
   const showTodosRef = useRef(true);
 
   useEffect(() => {
@@ -235,6 +236,25 @@ export default function RoomPage() {
             tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
             sharing: showTodosRef.current,
           },
+        });
+        const history = chatMessagesRef.current;
+        if (history.length > 0) {
+          channel.send({
+            type: "broadcast", event: "chat-history",
+            payload: { messages: history.map(m => ({ ...m, time: m.time.toISOString() })) },
+          });
+        }
+      })
+      .on("broadcast", { event: "chat-history" }, ({ payload }) => {
+        if (!payload.messages?.length) return;
+        setChatMessages(prev => {
+          const existingIds = new Set(prev.map((m: { id: string }) => m.id));
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const incoming = (payload.messages as any[])
+            .filter(m => !existingIds.has(m.id))
+            .map(m => ({ ...m, time: new Date(m.time) }));
+          if (!incoming.length) return prev;
+          return [...prev, ...incoming].sort((a, b) => a.time.getTime() - b.time.getTime());
         });
       })
       .on("broadcast", { event: "session-ended" }, () => {
@@ -516,6 +536,7 @@ export default function RoomPage() {
   }, [myUsername]);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
+  useEffect(() => { chatMessagesRef.current = chatMessages; }, [chatMessages]);
 
   // Persist chat keyed by homeroomId
   useEffect(() => {
