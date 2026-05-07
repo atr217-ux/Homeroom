@@ -599,6 +599,12 @@ export default function RoomPage() {
           .update({ status: "completed", ended_at: new Date().toISOString() })
           .eq("id", homeroomId)
           .then(() => {});
+        if (myUserId) {
+          supabase.from("tasks")
+            .update({ homeroom_id: null })
+            .eq("homeroom_id", homeroomId).eq("user_id", myUserId).eq("done", false)
+            .then(() => {});
+        }
       }
       leaveRoom();
     }

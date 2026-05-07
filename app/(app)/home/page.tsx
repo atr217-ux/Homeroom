@@ -845,6 +845,9 @@ export default function HomePage() {
       if (tasks) {
         tasksDone = tasks.filter(t => t.done).map(t => ({ id: t.id, text: t.text }));
         tasksRemaining = tasks.filter(t => !t.done).map(t => ({ id: t.id, text: t.text }));
+        if (tasksRemaining.length > 0) {
+          await supabase.from("tasks").update({ homeroom_id: null }).in("id", tasksRemaining.map(t => t.id));
+        }
       }
     }
     try {

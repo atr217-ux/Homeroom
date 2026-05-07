@@ -62,6 +62,12 @@ export default function SessionSync() {
         if (tasks) {
           tasksDone = tasks.filter(t => t.done).map(t => ({ id: t.id, text: t.text }));
           tasksRemaining = tasks.filter(t => !t.done).map(t => ({ id: t.id, text: t.text }));
+          // Clear homeroom association from undone tasks
+          if (tasksRemaining.length > 0) {
+            await supabase.from("tasks")
+              .update({ homeroom_id: null })
+              .in("id", tasksRemaining.map(t => t.id));
+          }
         }
       }
       const elapsedMin = Math.floor((Date.now() - new Date(startedAt).getTime()) / 60000);
