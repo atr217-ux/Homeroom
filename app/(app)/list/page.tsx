@@ -387,12 +387,12 @@ export default function ListPage() {
                     {t.homeroomStatus === "active" && t.scheduledForTitle && (
                       <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
                         <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                        {t.scheduledForTitle}
+                        {t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                       </span>
                     )}
-                    {t.scheduledForDate && (
+                    {t.scheduledForDate && t.scheduledForTitle && (
                       <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
-                        {t.scheduledForTitle || "Homeroom"} {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                        {t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                       </span>
                     )}
                     <span className="text-xs text-warm-gray opacity-50 flex-shrink-0 group-hover:hidden">

@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string; userId: string };
-type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number };
+type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number; homeroomStatus?: string | null; scheduledForDate?: string | null; homeroomTitle?: string | null };
 
 const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
 function colorFromUsername(u: string): string {
@@ -80,13 +80,31 @@ export default function StartPage() {
           }
         });
 
-      // Load my list tasks (no homeroom or already-assigned but not done)
+      // Load my list tasks with homeroom status so badges are accurate
       supabase.from("tasks")
         .select("id, text, done, homeroom_id, sort_order")
         .eq("user_id", user.id)
         .eq("done", false)
         .order("sort_order", { ascending: true })
-        .then(({ data }) => { if (data) setMyListTasks(data as ListTask[]); });
+        .then(async ({ data }) => {
+          if (!data) return;
+          const ids = [...new Set(data.filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
+          const { data: hrs } = ids.length
+            ? await supabase.from("homerooms").select("id, title, status, scheduled_for").in("id", ids)
+            : { data: [] };
+          const hrMap = Object.fromEntries((hrs ?? []).map(h => [h.id, h]));
+          const today = new Date(); today.setHours(0, 0, 0, 0);
+          setMyListTasks(data.map(t => {
+            const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
+            return {
+              ...t,
+              homeroomStatus: hr?.status ?? null,
+              homeroomTitle: hr?.title ?? null,
+              scheduledForDate: hr?.status === "scheduled" && hr.scheduled_for && new Date(hr.scheduled_for) >= today
+                ? hr.scheduled_for : null,
+            } as ListTask;
+          }));
+        });
 
       // Load squads
       supabase.from("squad_members")
@@ -435,7 +453,17 @@ export default function StartPage() {
                     {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
                   <span className="text-sm text-charcoal flex-1">{t.text}</span>
-                  {t.homeroom_id && <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#FEF9C3", color: "#92400E" }}>Scheduled</span>}
+                  {t.homeroomStatus === "active" && t.homeroomTitle && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                      {t.homeroomTitle}
+                    </span>
+                  )}
+                  {t.scheduledForDate && t.homeroomTitle && (
+                    <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                      {t.homeroomTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                    </span>
+                  )}
                 </button>
               );
             })}
