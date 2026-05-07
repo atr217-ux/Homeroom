@@ -92,8 +92,39 @@ export default function ListPage() {
   const [taskHistory, setTaskHistory] = useState<TaskHistory[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lastTap = useRef<{ id: string; time: number } | null>(null);
+
+  function handleNameTouchStart(id: string) {
+    if (longPressTimer.current) clearTimeout(longPressTimer.current);
+    longPressTimer.current = setTimeout(() => {
+      longPressTimer.current = null;
+      setDeleteConfirmId(id);
+      if (navigator.vibrate) navigator.vibrate(40);
+    }, 500);
+  }
+
+  function handleNameTouchMove() {
+    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  }
+
+  function handleNameTouchEnd(id: string, text: string, allowEdit: boolean) {
+    if (!longPressTimer.current) return; // fired as long press already
+    clearTimeout(longPressTimer.current);
+    longPressTimer.current = null;
+    if (!allowEdit) return;
+    const now = Date.now();
+    const last = lastTap.current;
+    if (last && last.id === id && now - last.time < 350) {
+      lastTap.current = null;
+      startEdit(id, text);
+    } else {
+      lastTap.current = { id, time: now };
+    }
+  }
 
   useEffect(() => {
     const supabase = createClient();
@@ -361,7 +392,16 @@ export default function ListPage() {
                 style={showScrollable ? { maxHeight: "480px" } : {}}
               >
                 {visibleActive.map((t) => (
-                  <div key={t.id} className="bg-white rounded-2xl border border-gray-200 px-3 py-2.5 flex items-center gap-2 group hover:shadow-sm transition-all">
+                  <div key={t.id} className="relative bg-white rounded-2xl border border-gray-200 px-3 py-2.5 flex items-center gap-2 group hover:shadow-sm transition-all">
+                    {deleteConfirmId === t.id && (
+                      <div className="absolute inset-0 z-10 bg-white rounded-2xl flex items-center justify-between px-3 border border-red-100">
+                        <span className="text-sm text-charcoal">Delete this task?</span>
+                        <div className="flex gap-2">
+                          <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-warm-gray px-2 py-1">Cancel</button>
+                          <button onClick={() => { deleteTask(t.id); setDeleteConfirmId(null); }} className="text-xs text-white rounded-lg px-3 py-1" style={{ background: "#EF4444" }}>Delete</button>
+                        </div>
+                      </div>
+                    )}
                     <button
                       onClick={() => toggleTask(t.id)}
                       className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 hover:border-sage transition-colors"
@@ -377,7 +417,12 @@ export default function ListPage() {
                         className="flex-1 text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
                       />
                     ) : (
-                      <span className="text-sm text-charcoal flex-1 min-w-0 truncate">{t.text}</span>
+                      <span
+                        className="text-sm text-charcoal flex-1 min-w-0 truncate select-none"
+                        onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
+                        onTouchMove={handleNameTouchMove}
+                        onTouchEnd={() => handleNameTouchEnd(t.id, t.text, true)}
+                      >{t.text}</span>
                     )}
                     {t.lastSessionTime !== undefined && (
                       <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
@@ -434,7 +479,16 @@ export default function ListPage() {
                     </svg>
                   </button>
                   {doneExpanded && done.map((t) => (
-                    <div key={t.id} className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5 flex items-center gap-2 group hover:shadow-sm transition-all mb-2 opacity-60">
+                    <div key={t.id} className="relative bg-white rounded-2xl border border-gray-100 px-3 py-2.5 flex items-center gap-2 group hover:shadow-sm transition-all mb-2 opacity-60">
+                      {deleteConfirmId === t.id && (
+                        <div className="absolute inset-0 z-10 bg-white rounded-2xl flex items-center justify-between px-3 border border-red-100 opacity-100">
+                          <span className="text-sm text-charcoal">Delete this task?</span>
+                          <div className="flex gap-2">
+                            <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-warm-gray px-2 py-1">Cancel</button>
+                            <button onClick={() => { deleteTask(t.id); setDeleteConfirmId(null); }} className="text-xs text-white rounded-lg px-3 py-1" style={{ background: "#EF4444" }}>Delete</button>
+                          </div>
+                        </div>
+                      )}
                       <button
                         onClick={() => toggleTask(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
@@ -444,7 +498,12 @@ export default function ListPage() {
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </button>
-                      <span className="text-sm text-warm-gray flex-1 line-through truncate">{t.text}</span>
+                      <span
+                        className="text-sm text-warm-gray flex-1 line-through truncate select-none"
+                        onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
+                        onTouchMove={handleNameTouchMove}
+                        onTouchEnd={() => handleNameTouchEnd(t.id, t.text, false)}
+                      >{t.text}</span>
                       {t.lastSessionTime !== undefined && (
                         <span className="text-xs text-warm-gray flex-shrink-0">{formatSeconds(t.lastSessionTime)}</span>
                       )}
