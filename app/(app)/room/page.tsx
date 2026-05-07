@@ -49,6 +49,8 @@ export default function RoomPage() {
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [draggingId, setDraggingId]     = useState<string | null>(null);
   const [dragOverId, setDragOverId]     = useState<string | null>(null);
+  const touchDragRef = useRef<{ taskId: string; startY: number; active: boolean; timer: ReturnType<typeof setTimeout> | null }>({ taskId: "", startY: 0, active: false, timer: null });
+  const touchDragOverRef = useRef<string | null>(null);
   const [editingTaskId, setEditingTaskId]   = useState<string | null>(null);
   const [editingTaskText, setEditingTaskText] = useState("");
   const [showListPicker, setShowListPicker]       = useState(false);
@@ -350,6 +352,54 @@ export default function RoomPage() {
     });
   }
 
+  // Touch drag — prevent scroll while dragging (mounted once, checks ref)
+  useEffect(() => {
+    const prevent = (e: TouchEvent) => { if (touchDragRef.current.active) e.preventDefault(); };
+    document.addEventListener("touchmove", prevent, { passive: false });
+    return () => document.removeEventListener("touchmove", prevent);
+  }, []);
+
+  function onHandleTouchStart(e: React.TouchEvent, taskId: string) {
+    const startY = e.touches[0].clientY;
+    touchDragRef.current = {
+      taskId, startY, active: false,
+      timer: setTimeout(() => {
+        touchDragRef.current.active = true;
+        setDraggingId(taskId);
+        if (navigator.vibrate) navigator.vibrate(30);
+      }, 400),
+    };
+  }
+
+  function onHandleTouchMove(e: React.TouchEvent) {
+    const ref = touchDragRef.current;
+    if (!ref.active) {
+      if (Math.abs(e.touches[0].clientY - ref.startY) > 8 && ref.timer) {
+        clearTimeout(ref.timer);
+        ref.timer = null;
+      }
+      return;
+    }
+    const touch = e.touches[0];
+    const el = document.elementFromPoint(touch.clientX, touch.clientY);
+    const taskEl = el?.closest("[data-task-id]");
+    const overId = taskEl?.getAttribute("data-task-id") ?? null;
+    touchDragOverRef.current = overId;
+    setDragOverId(overId);
+  }
+
+  function onHandleTouchEnd() {
+    const ref = touchDragRef.current;
+    if (ref.timer) clearTimeout(ref.timer);
+    if (ref.active && touchDragOverRef.current && touchDragOverRef.current !== ref.taskId) {
+      moveTask(ref.taskId, touchDragOverRef.current);
+    }
+    touchDragOverRef.current = null;
+    setDraggingId(null);
+    setDragOverId(null);
+    touchDragRef.current = { taskId: "", startY: 0, active: false, timer: null };
+  }
+
   async function addTask() {
     const text = taskInput.trim();
     if (!text || !session?.homeroomId || !myUserId) return;
@@ -586,6 +636,7 @@ export default function RoomPage() {
                     return (
                       <div
                         key={t.id}
+                        data-task-id={t.id}
                         draggable={!t.done}
                         onDragStart={() => setDraggingId(t.id)}
                         onDragOver={(e) => { e.preventDefault(); setDragOverId(t.id); }}
@@ -599,7 +650,13 @@ export default function RoomPage() {
                         }}
                       >
                         {!t.done && (
-                          <span className="flex-shrink-0 text-warm-gray opacity-40 hover:opacity-80 cursor-grab" style={{ lineHeight: 1 }}>
+                          <span
+                            className="flex-shrink-0 text-warm-gray opacity-40 hover:opacity-80 cursor-grab"
+                            style={{ lineHeight: 1, touchAction: "none" }}
+                            onTouchStart={(e) => onHandleTouchStart(e, t.id)}
+                            onTouchMove={onHandleTouchMove}
+                            onTouchEnd={onHandleTouchEnd}
+                          >
                             <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
                               <rect x="0" y="0" width="10" height="2" rx="1" />
                               <rect x="0" y="6" width="10" height="2" rx="1" />
