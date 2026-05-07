@@ -260,13 +260,6 @@ export default function RoomPage() {
       { homeroom_id: session.homeroomId, user_id: myUserId, joined_at: new Date().toISOString() },
       { onConflict: "homeroom_id,user_id", ignoreDuplicates: true }
     );
-    return () => {
-      supabase.from("homeroom_participants")
-        .delete()
-        .eq("homeroom_id", session.homeroomId)
-        .eq("user_id", myUserId)
-        .then();
-    };
   }, [session?.homeroomId, myUserId]);
 
   function getElapsed(t: Task): number {
