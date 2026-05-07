@@ -446,6 +446,9 @@ export default function HomePage() {
   const [pendingJoin, setPendingJoin] = useState<{ title: string; action: () => void } | null>(null);
   const [backgroundSessions, setBackgroundSessions] = useState<ActiveSession[]>([]);
 
+  type BgSessionSummary = { session: ActiveSession; tasksDone: { id: string; text: string }[]; tasksRemaining: { id: string; text: string }[]; elapsedMin: number };
+  const [endingBgSession, setEndingBgSession] = useState<BgSessionSummary | null>(null);
+
   const [allListTasks, setAllListTasks] = useState<ListTask[]>([]);
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
@@ -829,6 +832,28 @@ export default function HomePage() {
         setBackgroundSessions(p => [...p, session]);
       }
     } catch { /* ignore */ }
+  }
+
+  async function handleEndBgSession(session: ActiveSession) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("homerooms").update({ status: "completed", ended_at: new Date().toISOString() }).eq("id", session.id);
+    let tasksDone: { id: string; text: string }[] = [];
+    let tasksRemaining: { id: string; text: string }[] = [];
+    if (user) {
+      const { data: tasks } = await supabase.from("tasks").select("id, text, done").eq("homeroom_id", session.id).eq("user_id", user.id);
+      if (tasks) {
+        tasksDone = tasks.filter(t => t.done).map(t => ({ id: t.id, text: t.text }));
+        tasksRemaining = tasks.filter(t => !t.done).map(t => ({ id: t.id, text: t.text }));
+      }
+    }
+    try {
+      const prev: string[] = JSON.parse(localStorage.getItem("homeroom-bg-sessions") || "[]");
+      localStorage.setItem("homeroom-bg-sessions", JSON.stringify(prev.filter(x => x !== session.id)));
+    } catch { /* ignore */ }
+    setBackgroundSessions(p => p.filter(s => s.id !== session.id));
+    const elapsedMin = Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 60000);
+    setEndingBgSession({ session, tasksDone, tasksRemaining, elapsedMin });
   }
 
   function withJoinConfirm(action: () => void) {
@@ -1251,17 +1276,27 @@ export default function HomePage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      <button
-                        onClick={() => withJoinConfirm(() => {
-                          localStorage.setItem("homeroom-active-id", session.id);
-                          dismissBg(session.id);
-                          router.push(`/room?id=${session.id}`);
-                        })}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                        style={{ background: "#D97706" }}
-                      >
-                        Rejoin
-                      </button>
+                      {remainingSec === 0 ? (
+                        <button
+                          onClick={() => handleEndBgSession(session)}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                          style={{ background: "#DC2626" }}
+                        >
+                          End Session
+                        </button>
+                      ) : (
+                        <button
+                          onClick={() => withJoinConfirm(() => {
+                            localStorage.setItem("homeroom-active-id", session.id);
+                            dismissBg(session.id);
+                            router.push(`/room?id=${session.id}`);
+                          })}
+                          className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                          style={{ background: "#D97706" }}
+                        >
+                          Rejoin
+                        </button>
+                      )}
                       <button onClick={() => dismissBg(session.id)} className="text-warm-gray hover:text-charcoal p-1 transition-colors">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
@@ -1810,6 +1845,91 @@ export default function HomePage() {
           </div>
         </div>
       )}
+
+      {/* End session summary modal */}
+      {endingBgSession && (() => {
+        const { session, tasksDone, tasksRemaining, elapsedMin } = endingBgSession;
+        const elapsedH = Math.floor(elapsedMin / 60);
+        const elapsedM = elapsedMin % 60;
+        const elapsedLabel = elapsedH > 0 ? `${elapsedH}h ${elapsedM}m` : `${elapsedM}m`;
+        return (
+          <div className="fixed inset-0 z-50">
+            <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.5)" }} onClick={() => setEndingBgSession(null)} />
+            <div className="absolute inset-x-0 bottom-0 sm:inset-0 flex sm:items-center sm:justify-center sm:p-4 pointer-events-none">
+              <div
+                className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md shadow-xl flex flex-col pointer-events-auto"
+                style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}
+              >
+                <div className="px-5 pt-5 pb-4 border-b border-gray-100">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <h2 className="font-semibold text-charcoal text-base">{session.title || "Homeroom"}</h2>
+                      <p className="text-xs text-warm-gray mt-0.5">{elapsedLabel} · session ended</p>
+                    </div>
+                    <button onClick={() => setEndingBgSession(null)} className="text-warm-gray hover:text-charcoal p-1">
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M18 6L6 18M6 6l12 12" />
+                      </svg>
+                    </button>
+                  </div>
+                  <div className="flex items-center gap-3 mt-3">
+                    <div className="flex-1 bg-emerald-50 rounded-xl px-3 py-2 text-center">
+                      <p className="text-lg font-bold text-emerald-600">{tasksDone.length}</p>
+                      <p className="text-xs text-emerald-600 font-medium">done</p>
+                    </div>
+                    <div className="flex-1 bg-gray-50 rounded-xl px-3 py-2 text-center">
+                      <p className="text-lg font-bold text-charcoal">{tasksRemaining.length}</p>
+                      <p className="text-xs text-warm-gray font-medium">remaining</p>
+                    </div>
+                  </div>
+                </div>
+
+                {(tasksDone.length > 0 || tasksRemaining.length > 0) && (
+                  <div className="px-5 py-3 max-h-48 overflow-y-auto space-y-1">
+                    {tasksDone.map(t => (
+                      <div key={t.id} className="flex items-center gap-2.5 py-1">
+                        <span className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0" style={{ background: "#059669" }}>
+                          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
+                          </svg>
+                        </span>
+                        <span className="text-sm text-warm-gray line-through">{t.text}</span>
+                      </div>
+                    ))}
+                    {tasksRemaining.map(t => (
+                      <div key={t.id} className="flex items-center gap-2.5 py-1">
+                        <span className="w-4 h-4 rounded border border-gray-300 flex-shrink-0" />
+                        <span className="text-sm text-charcoal">{t.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div className="px-5 pt-2 pb-5 space-y-2">
+                  {tasksRemaining.length > 0 && (
+                    <button
+                      onClick={() => {
+                        setEndingBgSession(null);
+                        router.push("/start");
+                      }}
+                      className="w-full font-semibold text-sm py-3 rounded-xl text-white transition-opacity hover:opacity-80"
+                      style={{ background: "#7C3AED" }}
+                    >
+                      Schedule a homeroom for remaining tasks
+                    </button>
+                  )}
+                  <button
+                    onClick={() => setEndingBgSession(null)}
+                    className="w-full font-semibold text-sm py-3 rounded-xl border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors"
+                  >
+                    Done
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Toast */}
       {toast && (
