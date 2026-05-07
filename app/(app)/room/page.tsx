@@ -601,7 +601,7 @@ export default function RoomPage() {
   function scheduleRemaining(remaining: Task[]) {
     localStorage.setItem(
       "homeroom-carry-forward",
-      JSON.stringify(remaining.map((t) => ({ id: crypto.randomUUID(), text: t.text })))
+      JSON.stringify(remaining.map((t) => ({ id: t.id, text: t.text })))
     );
     window.location.href = "/start";
   }

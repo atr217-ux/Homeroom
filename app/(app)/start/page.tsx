@@ -45,8 +45,21 @@ export default function StartPage() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
+  const [carryForward, setCarryForward] = useState<{ id: string; text: string }[]>([]);
 
   const todayStr = new Date().toISOString().slice(0, 10);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem("homeroom-carry-forward");
+      if (raw) {
+        const tasks = JSON.parse(raw) as { id: string; text: string }[];
+        setCarryForward(tasks);
+        setSelectedIds(new Set(tasks.map(t => t.id)));
+        localStorage.removeItem("homeroom-carry-forward");
+      }
+    } catch { /* ignore */ }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getUser().then(({ data: { user } }) => {
@@ -209,7 +222,8 @@ export default function StartPage() {
     }
   }
 
-  const allSelectableTasks = myListTasks.filter(t => !t.done);
+  const carryForwardIds = new Set(carryForward.map(t => t.id));
+  const allSelectableTasks = myListTasks.filter(t => !t.done && !carryForwardIds.has(t.id));
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
@@ -433,6 +447,29 @@ export default function StartPage() {
                 <button onClick={() => setExtraTasks(prev => prev.filter(x => x.id !== t.id))} className="text-warm-gray hover:text-red-400 transition-colors p-1 text-xs">✕</button>
               </div>
             ))}
+          </div>
+        </div>
+      )}
+
+      {carryForward.length > 0 && (
+        <div className="mb-4">
+          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "#7C3AED" }}>Tasks from previous homeroom</p>
+          <div className="space-y-2">
+            {carryForward.map(t => {
+              const checked = selectedIds.has(t.id);
+              return (
+                <button key={t.id}
+                  onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
+                  className="w-full rounded-xl border px-3 py-2.5 flex items-center gap-2 hover:shadow-sm transition-all text-left"
+                  style={{ borderColor: checked ? "#7C3AED" : "#E5E7EB", background: checked ? "#F5F3FF" : "white" }}>
+                  <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                    style={checked ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                    {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                  </div>
+                  <span className="text-sm text-charcoal flex-1">{t.text}</span>
+                </button>
+              );
+            })}
           </div>
         </div>
       )}
