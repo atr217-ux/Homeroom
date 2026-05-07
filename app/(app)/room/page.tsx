@@ -251,6 +251,11 @@ export default function RoomPage() {
           return prev;
         });
       })
+      .on("broadcast", { event: "user-left" }, ({ payload }) => {
+        if (!payload.username) return;
+        setDbParticipants((prev) => prev.filter(p => p.username !== payload.username));
+        setParticipantData((prev) => { const n = { ...prev }; delete n[payload.username]; return n; });
+      })
       .on("broadcast", { event: "request-session-info" }, () => {
         const me = myUsernameRef.current || myUsername;
         if (!me) return;
@@ -620,11 +625,15 @@ export default function RoomPage() {
     setTasks((prev) => prev.map((t) =>
       t.startedAt !== null ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
-    // Remove from persistent participant list so others stop seeing this user's card
+    // Remove from persistent participant list and notify others
     if (session?.homeroomId && myUserId) {
       const supabase = createClient();
       supabase.from("homeroom_participants").delete()
         .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId).then(() => {});
+      realtimeChannelRef.current?.send({
+        type: "broadcast", event: "user-left",
+        payload: { username: myUsernameRef.current || myUsername },
+      });
     }
     setShowSummary(true);
   }
