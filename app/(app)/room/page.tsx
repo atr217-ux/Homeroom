@@ -1312,8 +1312,8 @@ export default function RoomPage() {
         }
 
         return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
-            <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-6 flex flex-col gap-5">
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+            <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-xl p-6 flex flex-col gap-5">
               <div className="text-center">
                 <div className="text-4xl mb-3">{done.length === tasks.length && tasks.length > 0 ? "🎉" : "🏠"}</div>
                 <h2 className="text-xl font-bold text-charcoal">Session wrapped</h2>
