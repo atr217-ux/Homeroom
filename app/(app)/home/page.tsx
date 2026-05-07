@@ -462,13 +462,16 @@ export default function HomePage() {
     const supabase = createClient();
     const { data } = await supabase
       .from("homeroom_participants")
-      .select("homeroom_id, profiles(username)")
+      .select("homeroom_id, user_id")
       .in("homeroom_id", homeroomIds);
-    if (!data) return;
+    if (!data || data.length === 0) return;
+    const userIds = [...new Set(data.map(p => p.user_id as string))];
+    const { data: profiles } = await supabase
+      .from("profiles").select("id, username").in("id", userIds);
+    const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.username]));
     const map: Record<string, string[]> = {};
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    (data as any[]).forEach(p => {
-      const username = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles)?.username;
+    data.forEach(p => {
+      const username = profileMap[p.user_id];
       if (!username) return;
       if (!map[p.homeroom_id]) map[p.homeroom_id] = [];
       map[p.homeroom_id].push(username);
@@ -653,24 +656,37 @@ export default function HomePage() {
       // Active public rooms
       const { data: activeRooms } = await supabase
         .from("homerooms")
-        .select("id, title, duration, started_at, squad_tags, profiles(username, avatar)")
+        .select("id, created_by, title, duration, started_at, squad_tags")
         .eq("is_private", false)
         .eq("status", "active");
       if (activeRooms) {
-        setPublicRooms(activeRooms as unknown as ActiveRoom[]);
+        const creatorIds = [...new Set(activeRooms.map(r => r.created_by as string))];
+        const { data: roomProfiles } = creatorIds.length
+          ? await supabase.from("profiles").select("id, username, avatar").in("id", creatorIds)
+          : { data: [] };
+        const profileMap = Object.fromEntries((roomProfiles ?? []).map(p => [p.id, p]));
+        const roomsWithProfiles = activeRooms.map(r => ({ ...r, profiles: profileMap[r.created_by] ?? null }));
+        setPublicRooms(roomsWithProfiles as unknown as ActiveRoom[]);
         await loadRoomParticipants(activeRooms.map(r => r.id));
       }
 
       // Public scheduled sessions (exclude own)
       const { data: pubSched } = await supabase
         .from("homerooms")
-        .select("id, created_by, title, duration, scheduled_for, squad_tags, profiles(username, avatar)")
+        .select("id, created_by, title, duration, scheduled_for, squad_tags")
         .eq("is_private", false)
         .eq("status", "scheduled")
         .gt("scheduled_for", new Date().toISOString())
         .neq("created_by", user.id)
         .order("scheduled_for", { ascending: true });
-      if (pubSched) setPublicScheduled(pubSched as unknown as PublicScheduledSession[]);
+      if (pubSched) {
+        const schedCreatorIds = [...new Set(pubSched.map(r => r.created_by as string))];
+        const { data: schedProfiles } = schedCreatorIds.length
+          ? await supabase.from("profiles").select("id, username, avatar").in("id", schedCreatorIds)
+          : { data: [] };
+        const schedProfileMap = Object.fromEntries((schedProfiles ?? []).map(p => [p.id, p]));
+        setPublicScheduled(pubSched.map(r => ({ ...r, profiles: schedProfileMap[r.created_by] ?? null })) as unknown as PublicScheduledSession[]);
+      }
 
       // Own active session
       const activeId = localStorage.getItem("homeroom-active-id");
@@ -704,11 +720,16 @@ export default function HomePage() {
     async function refreshActiveRooms() {
       const { data } = await supabase
         .from("homerooms")
-        .select("id, title, duration, started_at, squad_tags, profiles(username, avatar)")
+        .select("id, created_by, title, duration, started_at, squad_tags")
         .eq("is_private", false)
         .eq("status", "active");
       if (data) {
-        setPublicRooms(data as unknown as ActiveRoom[]);
+        const creatorIds = [...new Set(data.map(r => r.created_by as string))];
+        const { data: roomProfiles } = creatorIds.length
+          ? await supabase.from("profiles").select("id, username, avatar").in("id", creatorIds)
+          : { data: [] };
+        const profileMap = Object.fromEntries((roomProfiles ?? []).map(p => [p.id, p]));
+        setPublicRooms(data.map(r => ({ ...r, profiles: profileMap[r.created_by] ?? null })) as unknown as ActiveRoom[]);
         await loadRoomParticipants(data.map(r => r.id));
       }
     }
