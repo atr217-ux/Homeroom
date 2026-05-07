@@ -300,7 +300,7 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const maxDate = new Date(today);
-  maxDate.setDate(today.getDate() + 14);
+  maxDate.setDate(today.getDate() + 90);
 
   const sessionsByDate: Record<string, ScheduledSession[]> = {};
   scheduled.forEach((s) => {
@@ -310,10 +310,7 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
   });
 
   const todayKey = dateKey(today);
-  const [selectedKey, setSelectedKey] = useState<string>(() => {
-    const upcoming = Object.keys(sessionsByDate).filter(k => k >= todayKey).sort();
-    return upcoming.length > 0 ? upcoming[0] : todayKey;
-  });
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const gridStart = new Date(today);
   gridStart.setDate(today.getDate() - today.getDay());
@@ -328,11 +325,13 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
     cursor.setDate(cursor.getDate() + 1);
   }
 
-  const monthHeaders: { label: string }[] = [];
+  // Build month section headers for the grid
+  type MonthSection = { label: string; startIndex: number };
+  const monthSections: MonthSection[] = [];
   let lastMonth = -1;
-  days.forEach((d) => {
+  days.forEach((d, i) => {
     if (d.getMonth() !== lastMonth) {
-      monthHeaders.push({ label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}` });
+      monthSections.push({ label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, startIndex: i });
       lastMonth = d.getMonth();
     }
   });
@@ -340,81 +339,89 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
   function isDisabled(d: Date) { return d < today || d > maxDate; }
   function isToday(d: Date) { return dateKey(d) === dateKey(today); }
 
-  const selectedSessions = sessionsByDate[selectedKey] ?? [];
+  const upcomingSorted = scheduled
+    .slice()
+    .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
+    .filter(s => sessionDateKey(s.scheduledFor) >= todayKey);
+
+  const displaySessions = selectedKey
+    ? (sessionsByDate[selectedKey] ?? []).slice().sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
+    : upcomingSorted.slice(0, 5);
 
   return (
     <div>
-      {monthHeaders.length > 1 ? (
-        <div className="flex justify-between px-0.5 mb-1">
-          {monthHeaders.map((mh) => (
-            <span key={mh.label} className="text-xs font-semibold text-charcoal">{mh.label}</span>
-          ))}
-        </div>
-      ) : (
-        <p className="text-xs font-semibold text-charcoal mb-2">{monthHeaders[0]?.label}</p>
-      )}
+      {monthSections.map((ms, mi) => {
+        const nextStart = monthSections[mi + 1]?.startIndex ?? days.length;
+        const monthDays = days.slice(ms.startIndex, nextStart);
+        // Pad start of first week
+        const firstDow = monthDays[0].getDay();
+        const padStart = Array(firstDow).fill(null);
 
-      <div className="grid grid-cols-7 mb-1">
-        {DAY_LABELS.map((l) => (
-          <div key={l} className="text-center text-xs text-warm-gray font-medium py-1">{l}</div>
-        ))}
-      </div>
+        return (
+          <div key={ms.label} className={mi > 0 ? "mt-5" : ""}>
+            <p className="text-xs font-semibold text-charcoal mb-2">{ms.label}</p>
+            <div className="grid grid-cols-7 mb-1">
+              {DAY_LABELS.map((l) => (
+                <div key={l} className="text-center text-xs text-warm-gray font-medium py-1">{l}</div>
+              ))}
+            </div>
+            <div className="grid grid-cols-7 gap-y-1">
+              {padStart.map((_, i) => <div key={`pad-${i}`} />)}
+              {monthDays.map((d) => {
+                const key = dateKey(d);
+                const disabled = isDisabled(d);
+                const todayDay = isToday(d);
+                const hasSessions = !disabled && (sessionsByDate[key]?.length ?? 0) > 0;
+                const selected = selectedKey === key;
+                return (
+                  <button
+                    key={key}
+                    disabled={disabled}
+                    onClick={() => setSelectedKey(selected ? null : key)}
+                    className="flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors"
+                    style={selected ? { background: "#7C3AED" } : todayDay ? { background: "#EDE9FE" } : {}}
+                  >
+                    <span
+                      className="text-sm font-medium leading-none"
+                      style={
+                        disabled ? { color: "#D1D5DB" }
+                        : selected ? { color: "white" }
+                        : todayDay ? { color: "#7C3AED", fontWeight: 700 }
+                        : { color: "#1C1917" }
+                      }
+                    >
+                      {d.getDate()}
+                    </span>
+                    <span
+                      className="mt-1 w-1.5 h-1.5 rounded-full"
+                      style={{ background: hasSessions ? (selected ? "rgba(255,255,255,0.7)" : "#7C3AED") : "transparent" }}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
 
-      <div className="grid grid-cols-7 gap-y-1">
-        {days.map((d) => {
-          const key = dateKey(d);
-          const disabled = isDisabled(d);
-          const todayDay = isToday(d);
-          const hasSessions = !disabled && (sessionsByDate[key]?.length ?? 0) > 0;
-          const selected = selectedKey === key;
-
-          return (
-            <button
-              key={key}
-              disabled={disabled}
-              onClick={() => setSelectedKey(key)}
-              className="flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors"
-              style={selected ? { background: "#7C3AED" } : todayDay ? { background: "#EDE9FE" } : {}}
-            >
-              <span
-                className="text-sm font-medium leading-none"
-                style={
-                  disabled ? { color: "#D1D5DB" }
-                  : selected ? { color: "white" }
-                  : todayDay ? { color: "#7C3AED", fontWeight: 700 }
-                  : { color: "#1C1917" }
-                }
-              >
-                {d.getDate()}
-              </span>
-              <span
-                className="mt-1 w-1.5 h-1.5 rounded-full"
-                style={{ background: hasSessions ? (selected ? "rgba(255,255,255,0.7)" : "#7C3AED") : "transparent" }}
-              />
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="mt-3 space-y-2">
-        {selectedSessions.length === 0 ? (
-          <p className="text-xs text-warm-gray text-center py-3">No homerooms on this day.</p>
+      <div className="mt-4 space-y-2">
+        {displaySessions.length === 0 ? (
+          <p className="text-xs text-warm-gray text-center py-3">
+            {selectedKey ? "No homerooms on this day." : "No upcoming homerooms."}
+          </p>
         ) : (
-          selectedSessions
-            .slice()
-            .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
-            .map((session) => (
-              <SessionCard
-                key={session.id}
-                session={session}
-                now={now}
-                onLaunch={onLaunch}
-                onRemove={onRemove}
-                onPrepop={onPrepop}
-                onEdit={onEdit}
-                showTime
-              />
-            ))
+          displaySessions.map((session) => (
+            <SessionCard
+              key={session.id}
+              session={session}
+              now={now}
+              onLaunch={onLaunch}
+              onRemove={onRemove}
+              onPrepop={onPrepop}
+              onEdit={onEdit}
+              showTime={!!selectedKey}
+            />
+          ))
         )}
       </div>
     </div>
@@ -450,8 +457,6 @@ export default function HomePage() {
   const [endingBgSession, setEndingBgSession] = useState<BgSessionSummary | null>(null);
 
   const [allListTasks, setAllListTasks] = useState<ListTask[]>([]);
-  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
-  const [upcomingPage, setUpcomingPage] = useState(1);
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
   const [prepopSearch, setPrepopSearch] = useState("");
@@ -1710,90 +1715,6 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Upcoming homerooms */}
-      {scheduled.length > 0 && (() => {
-        const sorted = scheduled
-          .slice()
-          .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
-          .filter(s => new Date(s.scheduledFor).getTime() >= Date.now() - 5 * 60 * 1000);
-        if (sorted.length === 0) return null;
-        const PAGE_SIZE = 10;
-        const PREVIEW = 5;
-        const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
-        const visible = upcomingExpanded
-          ? sorted.slice((upcomingPage - 1) * PAGE_SIZE, upcomingPage * PAGE_SIZE)
-          : sorted.slice(0, PREVIEW);
-        return (
-          <div className="mb-6">
-            <h2 className="text-sm font-semibold text-charcoal mb-3">
-              Upcoming
-              <span className="ml-1.5 text-warm-gray font-normal">· {sorted.length}</span>
-            </h2>
-            <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-              {visible.map(s => {
-                const d = new Date(s.scheduledFor);
-                const dateLabel = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-                const timeLabel = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-                return (
-                  <div key={s.id} className="px-4 py-3 flex items-center gap-3">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-charcoal truncate">{s.title || "Homeroom"}</p>
-                      <p className="text-xs text-warm-gray mt-0.5">{dateLabel} · {timeLabel}{s.duration > 0 ? ` · ${formatDuration(s.duration)}` : ""}</p>
-                    </div>
-                    {s.tasks.length > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
-                        {s.tasks.length} task{s.tasks.length !== 1 ? "s" : ""}
-                      </span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-
-            {!upcomingExpanded && sorted.length > PREVIEW && (
-              <button
-                onClick={() => { setUpcomingExpanded(true); setUpcomingPage(1); }}
-                className="mt-2 w-full text-xs font-semibold py-2.5 rounded-xl border transition-colors hover:bg-gray-50"
-                style={{ borderColor: "#E5E7EB", color: "#78716C" }}
-              >
-                Show all {sorted.length} homerooms
-              </button>
-            )}
-
-            {upcomingExpanded && totalPages > 1 && (
-              <div className="mt-2 flex items-center justify-between">
-                <button
-                  onClick={() => setUpcomingPage(p => Math.max(1, p - 1))}
-                  disabled={upcomingPage === 1}
-                  className="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors hover:bg-gray-50 disabled:opacity-30"
-                  style={{ borderColor: "#E5E7EB", color: "#78716C" }}
-                >
-                  ← Prev
-                </button>
-                <span className="text-xs text-warm-gray">{upcomingPage} / {totalPages}</span>
-                <button
-                  onClick={() => setUpcomingPage(p => Math.min(totalPages, p + 1))}
-                  disabled={upcomingPage === totalPages}
-                  className="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors hover:bg-gray-50 disabled:opacity-30"
-                  style={{ borderColor: "#E5E7EB", color: "#78716C" }}
-                >
-                  Next →
-                </button>
-              </div>
-            )}
-
-            {upcomingExpanded && totalPages <= 1 && (
-              <button
-                onClick={() => setUpcomingExpanded(false)}
-                className="mt-2 w-full text-xs font-semibold py-2.5 rounded-xl border transition-colors hover:bg-gray-50"
-                style={{ borderColor: "#E5E7EB", color: "#78716C" }}
-              >
-                Show less
-              </button>
-            )}
-          </div>
-        );
-      })()}
 
       {/* Edit session modal */}
       {editingSession && (
