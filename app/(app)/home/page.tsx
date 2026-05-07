@@ -299,8 +299,11 @@ type CalendarViewProps = {
 function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: CalendarViewProps) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
-  const maxDate = new Date(today);
-  maxDate.setDate(today.getDate() + 90);
+  const todayKey = dateKey(today);
+
+  // monthOffset: 0 = current month, 1 = next month, etc.
+  const [monthOffset, setMonthOffset] = useState(0);
+  const [selectedKey, setSelectedKey] = useState<string | null>(null);
 
   const sessionsByDate: Record<string, ScheduledSession[]> = {};
   scheduled.forEach((s) => {
@@ -309,35 +312,20 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
     sessionsByDate[key].push(s);
   });
 
-  const todayKey = dateKey(today);
-  const [selectedKey, setSelectedKey] = useState<string | null>(null);
+  // Build days for the displayed month
+  const displayMonth = new Date(today.getFullYear(), today.getMonth() + monthOffset, 1);
+  const year = displayMonth.getFullYear();
+  const month = displayMonth.getMonth();
+  const daysInMonth = new Date(year, month + 1, 0).getDate();
+  const firstDow = new Date(year, month, 1).getDay();
 
-  const gridStart = new Date(today);
-  gridStart.setDate(today.getDate() - today.getDay());
+  const monthDays: Date[] = [];
+  for (let d = 1; d <= daysInMonth; d++) monthDays.push(new Date(year, month, d));
 
-  const gridEnd = new Date(maxDate);
-  gridEnd.setDate(maxDate.getDate() + (6 - maxDate.getDay()));
+  const monthLabel = `${MONTH_NAMES[month]} ${year}`;
 
-  const days: Date[] = [];
-  const cursor = new Date(gridStart);
-  while (cursor <= gridEnd) {
-    days.push(new Date(cursor));
-    cursor.setDate(cursor.getDate() + 1);
-  }
-
-  // Build month section headers for the grid
-  type MonthSection = { label: string; startIndex: number };
-  const monthSections: MonthSection[] = [];
-  let lastMonth = -1;
-  days.forEach((d, i) => {
-    if (d.getMonth() !== lastMonth) {
-      monthSections.push({ label: `${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`, startIndex: i });
-      lastMonth = d.getMonth();
-    }
-  });
-
-  function isDisabled(d: Date) { return d < today || d > maxDate; }
-  function isToday(d: Date) { return dateKey(d) === dateKey(today); }
+  function isDisabled(d: Date) { return d < today; }
+  function isToday(d: Date) { return dateKey(d) === todayKey; }
 
   const upcomingSorted = scheduled
     .slice()
@@ -350,60 +338,74 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
 
   return (
     <div>
-      {monthSections.map((ms, mi) => {
-        const nextStart = monthSections[mi + 1]?.startIndex ?? days.length;
-        const monthDays = days.slice(ms.startIndex, nextStart);
-        // Pad start of first week
-        const firstDow = monthDays[0].getDay();
-        const padStart = Array(firstDow).fill(null);
+      {/* Month navigation */}
+      <div className="flex items-center justify-between mb-2">
+        <button
+          onClick={() => { setMonthOffset(o => o - 1); setSelectedKey(null); }}
+          disabled={monthOffset === 0}
+          className="p-1 rounded-lg transition-colors hover:bg-gray-100 disabled:opacity-20"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 18l-6-6 6-6" />
+          </svg>
+        </button>
+        <p className="text-sm font-semibold text-charcoal">{monthLabel}</p>
+        <button
+          onClick={() => { setMonthOffset(o => o + 1); setSelectedKey(null); }}
+          disabled={monthOffset >= 11}
+          className="p-1 rounded-lg transition-colors hover:bg-gray-100 disabled:opacity-20"
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18l6-6-6-6" />
+          </svg>
+        </button>
+      </div>
 
-        return (
-          <div key={ms.label} className={mi > 0 ? "mt-5" : ""}>
-            <p className="text-xs font-semibold text-charcoal mb-2">{ms.label}</p>
-            <div className="grid grid-cols-7 mb-1">
-              {DAY_LABELS.map((l) => (
-                <div key={l} className="text-center text-xs text-warm-gray font-medium py-1">{l}</div>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-y-1">
-              {padStart.map((_, i) => <div key={`pad-${i}`} />)}
-              {monthDays.map((d) => {
-                const key = dateKey(d);
-                const disabled = isDisabled(d);
-                const todayDay = isToday(d);
-                const hasSessions = !disabled && (sessionsByDate[key]?.length ?? 0) > 0;
-                const selected = selectedKey === key;
-                return (
-                  <button
-                    key={key}
-                    disabled={disabled}
-                    onClick={() => setSelectedKey(selected ? null : key)}
-                    className="flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors"
-                    style={selected ? { background: "#7C3AED" } : todayDay ? { background: "#EDE9FE" } : {}}
-                  >
-                    <span
-                      className="text-sm font-medium leading-none"
-                      style={
-                        disabled ? { color: "#D1D5DB" }
-                        : selected ? { color: "white" }
-                        : todayDay ? { color: "#7C3AED", fontWeight: 700 }
-                        : { color: "#1C1917" }
-                      }
-                    >
-                      {d.getDate()}
-                    </span>
-                    <span
-                      className="mt-1 w-1.5 h-1.5 rounded-full"
-                      style={{ background: hasSessions ? (selected ? "rgba(255,255,255,0.7)" : "#7C3AED") : "transparent" }}
-                    />
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })}
+      {/* Day-of-week labels */}
+      <div className="grid grid-cols-7 mb-1">
+        {DAY_LABELS.map((l) => (
+          <div key={l} className="text-center text-xs text-warm-gray font-medium py-1">{l}</div>
+        ))}
+      </div>
 
+      {/* Day grid */}
+      <div className="grid grid-cols-7 gap-y-1">
+        {Array(firstDow).fill(null).map((_, i) => <div key={`pad-${i}`} />)}
+        {monthDays.map((d) => {
+          const key = dateKey(d);
+          const disabled = isDisabled(d);
+          const todayDay = isToday(d);
+          const hasSessions = !disabled && (sessionsByDate[key]?.length ?? 0) > 0;
+          const selected = selectedKey === key;
+          return (
+            <button
+              key={key}
+              disabled={disabled}
+              onClick={() => setSelectedKey(selected ? null : key)}
+              className="flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors"
+              style={selected ? { background: "#7C3AED" } : todayDay ? { background: "#EDE9FE" } : {}}
+            >
+              <span
+                className="text-sm font-medium leading-none"
+                style={
+                  disabled ? { color: "#D1D5DB" }
+                  : selected ? { color: "white" }
+                  : todayDay ? { color: "#7C3AED", fontWeight: 700 }
+                  : { color: "#1C1917" }
+                }
+              >
+                {d.getDate()}
+              </span>
+              <span
+                className="mt-1 w-1.5 h-1.5 rounded-full"
+                style={{ background: hasSessions ? (selected ? "rgba(255,255,255,0.7)" : "#7C3AED") : "transparent" }}
+              />
+            </button>
+          );
+        })}
+      </div>
+
+      {/* Sessions list */}
       <div className="mt-4 space-y-2">
         {displaySessions.length === 0 ? (
           <p className="text-xs text-warm-gray text-center py-3">
