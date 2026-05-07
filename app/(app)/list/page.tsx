@@ -17,6 +17,7 @@ type Task = {
   scheduledForTitle?: string;
   scheduledForDate?: string | null;
   homeroomId?: string | null;
+  homeroomStatus?: string | null;
 };
 
 type TaskHistory = { text: string; lastSessionTime: number };
@@ -99,43 +100,33 @@ export default function ListPage() {
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
       setMyUserId(user.id);
-      Promise.all([
-        supabase
-          .from("tasks")
-          .select("id, text, done, time_spent, created_at, completed_at")
-          .eq("user_id", user.id)
-          .is("homeroom_id", null)
-          .order("sort_order", { ascending: true }),
-        supabase
-          .from("tasks")
-          .select("id, text, done, time_spent, created_at, completed_at, homeroom_id, homerooms!inner(title, scheduled_for, status)")
-          .eq("user_id", user.id)
-          .eq("homerooms.status", "scheduled"),
-      ]).then(([{ data: listData }, { data: scheduledData }]) => {
-        const listTasks: Task[] = (listData ?? []).map(t => ({
-          id: t.id,
-          text: t.text,
-          done: t.done,
-          addedAt: t.created_at,
-          completedAt: t.completed_at ?? null,
-          lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
-        }));
-        const scheduledTasks: Task[] = (scheduledData ?? []).map(t => {
-          const hr = Array.isArray((t as any).homerooms) ? (t as any).homerooms[0] : (t as any).homerooms;
-          return {
-            id: t.id,
-            text: t.text,
-            done: t.done,
-            addedAt: t.created_at,
-            completedAt: t.completed_at ?? null,
-            lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
-            scheduledForTitle: hr?.title ?? "Homeroom",
-            scheduledForDate: hr?.scheduled_for ?? null,
-            homeroomId: t.homeroom_id,
-          };
+      supabase
+        .from("tasks")
+        .select("id, text, done, time_spent, created_at, completed_at, homeroom_id")
+        .eq("user_id", user.id)
+        .order("sort_order", { ascending: true })
+        .then(async ({ data: allTasks }) => {
+          const homeroomIds = [...new Set((allTasks ?? []).filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
+          const { data: homeroomsData } = homeroomIds.length
+            ? await supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
+            : { data: [] };
+          const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
+          setTasks((allTasks ?? []).map(t => {
+            const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
+            return {
+              id: t.id,
+              text: t.text,
+              done: t.done,
+              addedAt: t.created_at,
+              completedAt: t.completed_at ?? null,
+              lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
+              scheduledForTitle: hr ? hr.title : undefined,
+              scheduledForDate: hr?.status === "scheduled" ? hr.scheduled_for : null,
+              homeroomId: t.homeroom_id,
+              homeroomStatus: hr?.status ?? null,
+            };
+          }));
         });
-        setTasks([...listTasks, ...scheduledTasks]);
-      });
     });
 
     try {
@@ -387,6 +378,12 @@ export default function ListPage() {
                     {t.lastSessionTime !== undefined && (
                       <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
                         {formatSeconds(t.lastSessionTime)}
+                      </span>
+                    )}
+                    {t.homeroomStatus === "active" && t.scheduledForTitle && (
+                      <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                        <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                        {t.scheduledForTitle}
                       </span>
                     )}
                     {t.scheduledForDate && (
