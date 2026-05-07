@@ -13,6 +13,7 @@ function colorFromUsername(u: string): string {
 }
 
 type Friend = { id: string; name: string; initials: string; color: string };
+
 type ScheduledSession = {
   id: string;
   title: string;
@@ -22,16 +23,17 @@ type ScheduledSession = {
   invitedFriends: Friend[];
   tasks: { id: string; text: string }[];
   ownedByMe?: boolean;
+  inviteId?: string;
 };
 
 type Invite = {
   id: string;
+  homeroomId: string;
   from: Friend;
   title: string;
   duration: number;
   isLive: boolean;
   scheduledFor: string | null;
-  sessionId: string;
 };
 
 type TimeChangeNotif = {
@@ -48,12 +50,48 @@ type ListTask = {
   id: string;
   text: string;
   done: boolean;
-  scheduledForSessionId?: string;
-  scheduledForDate?: string;
-  scheduledForTitle?: string;
+  homeroom_id?: string | null;
 };
 
-// ── Helpers ─────────────────────────────────────────────────────────────────
+type ActiveSession = {
+  id: string;
+  title: string;
+  duration: number;
+  startedAt: string;
+  isPublic: boolean;
+};
+
+type ActiveRoom = {
+  id: string;
+  title: string;
+  duration: number;
+  started_at: string;
+  squad_tags: string[];
+  // Supabase may return this as array or object depending on FK cardinality
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profiles?: any;
+};
+
+type PublicScheduledSession = {
+  id: string;
+  created_by: string;
+  title: string;
+  duration: number;
+  scheduled_for: string;
+  squad_tags: string[];
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  profiles?: any;
+};
+
+function getProfileUsername(profiles: unknown): string {
+  if (!profiles) return "Unknown";
+  if (Array.isArray(profiles)) return profiles[0]?.username ?? "Unknown";
+  return (profiles as { username: string }).username ?? "Unknown";
+}
+
+type UserSquad = { id: string; name: string; emoji: string };
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
 
 function cleanTitle(title: string, hostUsername: string): string {
   const prefix = `${hostUsername} is `;
@@ -127,7 +165,7 @@ function canStart(session: ScheduledSession, now: number): boolean {
 const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
 const MONTH_NAMES = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 
-// ── Session card ─────────────────────────────────────────────────────────────
+// ── Session card ──────────────────────────────────────────────────────────────
 
 type SessionCardProps = {
   session: ScheduledSession;
@@ -146,7 +184,6 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-2.5">
-      {/* Row 1: title + status badge */}
       <div className="flex items-start justify-between gap-2">
         <p className="text-sm font-semibold text-charcoal leading-snug">{session.title || "Homeroom"}</p>
         {active && (
@@ -156,7 +193,6 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
         )}
       </div>
 
-      {/* Row 2: date/time + metadata chips */}
       <div className="flex items-center gap-2 flex-wrap">
         <span className="text-xs font-medium" style={{ color: active ? "#059669" : "#7C3AED" }}>
           {showTime ? isoTimeLabel(session.scheduledFor) : formatScheduledFor(session.scheduledFor)}
@@ -193,7 +229,6 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
         )}
       </div>
 
-      {/* Row 3: action buttons */}
       {confirming ? (
         <div className="flex items-center gap-3 pt-0.5">
           <span className="text-xs text-warm-gray">{owned ? "Cancel homeroom?" : "Leave homeroom?"}</span>
@@ -250,7 +285,7 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
   );
 }
 
-// ── Calendar view ────────────────────────────────────────────────────────────
+// ── Calendar view ─────────────────────────────────────────────────────────────
 
 type CalendarViewProps = {
   scheduled: ScheduledSession[];
@@ -384,40 +419,11 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
   );
 }
 
-// ── Main page ────────────────────────────────────────────────────────────────
-
-type ActiveSession = {
-  title: string;
-  duration: number;
-  sessionStartTime: number;
-  sessionId?: string;
-  isPublic?: boolean;
-};
-
-type PublicActiveRoom = {
-  id: string;
-  session_id: string;
-  host_username: string;
-  title: string;
-  duration: number;
-  started_at: string;
-  squad_tags: string[];
-};
-
-type PublicScheduledSession = {
-  id: string;
-  session_id: string;
-  host_username: string;
-  title: string;
-  duration: number;
-  scheduled_for: string;
-  squad_tags: string[];
-};
-
-type UserSquad = { id: string; name: string; emoji: string };
+// ── Main page ─────────────────────────────────────────────────────────────────
 
 export default function HomePage() {
   const router = useRouter();
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const [avatar, setAvatar] = useState<string | null>(null);
   const [scheduled, setScheduled] = useState<ScheduledSession[]>([]);
   const [schedView, setSchedView] = useState<"list" | "calendar">("list");
@@ -427,21 +433,17 @@ export default function HomePage() {
   const [now, setNow] = useState(Date.now());
   const [activeSession, setActiveSession] = useState<ActiveSession | null>(null);
   const [, setTick] = useState(0);
-  const [publicRooms, setPublicRooms] = useState<PublicActiveRoom[]>([]);
+  const [publicRooms, setPublicRooms] = useState<ActiveRoom[]>([]);
   const [publicScheduled, setPublicScheduled] = useState<PublicScheduledSession[]>([]);
   const [userSquads, setUserSquads] = useState<UserSquad[]>([]);
   const [squadFilter, setSquadFilter] = useState<string | null>(null);
   const [pubSchedDateFilter, setPubSchedDateFilter] = useState<string | null>(null);
   const [savedSessionIds, setSavedSessionIds] = useState<Set<string>>(new Set());
 
-  // Time change notifications
   const [timeChanges] = useState<TimeChangeNotif[]>([]);
   const [declinedTimeChanges, setDeclinedTimeChanges] = useState<Set<string>>(new Set());
 
-  // All list tasks — loaded once, kept in sync when prepop saves
   const [allListTasks, setAllListTasks] = useState<ListTask[]>([]);
-
-  // Pre-populate tasks modal
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
   const [prepopSearch, setPrepopSearch] = useState("");
@@ -450,145 +452,285 @@ export default function HomePage() {
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
   const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
 
-  // Edit session modal
   const [editingSession, setEditingSession] = useState<ScheduledSession | null>(null);
   const [editDate, setEditDate] = useState("");
   const [editTime, setEditTime] = useState("");
   const [editInvitedIds, setEditInvitedIds] = useState<Set<string>>(new Set());
 
-  async function loadRoomParticipants(sessionIds: string[]) {
-    if (!sessionIds.length) return;
+  async function loadRoomParticipants(homeroomIds: string[]) {
+    if (!homeroomIds.length) return;
     const supabase = createClient();
-    const { data } = await supabase.from("room_participants").select("session_id, username").in("session_id", sessionIds);
+    const { data } = await supabase
+      .from("homeroom_participants")
+      .select("homeroom_id, profiles(username)")
+      .in("homeroom_id", homeroomIds);
     if (!data) return;
     const map: Record<string, string[]> = {};
-    data.forEach((p) => { if (!map[p.session_id]) map[p.session_id] = []; map[p.session_id].push(p.username); });
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (data as any[]).forEach(p => {
+      const username = (Array.isArray(p.profiles) ? p.profiles[0] : p.profiles)?.username;
+      if (!username) return;
+      if (!map[p.homeroom_id]) map[p.homeroom_id] = [];
+      map[p.homeroom_id].push(username);
+    });
     setRoomParticipants(map);
   }
 
   useEffect(() => {
-    try {
-      const raw = localStorage.getItem("homeroom-scheduled");
-      if (raw) setScheduled(JSON.parse(raw));
-    } catch { /* ignore */ }
-    try {
-      const raw = localStorage.getItem("homeroom-tasks");
-      if (raw) setAllListTasks(JSON.parse(raw));
-    } catch { /* ignore */ }
     const a = localStorage.getItem("homeroom-avatar");
     if (a) setAvatar(a);
-    try {
-      const sessionRaw = localStorage.getItem("homeroom-session");
-      if (sessionRaw) {
-        const s = JSON.parse(sessionRaw);
-        if (s.sessionStartTime && s.duration > 0) {
-          const elapsed = Math.floor((Date.now() - s.sessionStartTime) / 1000);
-          if (elapsed < s.duration * 60) {
-            setActiveSession({ title: s.title, duration: s.duration, sessionStartTime: s.sessionStartTime, sessionId: s.sessionId, isPublic: s.isPublic });
-          }
-        } else if (s.sessionStartTime) {
-          setActiveSession({ title: s.title, duration: s.duration, sessionStartTime: s.sessionStartTime, sessionId: s.sessionId, isPublic: s.isPublic });
+    const myUsername = localStorage.getItem("homeroom-username") ?? "";
+
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      setMyUserId(user.id);
+
+      // Friends (still username-based)
+      if (myUsername) {
+        const { data: frData } = await supabase
+          .from("friend_requests")
+          .select("*")
+          .eq("status", "accepted")
+          .or(`from_username.eq.${myUsername},to_username.eq.${myUsername}`);
+        if (frData) {
+          setFriends(frData.map(r => {
+            const uname = r.from_username === myUsername ? r.to_username : r.from_username;
+            return { id: uname.toLowerCase(), name: uname, initials: uname.slice(0, 2).toUpperCase(), color: colorFromUsername(uname) };
+          }));
+        }
+
+        const { data: sqData } = await supabase
+          .from("squad_members")
+          .select("squad_id, squads(id, name, emoji)")
+          .eq("username", myUsername);
+        if (sqData) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          setUserSquads((sqData as any[]).flatMap(row => {
+            const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
+            return s ? [{ id: s.id, name: s.name, emoji: s.emoji }] : [];
+          }));
         }
       }
-    } catch { /* ignore */ }
 
-    // Load active public rooms for everyone — no username required
-    {
-      const supabase = createClient();
-      supabase.from("active_sessions").select("*").then(({ data }) => {
-        if (data) {
-          setPublicRooms(data as PublicActiveRoom[]);
-          loadRoomParticipants(data.map(r => r.session_id));
-        }
-      });
-    }
-
-    const currentUsername = localStorage.getItem("homeroom-username");
-    if (currentUsername) {
-      const supabase = createClient();
-      supabase
-        .from("friend_requests")
+      // Own scheduled homerooms
+      const { data: ownSched } = await supabase
+        .from("homerooms")
         .select("*")
-        .eq("status", "accepted")
-        .or(`from_username.eq.${currentUsername},to_username.eq.${currentUsername}`)
-        .then(({ data }) => {
-          if (data) {
-            setFriends(data.map((r) => {
-              const uname = r.from_username === currentUsername ? r.to_username : r.from_username;
-              return { id: uname.toLowerCase(), name: uname, initials: uname.slice(0, 2).toUpperCase(), color: colorFromUsername(uname) };
-            }));
-          }
-        });
-      supabase
-        .from("room_invites")
-        .select("*")
-        .eq("to_username", currentUsername)
-        .then(({ data }) => {
-          if (data) {
-            setInvites(data.map((row) => ({
-              id: row.id,
-              from: {
-                id: row.from_username,
-                name: row.from_username,
-                initials: (row.from_username as string).slice(0, 2).toUpperCase(),
-                color: colorFromUsername(row.from_username),
-              },
-              title: row.title,
-              duration: row.duration,
-              isLive: !row.scheduled_for,
-              scheduledFor: row.scheduled_for,
-              sessionId: row.session_id,
-            })));
-          }
-        });
+        .eq("created_by", user.id)
+        .eq("status", "scheduled")
+        .order("scheduled_for", { ascending: true });
 
-      // Load public scheduled sessions (future only)
-      supabase.from("public_scheduled_sessions").select("*")
-        .gt("scheduled_for", new Date().toISOString())
-        .order("scheduled_for", { ascending: true })
-        .then(({ data }) => {
-          if (data) setPublicScheduled(data as PublicScheduledSession[]);
-        });
+      // Pending invites with homeroom data
+      const { data: pendingInvites } = await supabase
+        .from("homeroom_invites")
+        .select("*, homerooms(*)")
+        .eq("to_user", user.id)
+        .eq("status", "pending");
 
-      // Load user's squads for filtering
-      supabase.from("squad_members")
-        .select("squad_id, squads(id, name, emoji)")
-        .eq("username", currentUsername)
+      // Accepted invites (scheduled sessions I've RSVP'd to)
+      const { data: acceptedInvites } = await supabase
+        .from("homeroom_invites")
+        .select("*, homerooms(*)")
+        .eq("to_user", user.id)
+        .eq("status", "accepted");
+
+      setSavedSessionIds(new Set(
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        .then(({ data }) => {
-          if (data) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            setUserSquads((data as any[]).flatMap((row) => {
-              const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
-              return s ? [{ id: s.id, name: s.name, emoji: s.emoji }] : [];
-            }));
+        (acceptedInvites ?? []).map((i: any) => i.homeroom_id as string)
+      ));
+
+      // Tasks linked to scheduled homerooms (for counts)
+      const schedIds = [
+        ...(ownSched?.map(h => h.id) ?? []),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...((acceptedInvites ?? []) as any[]).filter(i => i.homerooms?.status === "scheduled").map((i: any) => i.homeroom_id as string),
+      ];
+      const tasksByHomeroom: Record<string, { id: string; text: string }[]> = {};
+      if (schedIds.length > 0) {
+        const { data: tasksData } = await supabase
+          .from("tasks")
+          .select("id, text, homeroom_id")
+          .eq("user_id", user.id)
+          .in("homeroom_id", schedIds)
+          .eq("done", false);
+        if (tasksData) {
+          tasksData.forEach(t => {
+            const hid = t.homeroom_id as string;
+            if (!tasksByHomeroom[hid]) tasksByHomeroom[hid] = [];
+            tasksByHomeroom[hid].push({ id: t.id, text: t.text });
+          });
+        }
+      }
+
+      // Invited friends for own scheduled sessions
+      const ownSchedIds = ownSched?.map(h => h.id) ?? [];
+      const invitesByHomeroom: Record<string, Friend[]> = {};
+      if (ownSchedIds.length > 0) {
+        const { data: sentInvites } = await supabase
+          .from("homeroom_invites")
+          .select("homeroom_id, to_user")
+          .in("homeroom_id", ownSchedIds)
+          .eq("from_user", user.id)
+          .in("status", ["pending", "accepted"]);
+        if (sentInvites && sentInvites.length > 0) {
+          const toUserIds = [...new Set(sentInvites.map(i => i.to_user as string))];
+          const { data: profiles } = await supabase
+            .from("profiles")
+            .select("id, username")
+            .in("id", toUserIds);
+          if (profiles) {
+            sentInvites.forEach(inv => {
+              const profile = profiles.find(p => p.id === inv.to_user);
+              if (!profile) return;
+              const uname = profile.username;
+              if (!invitesByHomeroom[inv.homeroom_id]) invitesByHomeroom[inv.homeroom_id] = [];
+              invitesByHomeroom[inv.homeroom_id].push({
+                id: uname.toLowerCase(), name: uname,
+                initials: uname.slice(0, 2).toUpperCase(),
+                color: colorFromUsername(uname),
+              });
+            });
           }
+        }
+      }
+
+      // Build scheduled sessions list
+      const myScheduled: ScheduledSession[] = [
+        ...(ownSched ?? []).map(h => ({
+          id: h.id,
+          title: h.title,
+          duration: h.duration,
+          isPublic: !h.is_private,
+          scheduledFor: h.scheduled_for!,
+          invitedFriends: invitesByHomeroom[h.id] ?? [],
+          tasks: tasksByHomeroom[h.id] ?? [],
+          ownedByMe: true,
+        })),
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        ...((acceptedInvites ?? []) as any[]).filter(i => i.homerooms?.status === "scheduled").map((i: any) => ({
+          id: i.homeroom_id,
+          title: i.homerooms.title,
+          duration: i.homerooms.duration,
+          isPublic: !i.homerooms.is_private,
+          scheduledFor: i.homerooms.scheduled_for!,
+          invitedFriends: [],
+          tasks: tasksByHomeroom[i.homeroom_id] ?? [],
+          ownedByMe: false,
+          inviteId: i.id,
+        })),
+      ];
+      setScheduled(myScheduled);
+
+      // Build pending invites — resolve from_user profiles
+      if (pendingInvites && pendingInvites.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const fromUserIds = [...new Set((pendingInvites as any[]).map((i: any) => i.from_user as string))];
+        const { data: fromProfiles } = await supabase
+          .from("profiles")
+          .select("id, username, avatar")
+          .in("id", fromUserIds);
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const inv: Invite[] = (pendingInvites as any[]).flatMap((row: any) => {
+          const h = Array.isArray(row.homerooms) ? row.homerooms[0] : row.homerooms;
+          const profile = fromProfiles?.find(p => p.id === row.from_user);
+          if (!h || !profile) return [];
+          const uname = profile.username;
+          return [{
+            id: row.id,
+            homeroomId: row.homeroom_id,
+            from: { id: uname.toLowerCase(), name: uname, initials: uname.slice(0, 2).toUpperCase(), color: colorFromUsername(uname) },
+            title: h.title,
+            duration: h.duration,
+            isLive: h.status === "active",
+            scheduledFor: h.scheduled_for,
+          }];
         });
-    }
+        setInvites(inv);
+      }
+
+      // Active public rooms
+      const { data: activeRooms } = await supabase
+        .from("homerooms")
+        .select("id, title, duration, started_at, squad_tags, profiles(username, avatar)")
+        .eq("is_private", false)
+        .eq("status", "active");
+      if (activeRooms) {
+        setPublicRooms(activeRooms as unknown as ActiveRoom[]);
+        await loadRoomParticipants(activeRooms.map(r => r.id));
+      }
+
+      // Public scheduled sessions (exclude own)
+      const { data: pubSched } = await supabase
+        .from("homerooms")
+        .select("id, created_by, title, duration, scheduled_for, squad_tags, profiles(username, avatar)")
+        .eq("is_private", false)
+        .eq("status", "scheduled")
+        .gt("scheduled_for", new Date().toISOString())
+        .neq("created_by", user.id)
+        .order("scheduled_for", { ascending: true });
+      if (pubSched) setPublicScheduled(pubSched as unknown as PublicScheduledSession[]);
+
+      // Own active session
+      const activeId = localStorage.getItem("homeroom-active-id");
+      if (activeId) {
+        const { data: activeHomeroom } = await supabase
+          .from("homerooms")
+          .select("*")
+          .eq("id", activeId)
+          .eq("status", "active")
+          .single();
+        if (activeHomeroom) {
+          setActiveSession({
+            id: activeHomeroom.id,
+            title: activeHomeroom.title,
+            duration: activeHomeroom.duration,
+            startedAt: activeHomeroom.started_at!,
+            isPublic: !activeHomeroom.is_private,
+          });
+        } else {
+          localStorage.removeItem("homeroom-active-id");
+        }
+      }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Realtime: update active public rooms and participants as they change
+  // Realtime: homerooms and participants
   useEffect(() => {
     const supabase = createClient();
-    async function refreshRooms() {
-      const { data } = await supabase.from("active_sessions").select("*");
+
+    async function refreshActiveRooms() {
+      const { data } = await supabase
+        .from("homerooms")
+        .select("id, title, duration, started_at, squad_tags, profiles(username, avatar)")
+        .eq("is_private", false)
+        .eq("status", "active");
       if (data) {
-        setPublicRooms(data as PublicActiveRoom[]);
-        loadRoomParticipants(data.map(r => r.session_id));
+        setPublicRooms(data as unknown as ActiveRoom[]);
+        await loadRoomParticipants(data.map(r => r.id));
       }
     }
+
     async function refreshParticipants() {
-      const { data: rooms } = await supabase.from("active_sessions").select("session_id");
-      if (rooms) loadRoomParticipants(rooms.map(r => r.session_id));
+      const { data: rooms } = await supabase
+        .from("homerooms")
+        .select("id")
+        .eq("is_private", false)
+        .eq("status", "active");
+      if (rooms) await loadRoomParticipants(rooms.map(r => r.id));
     }
+
     const activeCh = supabase
-      .channel("active_sessions_ch")
-      .on("postgres_changes", { event: "*", schema: "public", table: "active_sessions" }, refreshRooms)
+      .channel("homerooms_active_ch")
+      .on("postgres_changes", { event: "*", schema: "public", table: "homerooms" }, refreshActiveRooms)
       .subscribe();
     const participantsCh = supabase
-      .channel("room_participants_ch")
-      .on("postgres_changes", { event: "*", schema: "public", table: "room_participants" }, refreshParticipants)
+      .channel("homeroom_participants_ch")
+      .on("postgres_changes", { event: "*", schema: "public", table: "homeroom_participants" }, refreshParticipants)
       .subscribe();
+
     return () => {
       supabase.removeChannel(activeCh);
       supabase.removeChannel(participantsCh);
@@ -596,48 +738,45 @@ export default function HomePage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Tick every 30s so Start/Join button enables at the right time
   useEffect(() => {
     const id = setInterval(() => setNow(Date.now()), 30_000);
     return () => clearInterval(id);
   }, []);
 
-  // Tick every second for the active session countdown and public room elapsed times
   useEffect(() => {
-    const id = setInterval(() => setTick((t) => t + 1), 1000);
+    const id = setInterval(() => setTick(t => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
-  function savePublicScheduled(session: PublicScheduledSession) {
-    if (savedSessionIds.has(session.session_id)) return;
-    const newEntry: ScheduledSession = {
-      id: crypto.randomUUID(),
-      title: `${session.host_username}'s ${session.title}`,
-      duration: session.duration,
-      isPublic: true,
-      scheduledFor: session.scheduled_for,
-      invitedFriends: [],
-      tasks: [],
-      ownedByMe: false,
-    };
-    const updated = [...scheduled, newEntry];
-    setScheduled(updated);
-    localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-    setSavedSessionIds((prev) => new Set([...prev, session.session_id]));
-    showToast("Added to your scheduled homerooms");
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  async function savePublicScheduled(session: PublicScheduledSession) {
+    if (savedSessionIds.has(session.id) || !myUserId) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("homeroom_invites").upsert({
+      homeroom_id: session.id,
+      from_user: session.created_by,
+      to_user: myUserId,
+      status: "accepted",
+    }, { onConflict: "homeroom_id,to_user" });
+    if (!error) {
+      setSavedSessionIds(prev => new Set([...prev, session.id]));
+      setScheduled(prev => [...prev, {
+        id: session.id,
+        title: session.title,
+        duration: session.duration,
+        isPublic: true,
+        scheduledFor: session.scheduled_for,
+        invitedFriends: [],
+        tasks: [],
+        ownedByMe: false,
+      }]);
+      showToast("Added to your scheduled homerooms");
+    }
   }
 
-  function joinPublicRoom(room: PublicActiveRoom) {
-    localStorage.setItem("homeroom-session", JSON.stringify({
-      sessionId: room.session_id,
-      title: room.title,
-      duration: room.duration,
-      isPublic: true,
-      tasks: [],
-      invitedFriends: [],
-      scheduledFor: null,
-    }));
-    router.push("/room");
+  function joinPublicRoom(room: ActiveRoom) {
+    router.push(`/room?id=${room.id}`);
   }
 
   function showToast(msg: string) {
@@ -647,125 +786,101 @@ export default function HomePage() {
 
   async function acceptInvite(invite: Invite) {
     const supabase = createClient();
-    const { error } = await supabase.from("room_invites").delete().eq("id", invite.id);
-    if (error) console.error("acceptInvite delete failed:", error.message);
-    setInvites((prev) => prev.filter((i) => i.id !== invite.id));
+    await supabase.from("homeroom_invites").update({ status: "accepted" }).eq("id", invite.id);
+    setInvites(prev => prev.filter(i => i.id !== invite.id));
 
-    if (!invite.isLive && invite.scheduledFor) {
-      const newSession: ScheduledSession = {
-        id: crypto.randomUUID(),
-        title: `${invite.from.name}'s ${invite.title}`,
-        duration: invite.duration,
-        isPublic: false,
-        scheduledFor: invite.scheduledFor,
-        invitedFriends: [invite.from],
-        tasks: [],
-        ownedByMe: false,
-      };
-      const updated = [...scheduled, newSession];
-      setScheduled(updated);
-      localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-      showToast("Added to your scheduled homerooms");
+    if (invite.isLive) {
+      localStorage.setItem("homeroom-active-id", invite.homeroomId);
+      router.push(`/room?id=${invite.homeroomId}`);
       return;
     }
-    localStorage.setItem("homeroom-session", JSON.stringify({
-      sessionId: invite.sessionId,
-      title: `${invite.from.name} is ${invite.title}`,
+
+    setScheduled(prev => [...prev, {
+      id: invite.homeroomId,
+      title: invite.title,
       duration: invite.duration,
       isPublic: false,
-      tasks: [],
+      scheduledFor: invite.scheduledFor!,
       invitedFriends: [invite.from],
-      scheduledFor: null,
-    }));
-    router.push("/room");
+      tasks: [],
+      ownedByMe: false,
+      inviteId: invite.id,
+    }]);
+    showToast("Added to your scheduled homerooms");
   }
 
   async function declineInvite(id: string) {
     const supabase = createClient();
-    const { error } = await supabase.from("room_invites").delete().eq("id", id);
-    if (error) console.error("declineInvite delete failed:", error.message);
-    setInvites((prev) => prev.filter((i) => i.id !== id));
-    setDeclinedInvites((prev) => new Set([...prev, id]));
+    await supabase.from("homeroom_invites").update({ status: "declined" }).eq("id", id);
+    setInvites(prev => prev.filter(i => i.id !== id));
+    setDeclinedInvites(prev => new Set([...prev, id]));
   }
 
-  function launchScheduled(session: ScheduledSession) {
-    const liveSessionId = session.id ?? crypto.randomUUID();
-    localStorage.setItem("homeroom-session", JSON.stringify({
-      sessionId: liveSessionId,
-      title: session.title,
-      duration: session.duration,
-      isPublic: session.isPublic,
-      tasks: session.tasks,
-      invitedFriends: session.invitedFriends,
-      scheduledFor: null,
-    }));
-    const updated = scheduled.filter((s) => s.id !== session.id);
-    setScheduled(updated);
-    localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-    router.push("/room");
+  async function launchScheduled(session: ScheduledSession) {
+    const supabase = createClient();
+    if (session.ownedByMe) {
+      await supabase
+        .from("homerooms")
+        .update({ status: "active", started_at: new Date().toISOString() })
+        .eq("id", session.id);
+    }
+    localStorage.setItem("homeroom-active-id", session.id);
+    setScheduled(prev => prev.filter(s => s.id !== session.id));
+    router.push(`/room?id=${session.id}`);
   }
 
-  function removeScheduled(id: string) {
-    const updated = scheduled.filter((s) => s.id !== id);
-    setScheduled(updated);
-    localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-    try {
-      const raw = localStorage.getItem("homeroom-tasks");
-      if (raw) {
-        const tasks = JSON.parse(raw);
-        localStorage.setItem("homeroom-tasks", JSON.stringify(
-          tasks.map((t: ListTask & { scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }) => {
-            if (t.scheduledForSessionId === id) {
-              const { scheduledForSessionId, scheduledForDate, scheduledForTitle, ...rest } = t;
-              return rest;
-            }
-            return t;
-          })
-        ));
-      }
-    } catch { /* ignore */ }
+  async function removeScheduled(id: string) {
+    const session = scheduled.find(s => s.id === id);
+    if (!session) return;
+    const supabase = createClient();
+    if (session.ownedByMe) {
+      await supabase.from("homerooms").delete().eq("id", id);
+    } else if (session.inviteId) {
+      await supabase.from("homeroom_invites").update({ status: "declined" }).eq("id", session.inviteId);
+    }
+    setScheduled(prev => prev.filter(s => s.id !== id));
   }
 
   function openEdit(session: ScheduledSession) {
     setEditDate(isoToDateInput(session.scheduledFor));
     setEditTime(isoToTimeInput(session.scheduledFor));
-    setEditInvitedIds(new Set(session.invitedFriends.map((f) => f.id)));
+    setEditInvitedIds(new Set(session.invitedFriends.map(f => f.id)));
     setEditingSession(session);
   }
 
   async function saveEdit() {
-    if (!editingSession || !editDate || !editTime) return;
+    if (!editingSession || !editDate || !editTime || !myUserId) return;
     const newIso = new Date(`${editDate}T${editTime}`).toISOString();
-    const newInvited = friends.filter((f) => editInvitedIds.has(f.id));
-    const updated = scheduled.map((s) =>
-      s.id === editingSession.id ? { ...s, scheduledFor: newIso, invitedFriends: newInvited } : s
-    );
-    setScheduled(updated);
-    localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
+    const supabase = createClient();
 
-    const myUsername = localStorage.getItem("homeroom-username") ?? "";
-    if (myUsername && newInvited.length > 0) {
-      const prevIds = new Set(editingSession.invitedFriends.map((f) => f.id));
-      const newlyAdded = newInvited.filter((f) => !prevIds.has(f.id));
-      if (newlyAdded.length > 0) {
-        const supabase = createClient();
-        await Promise.all(newlyAdded.map((f) =>
-          supabase.from("room_invites").upsert({
-            from_username: myUsername,
-            to_username: f.name,
-            session_id: editingSession.id,
-            title: editingSession.title || "Homeroom",
-            duration: editingSession.duration,
-            is_public: editingSession.isPublic,
-            scheduled_for: newIso,
-          }, { onConflict: "session_id,to_username", ignoreDuplicates: true })
+    await supabase.from("homerooms").update({ scheduled_for: newIso }).eq("id", editingSession.id);
+
+    const newInvited = friends.filter(f => editInvitedIds.has(f.id));
+    const prevIds = new Set(editingSession.invitedFriends.map(f => f.id));
+    const newlyAdded = newInvited.filter(f => !prevIds.has(f.id));
+    if (newlyAdded.length > 0) {
+      const { data: profiles } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .in("username", newlyAdded.map(f => f.name));
+      if (profiles) {
+        await Promise.all(profiles.map(p =>
+          supabase.from("homeroom_invites").upsert({
+            homeroom_id: editingSession.id,
+            from_user: myUserId,
+            to_user: p.id,
+            status: "pending",
+          }, { onConflict: "homeroom_id,to_user", ignoreDuplicates: true })
         ));
       }
     }
 
+    setScheduled(prev => prev.map(s =>
+      s.id === editingSession.id ? { ...s, scheduledFor: newIso, invitedFriends: newInvited } : s
+    ));
+
     if (newInvited.length > 0) {
-      const names = newInvited.map((f) => f.name).join(", ");
-      showToast(`Saved · notified ${names}`);
+      showToast(`Saved · notified ${newInvited.map(f => f.name).join(", ")}`);
     } else {
       showToast("Time updated");
     }
@@ -773,83 +888,70 @@ export default function HomePage() {
   }
 
   function acceptTimeChange(notif: TimeChangeNotif) {
-    // Find existing session for this notif or create a new one
-    const existingIdx = scheduled.findIndex(
-      (s) => s.title === notif.sessionPayload.title && !s.ownedByMe
-    );
+    const existingIdx = scheduled.findIndex(s => s.title === notif.sessionPayload.title && !s.ownedByMe);
     let updated: ScheduledSession[];
     if (existingIdx >= 0) {
-      updated = scheduled.map((s, i) =>
-        i === existingIdx ? { ...s, scheduledFor: notif.newTime } : s
-      );
+      updated = scheduled.map((s, i) => i === existingIdx ? { ...s, scheduledFor: notif.newTime } : s);
     } else {
-      const newSession: ScheduledSession = {
-        ...notif.sessionPayload,
-        id: crypto.randomUUID(),
-        scheduledFor: notif.newTime,
-        ownedByMe: false,
-      };
-      updated = [...scheduled, newSession];
+      updated = [...scheduled, { ...notif.sessionPayload, id: crypto.randomUUID(), scheduledFor: notif.newTime, ownedByMe: false }];
     }
     setScheduled(updated);
-    localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-    setDeclinedTimeChanges((prev) => new Set([...prev, notif.id]));
+    setDeclinedTimeChanges(prev => new Set([...prev, notif.id]));
     showToast("Time change accepted");
   }
 
   function declineTimeChange(id: string) {
-    setDeclinedTimeChanges((prev) => new Set([...prev, id]));
+    setDeclinedTimeChanges(prev => new Set([...prev, id]));
   }
 
-  function openPrepop(session: ScheduledSession) {
-    // Always read fresh so tags from previous saves are visible
-    try {
-      const raw = localStorage.getItem("homeroom-tasks");
-      if (raw) setAllListTasks(JSON.parse(raw));
-    } catch { /* ignore */ }
-    setPrepopSelected(new Set(session.tasks.map((t) => t.id)));
+  async function openPrepop(session: ScheduledSession) {
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const { data: tasks } = await supabase
+      .from("tasks")
+      .select("id, text, homeroom_id")
+      .eq("user_id", user.id)
+      .eq("done", false)
+      .order("sort_order", { ascending: true });
+    if (tasks) {
+      setAllListTasks(tasks.map(t => ({ id: t.id, text: t.text, done: false, homeroom_id: t.homeroom_id })));
+      setPrepopSelected(new Set(tasks.filter(t => t.homeroom_id === session.id).map(t => t.id)));
+    }
     setPrepopSearch("");
     setPrepopSession(session);
   }
 
-  function savePrepop() {
+  async function savePrepop() {
     if (!prepopSession) return;
-    const session = prepopSession;
+    const supabase = createClient();
     const selectedIds = [...prepopSelected];
-    const activeTasks = allListTasks.filter((t) => !t.done);
 
-    const newTasks = activeTasks
-      .filter((t) => selectedIds.includes(t.id))
-      .map((t) => ({ id: t.id, text: t.text }));
-    const updatedSessions = scheduled.map((s) =>
-      s.id === session.id ? { ...s, tasks: newTasks } : s
-    );
-    setScheduled(updatedSessions);
-    localStorage.setItem("homeroom-scheduled", JSON.stringify(updatedSessions));
+    if (selectedIds.length > 0) {
+      await supabase.from("tasks").update({ homeroom_id: prepopSession.id }).in("id", selectedIds);
+    }
 
-    const updatedListTasks = allListTasks.map((t) => {
-      if (selectedIds.includes(t.id)) {
-        return { ...t, scheduledForSessionId: session.id, scheduledForDate: session.scheduledFor, scheduledForTitle: session.title || "Homeroom" };
-      }
-      if (t.scheduledForSessionId === session.id) {
-        const { scheduledForSessionId, scheduledForDate, scheduledForTitle, ...rest } = t;
-        return rest;
-      }
-      return t;
-    });
-    setAllListTasks(updatedListTasks);
-    try {
-      localStorage.setItem("homeroom-tasks", JSON.stringify(updatedListTasks));
-    } catch { /* ignore */ }
+    const deselected = allListTasks
+      .filter(t => !prepopSelected.has(t.id) && t.homeroom_id === prepopSession.id)
+      .map(t => t.id);
+    if (deselected.length > 0) {
+      await supabase.from("tasks").update({ homeroom_id: null }).in("id", deselected);
+    }
+
+    setScheduled(prev => prev.map(s =>
+      s.id === prepopSession.id
+        ? { ...s, tasks: allListTasks.filter(t => selectedIds.includes(t.id)).map(t => ({ id: t.id, text: t.text })) }
+        : s
+    ));
 
     setPrepopSession(null);
   }
 
-  const activePrepopTasks = allListTasks.filter((t) => !t.done);
-  const visibleInvites = invites.filter((i) => !declinedInvites.has(i.id));
-  const visibleTimeChanges = timeChanges.filter((tc) => !declinedTimeChanges.has(tc.id));
+  const activePrepopTasks = allListTasks.filter(t => !t.done);
+  const visibleInvites = invites.filter(i => !declinedInvites.has(i.id));
+  const visibleTimeChanges = timeChanges.filter(tc => !declinedTimeChanges.has(tc.id));
   const filteredPrepopTasks = prepopSearch
-    ? activePrepopTasks.filter((t) => t.text.toLowerCase().includes(prepopSearch.toLowerCase()))
+    ? activePrepopTasks.filter(t => t.text.toLowerCase().includes(prepopSearch.toLowerCase()))
     : activePrepopTasks;
 
   return (
@@ -995,7 +1097,7 @@ export default function HomePage() {
       {activeSession && (() => {
         const myUsername = localStorage.getItem("homeroom-username") ?? "";
         const displayTitle = cleanTitle(activeSession.title || "Homeroom", myUsername);
-        const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
+        const elapsedSec = Math.floor((Date.now() - new Date(activeSession.startedAt).getTime()) / 1000);
         const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
         const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
         const remSec = remainingSec !== null ? remainingSec % 60 : null;
@@ -1015,7 +1117,7 @@ export default function HomePage() {
                     <p className="text-xs text-warm-gray mt-0.5">No time limit</p>
                   )}
                 </div>
-                <Link href="/room" className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
+                <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
                   Rejoin
                 </Link>
               </div>
@@ -1123,8 +1225,8 @@ export default function HomePage() {
         <h2 className="text-sm font-semibold text-charcoal mb-3">
           Active rooms
           {(publicRooms.length > 0 || activeSession?.isPublic) && (() => {
-            const ownSessionId = activeSession?.isPublic ? activeSession.sessionId : undefined;
-            const othersCount = publicRooms.filter(r => r.session_id !== ownSessionId && (!squadFilter || r.squad_tags.includes(squadFilter))).length;
+            const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
+            const othersCount = publicRooms.filter(r => r.id !== ownRoomId && (!squadFilter || r.squad_tags.includes(squadFilter))).length;
             const total = othersCount + (activeSession?.isPublic ? 1 : 0);
             return <span className="ml-1.5 text-warm-gray font-normal">· {total}</span>;
           })()}
@@ -1134,21 +1236,21 @@ export default function HomePage() {
           {activeSession?.isPublic && (() => {
             const myUsername = localStorage.getItem("homeroom-username") ?? "You";
             const ownDisplayTitle = cleanTitle(activeSession.title || "Homeroom", myUsername);
-            const elapsedSec = Math.floor((Date.now() - activeSession.sessionStartTime) / 1000);
+            const elapsedSec = Math.floor((Date.now() - new Date(activeSession.startedAt).getTime()) / 1000);
             const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
             const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
             const remSec = remainingSec !== null ? remainingSec % 60 : null;
             const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
-            const ownSessionId = activeSession.sessionId ?? "";
-            const participants = roomParticipants[ownSessionId] ?? [];
+            const ownRoomId = activeSession.id;
+            const participants = roomParticipants[ownRoomId] ?? [];
             const friendSet = new Set(friends.map(f => f.name));
             const friendsInRoom = participants.filter(u => friendSet.has(u) && u !== myUsername);
-            const expanded = expandedRooms.has(ownSessionId);
+            const expanded = expandedRooms.has(ownRoomId);
             return (
               <div className="bg-white rounded-2xl border border-purple-100 overflow-hidden">
                 <div
                   className="px-4 py-3 cursor-pointer"
-                  onClick={() => setExpandedRooms(prev => { const n = new Set(prev); n.has(ownSessionId) ? n.delete(ownSessionId) : n.add(ownSessionId); return n; })}
+                  onClick={() => setExpandedRooms(prev => { const n = new Set(prev); n.has(ownRoomId) ? n.delete(ownRoomId) : n.add(ownRoomId); return n; })}
                 >
                   <div className="flex items-start justify-between">
                     <div className="flex-1 min-w-0">
@@ -1170,12 +1272,11 @@ export default function HomePage() {
                             {friendsInRoom.length} friend{friendsInRoom.length !== 1 ? "s" : ""}
                           </span>
                         )}
-
                       </div>
                     </div>
                     <div className="flex items-center gap-2 ml-3 flex-shrink-0">
                       <Link
-                        href="/room"
+                        href={`/room?id=${activeSession.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
                         style={{ background: "#7C3AED" }}
@@ -1223,10 +1324,12 @@ export default function HomePage() {
               </div>
             );
           })()}
+
+          {/* Other active rooms */}
           {(() => {
-            const ownSessionId = activeSession?.isPublic ? activeSession.sessionId : undefined;
+            const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
             const filtered = publicRooms.filter(r =>
-              r.session_id !== ownSessionId &&
+              r.id !== ownRoomId &&
               (!squadFilter || r.squad_tags.includes(squadFilter))
             );
             if (filtered.length === 0 && !activeSession?.isPublic) return (
@@ -1236,20 +1339,21 @@ export default function HomePage() {
             );
             if (filtered.length === 0) return null;
             return filtered.map((room) => {
+              const hostUsername = getProfileUsername(room.profiles);
               const elapsedSec = Math.floor((Date.now() - new Date(room.started_at).getTime()) / 1000);
               const remainingSec = room.duration > 0 ? Math.max(0, room.duration * 60 - elapsedSec) : null;
               const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
               const remSec = remainingSec !== null ? remainingSec % 60 : null;
               const progressPct = room.duration > 0 ? Math.min(100, (elapsedSec / (room.duration * 60)) * 100) : 0;
-              const participants = roomParticipants[room.session_id] ?? [];
+              const participants = roomParticipants[room.id] ?? [];
               const friendSet = new Set(friends.map(f => f.name));
               const friendsInRoom = participants.filter(u => friendSet.has(u));
-              const expanded = expandedRooms.has(room.session_id);
+              const expanded = expandedRooms.has(room.id);
               return (
                 <div key={room.id} className="bg-white rounded-2xl border border-gray-100 overflow-hidden">
                   <div
                     className="px-4 py-3 cursor-pointer"
-                    onClick={() => setExpandedRooms(prev => { const n = new Set(prev); n.has(room.session_id) ? n.delete(room.session_id) : n.add(room.session_id); return n; })}
+                    onClick={() => setExpandedRooms(prev => { const n = new Set(prev); n.has(room.id) ? n.delete(room.id) : n.add(room.id); return n; })}
                   >
                     <div className="flex items-start justify-between">
                       <div className="flex-1 min-w-0">
@@ -1257,7 +1361,7 @@ export default function HomePage() {
                           <span className="inline-block w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0" />
                           <p className="text-sm font-semibold text-charcoal truncate">{room.title || "Homeroom"}</p>
                         </div>
-                        <p className="text-xs text-warm-gray mt-0.5">@{room.host_username}</p>
+                        <p className="text-xs text-warm-gray mt-0.5">@{hostUsername}</p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           {remainingSec !== null && remainingSec > 0
                             ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
@@ -1347,11 +1451,12 @@ export default function HomePage() {
             </div>
             <div className="space-y-2">
               {dateFiltered.map((session) => {
-                const saved = savedSessionIds.has(session.session_id);
+                const saved = savedSessionIds.has(session.id);
+                const hostUsername = getProfileUsername(session.profiles);
                 return (
                   <div key={session.id} className="bg-white rounded-2xl border border-gray-100 px-4 py-3 flex items-center gap-3">
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-charcoal truncate">{session.host_username} is {session.title || "hosting a homeroom"}</p>
+                      <p className="text-sm font-semibold text-charcoal truncate">{hostUsername} is {session.title || "hosting a homeroom"}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                         <span className="text-xs font-medium" style={{ color: "#7C3AED" }}>{formatScheduledFor(session.scheduled_for)}</span>
                         {session.duration > 0 && <span className="text-xs text-warm-gray">· {formatDuration(session.duration)}</span>}
@@ -1509,7 +1614,7 @@ export default function HomePage() {
                 </p>
               ) : filteredPrepopTasks.map((task: ListTask) => {
                 const checked = prepopSelected.has(task.id);
-                const otherSession = task.scheduledForSessionId && task.scheduledForSessionId !== prepopSession?.id;
+                const otherSession = task.homeroom_id && task.homeroom_id !== prepopSession?.id;
                 return (
                   <button
                     key={task.id}
@@ -1534,7 +1639,7 @@ export default function HomePage() {
                     <span className="text-sm text-charcoal flex-1">{task.text}</span>
                     {otherSession && (
                       <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
-                        {task.scheduledForTitle} {new Date(task.scheduledForDate!).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                        Scheduled
                       </span>
                     )}
                   </button>

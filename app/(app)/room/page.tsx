@@ -20,16 +20,15 @@ type Task = {
 };
 type Friend = { id: string; name: string; initials: string; color: string };
 type Session = {
-  sessionId?: string;
+  homeroomId: string;
   title: string;
   duration: number;
   isPublic: boolean;
-  tasks: { id: string; text: string; done?: boolean; timeSpent?: number; startedAt?: number | null }[];
+  startedAt: string;
+  squadTags: string[];
   invitedFriends: Friend[];
-  scheduledFor: string | null;
-  sessionStartTime?: number;
-  squadTags?: string[];
 };
+
 function formatTime(seconds: number): string {
   const m = Math.floor(seconds / 60);
   const s = seconds % 60;
@@ -38,6 +37,7 @@ function formatTime(seconds: number): string {
 
 export default function RoomPage() {
   const [myUsername, setMyUsername] = useState("You");
+  const [myUserId, setMyUserId] = useState<string | null>(null);
   const myUsernameRef = useRef<string>("");
   const [myAvatar, setMyAvatar] = useState<string>("");
   const [session, setSession] = useState<Session | null>(null);
@@ -65,8 +65,8 @@ export default function RoomPage() {
   const [participantsExpanded, setParticipantsExpanded] = useState(false);
   const PARTICIPANTS_VISIBLE = 6;
   const TASK_VISIBLE_LIMIT = 6;
-  const [myListTasks, setMyListTasks]             = useState<{ id: string; text: string; done: boolean; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }[]>([]);
-  const [selectedListIds, setSelectedListIds]     = useState<string[]>([]);
+  const [myListTasks, setMyListTasks] = useState<{ id: string; text: string; done: boolean }[]>([]);
+  const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
 
   const REACTION_EMOJIS = ["🎉", "🙌", "🔥", "💪", "👏", "✨", "🚀", "🎯"];
 
@@ -83,22 +83,32 @@ export default function RoomPage() {
     }));
   }
 
-  // Global tick every second so running timers re-render
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
     return () => clearInterval(id);
   }, []);
 
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const realtimeChannelRef = useRef<any>(null);
+  const tasksInitializedRef = useRef(false);
+  const timerEndedRef = useRef(false);
+  const tasksRef     = useRef<Task[]>([]);
+  const showTodosRef = useRef(true);
+
   useEffect(() => {
-    // Populate immediately from localStorage
+    const homeroomId = new URLSearchParams(window.location.search).get("id");
+    if (!homeroomId) return;
+
     const local = localStorage.getItem("homeroom-username");
     if (local) { myUsernameRef.current = local; setMyUsername(local); }
     const localAvatar = localStorage.getItem("homeroom-avatar");
     if (localAvatar) setMyAvatar(localAvatar);
-    // Always verify against Supabase — overrides stale or missing localStorage
+
     const supabase = createClient();
+
     supabase.auth.getUser().then(({ data: { user } }) => {
       if (!user) return;
+      setMyUserId(user.id);
       supabase.from("profiles").select("username, avatar").eq("id", user.id).single().then(({ data }) => {
         if (!data) return;
         myUsernameRef.current = data.username;
@@ -107,68 +117,84 @@ export default function RoomPage() {
         if (data.avatar) { setMyAvatar(data.avatar); localStorage.setItem("homeroom-avatar", data.avatar); }
       });
     });
-    try {
-      const stored = localStorage.getItem("homeroom-session");
-      if (stored) {
-        const s: Session = JSON.parse(stored);
-        if (!s.sessionStartTime) {
-          s.sessionStartTime = Date.now();
-          localStorage.setItem("homeroom-session", JSON.stringify(s));
-        }
-        setSession(s);
-        setTasks(s.tasks.map((t) => ({ id: t.id, text: t.text, done: t.done ?? false, timeSpent: t.timeSpent ?? 0, startedAt: t.startedAt ?? null })));
-        tasksInitializedRef.current = true;
-        // Restore persisted feed and chat for this session
-        const sid = s.sessionId;
-        if (sid) {
-          try {
-            const savedChat = localStorage.getItem(`homeroom-chat-${sid}`);
-            if (savedChat) setChatMessages(JSON.parse(savedChat).map((m: { id: string; type: "chat" | "activity"; text: string; sender: string; time: string; reactions: string[] }) => ({ ...m, time: new Date(m.time) })));
-          } catch { /* ignore */ }
+
+    (async () => {
+      const { data: homeroom } = await supabase.from("homerooms").select("*").eq("id", homeroomId).single();
+      if (!homeroom) return;
+
+      // Load invited friends from homeroom_invites
+      const { data: inviteData } = await supabase
+        .from("homeroom_invites")
+        .select("to_user")
+        .eq("homeroom_id", homeroomId)
+        .in("status", ["pending", "accepted"]);
+      let invitedFriends: Friend[] = [];
+      if (inviteData && inviteData.length > 0) {
+        const { data: profiles } = await supabase
+          .from("profiles")
+          .select("username")
+          .in("id", inviteData.map(i => i.to_user));
+        if (profiles) {
+          invitedFriends = profiles.map(p => ({
+            id: p.username.toLowerCase(),
+            name: p.username,
+            initials: p.username.slice(0, 2).toUpperCase(),
+            color: colorFromUsername(p.username),
+          }));
         }
       }
-      const listStored = localStorage.getItem("homeroom-tasks");
-      if (listStored) setMyListTasks(JSON.parse(listStored));
-    } catch { /* ignore */ }
+
+      setSession({
+        homeroomId: homeroom.id,
+        title: homeroom.title,
+        duration: homeroom.duration,
+        isPublic: !homeroom.is_private,
+        startedAt: homeroom.started_at ?? new Date().toISOString(),
+        squadTags: homeroom.squad_tags ?? [],
+        invitedFriends,
+      });
+
+      // Load tasks
+      const { data: taskData } = await supabase
+        .from("tasks")
+        .select("id, text, done, time_spent")
+        .eq("homeroom_id", homeroomId)
+        .order("sort_order", { ascending: true });
+      if (taskData) {
+        setTasks(taskData.map(t => ({
+          id: t.id,
+          text: t.text,
+          done: t.done,
+          timeSpent: t.time_spent ?? 0,
+          startedAt: null,
+        })));
+        tasksInitializedRef.current = true;
+      }
+
+      // Restore chat
+      try {
+        const savedChat = localStorage.getItem(`homeroom-chat-${homeroom.id}`);
+        if (savedChat) {
+          setChatMessages(
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            JSON.parse(savedChat).map((m: any) => ({ ...m, time: new Date(m.time) }))
+          );
+        }
+      } catch { /* ignore */ }
+    })();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Realtime channel — uses homeroomId from session
   useEffect(() => {
-    if (!session?.sessionId) return;
+    if (!session?.homeroomId) return;
     const supabase = createClient();
     const channel = supabase
-      .channel(`room:${session.sessionId}`)
+      .channel(`room:${session.homeroomId}`)
       .on("broadcast", { event: "message" }, ({ payload }) => {
         if (payload.sender !== myUsername) {
           setChatMessages((prev) => [...prev, { ...payload, time: new Date(payload.time) }]);
         }
-      })
-      .on("broadcast", { event: "request-session-info" }, () => {
-        // Someone just joined — send them our start time and current task data
-        const raw = localStorage.getItem("homeroom-session");
-        if (!raw) return;
-        const s = JSON.parse(raw);
-        if (s.sessionStartTime) {
-          channel.send({ type: "broadcast", event: "session-info", payload: { sessionStartTime: s.sessionStartTime } });
-        }
-        channel.send({
-          type: "broadcast", event: "task-share",
-          payload: {
-            username: myUsernameRef.current,
-            tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
-            sharing: showTodosRef.current,
-          },
-        });
-      })
-      .on("broadcast", { event: "session-info" }, ({ payload }) => {
-        // Adopt the earliest start time so all users share the same clock
-        if (!payload.sessionStartTime) return;
-        setSession((prev) => {
-          if (!prev) return prev;
-          if (prev.sessionStartTime && prev.sessionStartTime <= payload.sessionStartTime) return prev;
-          const updated = { ...prev, sessionStartTime: payload.sessionStartTime };
-          localStorage.setItem("homeroom-session", JSON.stringify(updated));
-          return updated;
-        });
       })
       .on("broadcast", { event: "task-share" }, ({ payload }) => {
         if (!payload.username) return;
@@ -179,8 +205,7 @@ export default function RoomPage() {
       })
       .on("broadcast", { event: "reaction" }, ({ payload }) => {
         const me = myUsernameRef.current || myUsername;
-        if (payload.reactor === me) return; // we already updated our own state
-        // Update the message reactions for everyone else
+        if (payload.reactor === me) return;
         setChatMessages((prev) => prev.map((m) => {
           if (m.id !== payload.msgId) return m;
           const has = m.reactions.includes(payload.emoji);
@@ -198,7 +223,6 @@ export default function RoomPage() {
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
           await channel.track({ username: myUsernameRef.current || myUsername, avatar: myAvatar || "" });
-          // Share our tasks with anyone already in the room
           channel.send({
             type: "broadcast", event: "task-share",
             payload: {
@@ -208,39 +232,28 @@ export default function RoomPage() {
             },
           });
         }
-        // Ask existing members for the authoritative start time (and they'll respond with task-share too)
         channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
       });
     realtimeChannelRef.current = channel;
     return () => { supabase.removeChannel(channel); };
-  }, [session?.sessionId, myUsername]);
+  }, [session?.homeroomId, myUsername]);
 
-  // Register / deregister this session in active_sessions for public rooms
+  // Register in homeroom_participants when session + userId are known
   useEffect(() => {
-    if (!session?.sessionId || !session.isPublic || !myUsername || myUsername === "You") return;
+    if (!session?.homeroomId || !myUserId) return;
     const supabase = createClient();
-    supabase.from("active_sessions").upsert({
-      session_id: session.sessionId,
-      host_username: myUsername,
-      title: session.title || "",
-      duration: session.duration,
-      started_at: session.sessionStartTime ? new Date(session.sessionStartTime).toISOString() : new Date().toISOString(),
-      squad_tags: session.squadTags ?? [],
-    }, { onConflict: "session_id", ignoreDuplicates: false });
+    supabase.from("homeroom_participants").upsert(
+      { homeroom_id: session.homeroomId, user_id: myUserId, joined_at: new Date().toISOString() },
+      { onConflict: "homeroom_id,user_id", ignoreDuplicates: true }
+    );
     return () => {
-      supabase.from("active_sessions").delete().eq("session_id", session.sessionId!).then();
+      supabase.from("homeroom_participants")
+        .delete()
+        .eq("homeroom_id", session.homeroomId)
+        .eq("user_id", myUserId)
+        .then();
     };
-  }, [session?.sessionId, session?.isPublic, myUsername]);
-
-  // Track participation so home page can show who's in the room
-  useEffect(() => {
-    if (!session?.sessionId || !myUsername || myUsername === "You") return;
-    const supabase = createClient();
-    supabase.from("room_participants").upsert({ session_id: session.sessionId, username: myUsername }, { onConflict: "session_id,username", ignoreDuplicates: true });
-    return () => {
-      supabase.from("room_participants").delete().eq("session_id", session.sessionId!).eq("username", myUsername).then();
-    };
-  }, [session?.sessionId, myUsername]);
+  }, [session?.homeroomId, myUserId]);
 
   function getElapsed(t: Task): number {
     if (t.startedAt === null) return t.timeSpent;
@@ -261,95 +274,38 @@ export default function RoomPage() {
     ));
   }
 
-  function toggleTask(id: string) {
+  async function toggleTask(id: string) {
     const task = tasks.find((t) => t.id === id);
     if (!task) return;
     const timeSpent = getElapsed(task);
-    if (!task.done) {
+    const nowDone = !task.done;
+
+    if (nowDone) {
       const activityMsg = { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsernameRef.current || myUsername, time: new Date(), reactions: [] };
       setChatMessages((prev) => [...prev, activityMsg]);
       realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...activityMsg, time: activityMsg.time.toISOString() } });
-      if (timeSpent > 0) {
-        try {
-          // Save to task history for autocomplete
-          const histRaw = localStorage.getItem("homeroom-task-history");
-          const hist: { text: string; lastSessionTime: number }[] = histRaw ? JSON.parse(histRaw) : [];
-          const idx = hist.findIndex((h) => h.text.toLowerCase() === task.text.toLowerCase());
-          if (idx >= 0) hist[idx].lastSessionTime = timeSpent;
-          else hist.push({ text: task.text, lastSessionTime: timeSpent });
-          localStorage.setItem("homeroom-task-history", JSON.stringify(hist));
-          // Update lastSessionTime on the matching list task if it exists
-          const listRaw = localStorage.getItem("homeroom-tasks");
-          if (listRaw) {
-            const listTasks = JSON.parse(listRaw);
-            localStorage.setItem("homeroom-tasks", JSON.stringify(
-              listTasks.map((lt: { text: string }) =>
-                lt.text.toLowerCase() === task.text.toLowerCase() ? { ...lt, lastSessionTime: timeSpent } : lt
-              )
-            ));
-          }
-        } catch { /* ignore */ }
-      }
-      // If this task was pre-planned for a scheduled session, remove it from there
-      try {
-        const sessRaw = localStorage.getItem("homeroom-scheduled");
-        if (sessRaw) {
-          const sessions = JSON.parse(sessRaw);
-          const updated = sessions.map((s: { tasks: { id: string }[] }) => ({
-            ...s,
-            tasks: s.tasks.filter((t: { id: string }) => t.id !== id),
-          }));
-          localStorage.setItem("homeroom-scheduled", JSON.stringify(updated));
-        }
-        const listRaw = localStorage.getItem("homeroom-tasks");
-        if (listRaw) {
-          const listTasks = JSON.parse(listRaw);
-          localStorage.setItem("homeroom-tasks", JSON.stringify(
-            listTasks.map((lt: { id: string; scheduledForSessionId?: string; scheduledForDate?: string; scheduledForTitle?: string }) => {
-              if (lt.id === id && lt.scheduledForSessionId) {
-                const { scheduledForSessionId, scheduledForDate, scheduledForTitle, ...rest } = lt;
-                return rest;
-              }
-              return lt;
-            })
-          ));
-        }
-      } catch { /* ignore */ }
 
-      // Mark done in My List (match by ID for list tasks, or text for ad-hoc tasks)
+      // Save to task history for autocomplete
       try {
-        const listRaw = localStorage.getItem("homeroom-tasks");
-        if (listRaw) {
-          const listTasks = JSON.parse(listRaw);
-          localStorage.setItem("homeroom-tasks", JSON.stringify(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            listTasks.map((lt: any) =>
-              (lt.id === id || lt.text?.toLowerCase() === task.text.toLowerCase())
-                ? { ...lt, done: true }
-                : lt
-            )
-          ));
-        }
-      } catch { /* ignore */ }
-    } else {
-      // Un-complete in My List so it shows up again
-      try {
-        const listRaw = localStorage.getItem("homeroom-tasks");
-        if (listRaw) {
-          const listTasks = JSON.parse(listRaw);
-          localStorage.setItem("homeroom-tasks", JSON.stringify(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            listTasks.map((lt: any) =>
-              (lt.id === id || lt.text?.toLowerCase() === task.text.toLowerCase())
-                ? { ...lt, done: false }
-                : lt
-            )
-          ));
-        }
+        const histRaw = localStorage.getItem("homeroom-task-history");
+        const hist: { text: string; lastSessionTime: number }[] = histRaw ? JSON.parse(histRaw) : [];
+        const idx = hist.findIndex((h) => h.text.toLowerCase() === task.text.toLowerCase());
+        if (idx >= 0) hist[idx].lastSessionTime = timeSpent;
+        else hist.push({ text: task.text, lastSessionTime: timeSpent });
+        localStorage.setItem("homeroom-task-history", JSON.stringify(hist));
       } catch { /* ignore */ }
     }
+
+    // Write to DB
+    const supabase = createClient();
+    await supabase.from("tasks").update({
+      done: nowDone,
+      time_spent: timeSpent,
+      completed_at: nowDone ? new Date().toISOString() : null,
+    }).eq("id", id);
+
     setTasks((prev) => prev.map((t) =>
-      t.id === id ? { ...t, done: !t.done, timeSpent, startedAt: null } : t
+      t.id === id ? { ...t, done: nowDone, timeSpent, startedAt: null } : t
     ));
   }
 
@@ -375,6 +331,8 @@ export default function RoomPage() {
     const text = editingTaskText.trim();
     if (text && editingTaskId) {
       setTasks((prev) => prev.map((t) => t.id === editingTaskId ? { ...t, text } : t));
+      const supabase = createClient();
+      supabase.from("tasks").update({ text }).eq("id", editingTaskId);
     }
     setEditingTaskId(null);
     setEditingTaskText("");
@@ -392,20 +350,23 @@ export default function RoomPage() {
     });
   }
 
-  function addTask() {
+  async function addTask() {
     const text = taskInput.trim();
-    if (!text) return;
-    setTasks((prev) => [...prev, { id: crypto.randomUUID(), text, done: false, timeSpent: 0, startedAt: null }]);
+    if (!text || !session?.homeroomId || !myUserId) return;
     setTaskInput("");
+    const supabase = createClient();
+    const { data } = await supabase.from("tasks").insert({
+      user_id: myUserId,
+      text,
+      done: false,
+      time_spent: 0,
+      homeroom_id: session.homeroomId,
+      sort_order: tasks.length,
+    }).select("id").single();
+    if (data) {
+      setTasks((prev) => [...prev, { id: data.id, text, done: false, timeSpent: 0, startedAt: null }]);
+    }
   }
-
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const realtimeChannelRef = useRef<any>(null);
-  const tasksInitializedRef = useRef(false);
-  const timerEndedRef = useRef(false);
-  const tasksRef     = useRef<Task[]>([]);
-  const showTodosRef = useRef(true);
 
   // Load friends and squads once username is known
   useEffect(() => {
@@ -452,33 +413,19 @@ export default function RoomPage() {
       });
   }, [myUsername]);
 
-  // Sync mutable ref so channel closures always see current task list
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
 
-  // Persist task state (done, timeSpent) back to the session in localStorage
+  // Persist chat keyed by homeroomId
   useEffect(() => {
-    if (!tasksInitializedRef.current) return;
-    try {
-      const raw = localStorage.getItem("homeroom-session");
-      if (!raw) return;
-      const s = JSON.parse(raw);
-      localStorage.setItem("homeroom-session", JSON.stringify({ ...s, tasks }));
-    } catch { /* ignore */ }
-  }, [tasks]);
-
-  // Persist chat keyed by sessionId
-  useEffect(() => {
-    if (!session?.sessionId) return;
-    try { localStorage.setItem(`homeroom-chat-${session.sessionId}`, JSON.stringify(chatMessages)); } catch { /* ignore */ }
-  }, [chatMessages, session?.sessionId]);
+    if (!session?.homeroomId) return;
+    try { localStorage.setItem(`homeroom-chat-${session.homeroomId}`, JSON.stringify(chatMessages)); } catch { /* ignore */ }
+  }, [chatMessages, session?.homeroomId]);
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
 
-  // Sync refs after showTodos is declared
   useEffect(() => { showTodosRef.current = showTodos; }, [showTodos]);
 
-  // Broadcast own task data whenever tasks or sharing preference change
   useEffect(() => {
     if (!realtimeChannelRef.current) return;
     realtimeChannelRef.current.send({
@@ -490,11 +437,12 @@ export default function RoomPage() {
       },
     });
   }, [showTodos, tasks, myUsername]);
+
   const doneTasks = tasks.filter((t) => t.done).length;
   const duration = session?.duration ?? 0;
 
-  const elapsedSec = tick >= 0 && session?.sessionStartTime
-    ? Math.floor((Date.now() - session.sessionStartTime) / 1000)
+  const elapsedSec = tick >= 0 && session?.startedAt
+    ? Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000)
     : 0;
   const elapsedMin = Math.floor(elapsedSec / 60);
   const remainingSec = duration > 0 ? Math.max(0, duration * 60 - elapsedSec) : 0;
@@ -502,9 +450,6 @@ export default function RoomPage() {
   const remainingSs  = remainingSec % 60;
   const progressPct  = duration > 0 ? Math.min(100, (elapsedSec / (duration * 60)) * 100) : 0;
 
-  // Auto-end when session timer hits zero.
-  // Include `duration` in deps so this also fires when the session first loads
-  // and the timer is already expired (remainingSec stays 0 → 0, no change otherwise).
   useEffect(() => {
     if (duration > 0 && remainingSec === 0 && !timerEndedRef.current) {
       timerEndedRef.current = true;
@@ -526,11 +471,6 @@ export default function RoomPage() {
       JSON.stringify(remaining.map((t) => ({ id: crypto.randomUUID(), text: t.text })))
     );
     window.location.href = "/start";
-  }
-
-  function formatScheduled(iso: string) {
-    const d = new Date(iso);
-    return d.toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
   }
 
   if (!session) {
@@ -566,19 +506,13 @@ export default function RoomPage() {
             </Link>
             <div>
               <h1 className="font-semibold text-charcoal text-base leading-tight">
-                {session?.title || "Homeroom"}
+                {session.title || "Homeroom"}
               </h1>
               <div className="flex items-center gap-2 mt-0.5">
-                {session?.scheduledFor ? (
-                  <span className="text-xs text-warm-gray">Scheduled for {formatScheduled(session.scheduledFor)}</span>
-                ) : (
-                  <>
-                    <span className="inline-block w-2 h-2 rounded-full bg-clay animate-pulse" />
-                    <span className="text-xs text-warm-gray">
-                      {session?.isPublic ? "Public" : "Friends only"} · {duration > 0 ? `${duration} min` : "No time set"}
-                    </span>
-                  </>
-                )}
+                <span className="inline-block w-2 h-2 rounded-full bg-clay animate-pulse" />
+                <span className="text-xs text-warm-gray">
+                  {session.isPublic ? "Public" : "Friends only"} · {duration > 0 ? `${duration} min` : "No time set"}
+                </span>
               </div>
             </div>
           </div>
@@ -638,7 +572,6 @@ export default function RoomPage() {
           </div>
 
           <div className="">
-            {/* Tasks */}
             <div className="">
               {tasks.length === 0 ? (
                 <div className="text-sm text-warm-gray text-center py-4">No tasks added yet.</div>
@@ -767,10 +700,22 @@ export default function RoomPage() {
                 </button>
               </div>}
 
-              {/* Add from list */}
               {!tasksCollapsed && (
                 <button
-                  onClick={() => { setShowListPicker(true); setListPickerSearch(""); setSelectedListIds([]); }}
+                  onClick={async () => {
+                    if (!myUserId) return;
+                    const supabase = createClient();
+                    const { data } = await supabase
+                      .from("tasks")
+                      .select("id, text")
+                      .eq("user_id", myUserId)
+                      .is("homeroom_id", null)
+                      .eq("done", false)
+                      .order("sort_order", { ascending: true });
+                    setMyListTasks((data ?? []).map(t => ({ id: t.id, text: t.text, done: false })));
+                    setShowListPicker(true);
+                    setListPickerSearch("");
+                  }}
                   className="mt-2 w-full text-xs text-warm-gray hover:text-sage flex items-center gap-1.5 transition-colors"
                 >
                   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -782,7 +727,6 @@ export default function RoomPage() {
                 </button>
               )}
             </div>
-
           </div>
         </div>
 
@@ -791,10 +735,8 @@ export default function RoomPage() {
         <div className="mt-4 mb-4">
           <h2 className="text-sm font-semibold text-charcoal mb-3">Activity</h2>
 
-          {/* Chat — friends-only rooms only */}
           {session && !session.isPublic && (
             <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
-              {/* Message list */}
               <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
                 {chatMessages.length === 0 ? (
                   <p className="text-sm text-warm-gray italic text-center py-4">No messages yet. Say hi!</p>
@@ -819,14 +761,7 @@ export default function RoomPage() {
                               {REACTION_EMOJIS.map((emoji) => {
                                 const reacted = msg.reactions.includes(emoji);
                                 return (
-                                  <button
-                                    key={emoji}
-                                    onClick={() => toggleReaction(msg.id, emoji)}
-                                    className="text-base transition-transform hover:scale-125"
-                                    style={{ opacity: reacted ? 1 : 0.5 }}
-                                  >
-                                    {emoji}
-                                  </button>
+                                  <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>
                                 );
                               })}
                             </div>
@@ -834,14 +769,7 @@ export default function RoomPage() {
                           {msg.reactions.length > 0 && (
                             <div className="flex gap-1 flex-wrap justify-center">
                               {msg.reactions.map((emoji) => (
-                                <button
-                                  key={emoji}
-                                  onClick={() => toggleReaction(msg.id, emoji)}
-                                  className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors"
-                                  style={{ opacity: 1 }}
-                                >
-                                  {emoji}
-                                </button>
+                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
                               ))}
                             </div>
                           )}
@@ -857,9 +785,7 @@ export default function RoomPage() {
                       >
                         <div
                           className="max-w-[75%] px-3 py-2 rounded-2xl text-sm"
-                          style={msg.sender === myUsername
-                            ? { background: "#7C3AED", color: "white" }
-                            : { background: "#F3F4F6", color: "#1C1917" }}
+                          style={msg.sender === myUsername ? { background: "#7C3AED", color: "white" } : { background: "#F3F4F6", color: "#1C1917" }}
                         >
                           {msg.text}
                         </div>
@@ -868,14 +794,7 @@ export default function RoomPage() {
                             {REACTION_EMOJIS.map((emoji) => {
                               const reacted = msg.reactions.includes(emoji);
                               return (
-                                <button
-                                  key={emoji}
-                                  onClick={() => toggleReaction(msg.id, emoji)}
-                                  className="text-base transition-transform hover:scale-125"
-                                  style={{ opacity: reacted ? 1 : 0.5 }}
-                                >
-                                  {emoji}
-                                </button>
+                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>
                               );
                             })}
                           </div>
@@ -883,13 +802,7 @@ export default function RoomPage() {
                         {msg.reactions.length > 0 && (
                           <div className={`flex gap-1 flex-wrap mt-1 ${msg.sender === myUsername ? "justify-end" : "justify-start"}`}>
                             {msg.reactions.map((emoji) => (
-                              <button
-                                key={emoji}
-                                onClick={() => toggleReaction(msg.id, emoji)}
-                                className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors"
-                              >
-                                {emoji}
-                              </button>
+                              <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
                             ))}
                           </div>
                         )}
@@ -902,8 +815,6 @@ export default function RoomPage() {
                   })
                 )}
               </div>
-
-              {/* Input */}
               <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2">
                 <input
                   type="text"
@@ -949,12 +860,7 @@ export default function RoomPage() {
               ) : [...chatMessages].filter((m) => m.type === "activity").reverse().map((msg) => {
                 const label = showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
                 return (
-                  <div
-                    key={msg.id}
-                    className="flex flex-col items-center gap-1 py-0.5"
-                    onMouseEnter={() => setHoveredMsgId(msg.id)}
-                    onMouseLeave={() => setHoveredMsgId(null)}
-                  >
+                  <div key={msg.id} className="flex flex-col items-center gap-1 py-0.5" onMouseEnter={() => setHoveredMsgId(msg.id)} onMouseLeave={() => setHoveredMsgId(null)}>
                     <div className="flex items-center gap-2 w-full">
                       <div className="h-px flex-1 bg-gray-100" />
                       <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
@@ -964,29 +870,14 @@ export default function RoomPage() {
                       <div className="flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm">
                         {REACTION_EMOJIS.map((emoji) => {
                           const reacted = msg.reactions.includes(emoji);
-                          return (
-                            <button
-                              key={emoji}
-                              onClick={() => toggleReaction(msg.id, emoji)}
-                              className="text-base transition-transform hover:scale-125"
-                              style={{ opacity: reacted ? 1 : 0.5 }}
-                            >
-                              {emoji}
-                            </button>
-                          );
+                          return <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>;
                         })}
                       </div>
                     )}
                     {msg.reactions.length > 0 && (
                       <div className="flex gap-1 flex-wrap justify-center">
                         {msg.reactions.map((emoji) => (
-                          <button
-                            key={emoji}
-                            onClick={() => toggleReaction(msg.id, emoji)}
-                            className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors"
-                          >
-                            {emoji}
-                          </button>
+                          <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
                         ))}
                       </div>
                     )}
@@ -1016,15 +907,12 @@ export default function RoomPage() {
                 <span className="text-xs text-warm-gray">{others.length} {others.length === 1 ? "other" : "others"}</span>
               </div>
 
-              {/* Filter chips — only show when there are others present */}
               {others.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
                     onClick={() => toggleFilter("friends")}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-                    style={activeFilters.has("friends")
-                      ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
-                      : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
+                    style={activeFilters.has("friends") ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
                   >
                     👤 Friends
                   </button>
@@ -1033,9 +921,7 @@ export default function RoomPage() {
                       key={s.id}
                       onClick={() => toggleFilter(s.id)}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-                      style={activeFilters.has(s.id)
-                        ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
-                        : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
+                      style={activeFilters.has(s.id) ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
                     >
                       {s.emoji} {s.name}
                     </button>
@@ -1044,13 +930,9 @@ export default function RoomPage() {
               )}
 
               {others.length === 0 ? (
-                <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
-                  No one else here yet.
-                </div>
+                <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">No one else here yet.</div>
               ) : filteredOthers.length === 0 ? (
-                <div className="text-center py-5 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
-                  No one here matches this filter.
-                </div>
+                <div className="text-center py-5 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">No one here matches this filter.</div>
               ) : (
                 <>
                   <div className="grid grid-cols-3 gap-2">
@@ -1062,26 +944,15 @@ export default function RoomPage() {
                       return (
                         <div key={p.username} className="bg-white rounded-2xl border border-gray-100 p-2.5 flex flex-col">
                           <div className="flex items-start justify-between mb-1.5">
-                            <div
-                              className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0"
-                              style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}
-                            >
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}>
                               {p.avatar || <span className="text-white text-xs font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
                             </div>
-                            <button
-                              onClick={() => toggleCard(p.username)}
-                              className="text-warm-gray p-0.5 transition-transform duration-200 flex-shrink-0"
-                              style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <polyline points="6 9 12 15 18 9" />
-                              </svg>
+                            <button onClick={() => toggleCard(p.username)} className="text-warm-gray p-0.5 transition-transform duration-200 flex-shrink-0" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
                             </button>
                           </div>
                           <p className="text-xs font-semibold text-charcoal truncate leading-tight">{p.username}</p>
-                          <p className="text-xs text-warm-gray mt-0.5">
-                            {pData ? `${doneCount}/${totalCount} tasks` : "joining…"}
-                          </p>
+                          <p className="text-xs text-warm-gray mt-0.5">{pData ? `${doneCount}/${totalCount} tasks` : "joining…"}</p>
                           {isExpanded && (
                             <div className="mt-2 pt-2 border-t border-gray-100">
                               {pData?.sharing ? (
@@ -1091,17 +962,8 @@ export default function RoomPage() {
                                   <div className="space-y-1">
                                     {pData.tasks.map((t) => (
                                       <div key={t.id} className="flex items-center gap-1">
-                                        <div
-                                          className="w-2.5 h-2.5 rounded flex-shrink-0 flex items-center justify-center"
-                                          style={t.done
-                                            ? { background: "#7C3AED", border: "2px solid #7C3AED" }
-                                            : { border: "2px solid #D1D5DB" }}
-                                        >
-                                          {t.done && (
-                                            <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
-                                              <polyline points="20 6 9 17 4 12" />
-                                            </svg>
-                                          )}
+                                        <div className="w-2.5 h-2.5 rounded flex-shrink-0 flex items-center justify-center" style={t.done ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                                          {t.done && <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                                         </div>
                                         <span className={`text-xs truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
                                       </div>
@@ -1118,22 +980,12 @@ export default function RoomPage() {
                     })}
                   </div>
                   {!participantsExpanded && hiddenCount > 0 && (
-                    <button
-                      onClick={() => setParticipantsExpanded(true)}
-                      className="mt-2 text-xs font-medium"
-                      style={{ color: "#7C3AED" }}
-                    >
+                    <button onClick={() => setParticipantsExpanded(true)} className="mt-2 text-xs font-medium" style={{ color: "#7C3AED" }}>
                       + {hiddenCount} more {hiddenCount === 1 ? "person" : "people"}
                     </button>
                   )}
                   {participantsExpanded && filteredOthers.length > PARTICIPANTS_VISIBLE && (
-                    <button
-                      onClick={() => setParticipantsExpanded(false)}
-                      className="mt-2 text-xs font-medium"
-                      style={{ color: "#7C3AED" }}
-                    >
-                      Show less
-                    </button>
+                    <button onClick={() => setParticipantsExpanded(false)} className="mt-2 text-xs font-medium" style={{ color: "#7C3AED" }}>Show less</button>
                   )}
                 </>
               )}
@@ -1144,7 +996,7 @@ export default function RoomPage() {
         {/* Invited but not yet joined */}
         {(() => {
           const presentSet = new Set(presentUsers.map(p => p.username));
-          const pending = (session?.invitedFriends ?? []).filter(f => !presentSet.has(f.name));
+          const pending = (session.invitedFriends ?? []).filter(f => !presentSet.has(f.name));
           if (pending.length === 0) return null;
           return (
             <div className="mt-5">
@@ -1152,12 +1004,7 @@ export default function RoomPage() {
               <div className="flex flex-wrap gap-2">
                 {pending.map((f) => (
                   <div key={f.id} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full px-2.5 py-1">
-                    <div
-                      className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                      style={{ background: f.color }}
-                    >
-                      {f.initials}
-                    </div>
+                    <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>{f.initials}</div>
                     <span className="text-xs text-warm-gray">{f.name}</span>
                   </div>
                 ))}
@@ -1171,24 +1018,23 @@ export default function RoomPage() {
       {showListPicker && (() => {
         const sessionTaskTexts = new Set(tasks.map((t) => t.text.toLowerCase()));
         const available = myListTasks.filter((t) =>
-          !t.done &&
           !sessionTaskTexts.has(t.text.toLowerCase()) &&
           (!listPickerSearch || t.text.toLowerCase().includes(listPickerSearch.toLowerCase()))
         );
         const allVisibleSelected = available.length > 0 && available.every((t) => selectedListIds.includes(t.id));
 
-        function toggleSelect(id: string) {
-          setSelectedListIds((prev) =>
-            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
-          );
-        }
-
-        function addSelected() {
+        async function addSelected() {
+          if (!session?.homeroomId) return;
           const toAdd = myListTasks.filter((t) => selectedListIds.includes(t.id));
-          setTasks((prev) => [
-            ...prev,
-            ...toAdd.map((t) => ({ id: crypto.randomUUID(), text: t.text, done: false, timeSpent: 0, startedAt: null })),
-          ]);
+          if (toAdd.length > 0) {
+            const supabase = createClient();
+            await supabase.from("tasks").update({ homeroom_id: session.homeroomId }).in("id", toAdd.map(t => t.id));
+            setTasks((prev) => [
+              ...prev,
+              ...toAdd.map((t) => ({ id: t.id, text: t.text, done: false, timeSpent: 0, startedAt: null })),
+            ]);
+            setMyListTasks(prev => prev.filter(t => !selectedListIds.includes(t.id)));
+          }
           setShowListPicker(false);
           setSelectedListIds([]);
         }
@@ -1196,7 +1042,6 @@ export default function RoomPage() {
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
             <div className="bg-white rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl">
-              {/* Header */}
               <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
                 <h2 className="font-bold text-charcoal text-base">Add from your list</h2>
                 <button onClick={() => { setShowListPicker(false); setSelectedListIds([]); }} className="text-warm-gray hover:text-charcoal p-1">
@@ -1205,84 +1050,40 @@ export default function RoomPage() {
                   </svg>
                 </button>
               </div>
-
-              {/* Search */}
               <div className="px-5 pb-2 flex-shrink-0">
                 <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
                   <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
-                  <input
-                    autoFocus
-                    type="text"
-                    value={listPickerSearch}
-                    onChange={(e) => setListPickerSearch(e.target.value)}
-                    placeholder="Search tasks…"
-                    className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
-                  />
+                  <input autoFocus type="text" value={listPickerSearch} onChange={(e) => setListPickerSearch(e.target.value)} placeholder="Search tasks…" className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none" />
                 </div>
               </div>
-
-              {/* Select all row */}
               {available.length > 0 && (
                 <div className="px-5 pb-2 flex-shrink-0">
-                  <button
-                    onClick={() => setSelectedListIds(allVisibleSelected ? [] : available.map((t) => t.id))}
-                    className="text-xs font-semibold text-warm-gray hover:text-charcoal transition-colors"
-                  >
+                  <button onClick={() => setSelectedListIds(allVisibleSelected ? [] : available.map((t) => t.id))} className="text-xs font-semibold text-warm-gray hover:text-charcoal transition-colors">
                     {allVisibleSelected ? "Deselect all" : "Select all"}
                   </button>
                 </div>
               )}
-
-              {/* Task list */}
               <div className="flex-1 overflow-y-auto px-5 pb-3 space-y-1">
-                {myListTasks.filter((t) => !t.done).length === 0 ? (
+                {myListTasks.length === 0 ? (
                   <p className="text-sm text-warm-gray text-center py-6">Your list is empty.</p>
                 ) : available.length === 0 ? (
-                  <p className="text-sm text-warm-gray text-center py-6">
-                    {listPickerSearch ? "No matches." : "All tasks are already in this session."}
-                  </p>
+                  <p className="text-sm text-warm-gray text-center py-6">{listPickerSearch ? "No matches." : "All tasks are already in this session."}</p>
                 ) : available.map((t) => {
                   const checked = selectedListIds.includes(t.id);
                   return (
-                    <button
-                      key={t.id}
-                      onClick={() => toggleSelect(t.id)}
-                      className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-gray-50"
-                      style={checked ? { background: "#F5F3FF" } : {}}
-                    >
-                      <div
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                        style={checked
-                          ? { background: "#7C3AED", border: "2px solid #7C3AED" }
-                          : { border: "2px solid #D1D5DB" }}
-                      >
-                        {checked && (
-                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
+                    <button key={t.id} onClick={() => setSelectedListIds(prev => prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id])} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-gray-50" style={checked ? { background: "#F5F3FF" } : {}}>
+                      <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center" style={checked ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                        {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                       </div>
                       <span className="text-sm text-charcoal flex-1 truncate">{t.text}</span>
-                      {t.scheduledForDate && (
-                        <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
-                          {t.scheduledForTitle || "Homeroom"} {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                        </span>
-                      )}
                     </button>
                   );
                 })}
               </div>
-
-              {/* Footer */}
               <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
-                <button
-                  onClick={addSelected}
-                  disabled={selectedListIds.length === 0}
-                  className="w-full py-2.5 rounded-xl text-sm font-semibold transition-opacity"
-                  style={{ background: "#7C3AED", color: "white", opacity: selectedListIds.length > 0 ? 1 : 0.4 }}
-                >
+                <button onClick={addSelected} disabled={selectedListIds.length === 0} className="w-full py-2.5 rounded-xl text-sm font-semibold transition-opacity" style={{ background: "#7C3AED", color: "white", opacity: selectedListIds.length > 0 ? 1 : 0.4 }}>
                   {selectedListIds.length === 0 ? "Select tasks to add" : `Add ${selectedListIds.length} task${selectedListIds.length !== 1 ? "s" : ""}`}
                 </button>
               </div>
@@ -1296,35 +1097,35 @@ export default function RoomPage() {
         const done = tasks.filter((t) => t.done);
         const remaining = tasks.filter((t) => !t.done);
         const timedDone = done.filter((t) => t.timeSpent > 0);
-        const elapsedDisplay = elapsedMin < 1
-          ? "less than a minute"
-          : elapsedMin === 1 ? "1 minute" : `${elapsedMin} minutes`;
+        const elapsedDisplay = elapsedMin < 1 ? "less than a minute" : elapsedMin === 1 ? "1 minute" : `${elapsedMin} minutes`;
 
         async function goHome() {
-          if (session?.sessionId && session.isPublic) {
-            const supabase = createClient();
-            await supabase.from("active_sessions").delete().eq("session_id", session.sessionId);
+          const supabase = createClient();
+          // Save final time_spent for running timers
+          const finalTasks = tasks.map(t => t.startedAt !== null ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t);
+          const tasksWithTime = finalTasks.filter(t => t.timeSpent > 0 && !t.done);
+          if (tasksWithTime.length > 0) {
+            await Promise.all(tasksWithTime.map(t =>
+              supabase.from("tasks").update({ time_spent: t.timeSpent }).eq("id", t.id)
+            ));
           }
-          const sid = session?.sessionId;
-          localStorage.removeItem("homeroom-session");
-          if (sid) {
-            localStorage.removeItem(`homeroom-chat-${sid}`);
-          }
+          // Mark homeroom as completed
+          await supabase.from("homerooms")
+            .update({ status: "completed", ended_at: new Date().toISOString() })
+            .eq("id", session!.homeroomId);
+          localStorage.removeItem("homeroom-active-id");
+          localStorage.removeItem(`homeroom-chat-${session!.homeroomId}`);
           window.location.href = "/home";
         }
 
         return (
           <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.5)" }}>
             <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-6 flex flex-col gap-5">
-
-              {/* Header */}
               <div className="text-center">
                 <div className="text-4xl mb-3">{done.length === tasks.length && tasks.length > 0 ? "🎉" : "🏠"}</div>
                 <h2 className="text-xl font-bold text-charcoal">Session wrapped</h2>
                 <p className="text-sm text-warm-gray mt-1">You were in here for {elapsedDisplay}</p>
               </div>
-
-              {/* Stats */}
               <div className="bg-gray-50 rounded-2xl px-4 py-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <span className="text-sm text-warm-gray">Tasks completed</span>
@@ -1337,8 +1138,6 @@ export default function RoomPage() {
                   </div>
                 )}
               </div>
-
-              {/* Beat the time */}
               {timedDone.length > 0 && (
                 <div>
                   <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Tasks you beat the time on</p>
@@ -1352,22 +1151,13 @@ export default function RoomPage() {
                   </div>
                 </div>
               )}
-
-              {/* Actions */}
               <div className="flex flex-col gap-2">
                 {remaining.length > 0 && (
-                  <button
-                    onClick={() => scheduleRemaining(remaining)}
-                    className="w-full font-semibold text-sm py-3 rounded-xl text-white"
-                    style={{ background: "#7C3AED" }}
-                  >
+                  <button onClick={() => scheduleRemaining(remaining)} className="w-full font-semibold text-sm py-3 rounded-xl text-white" style={{ background: "#7C3AED" }}>
                     Schedule a homeroom to finish ({remaining.length} task{remaining.length !== 1 ? "s" : ""})
                   </button>
                 )}
-                <button
-                  onClick={goHome}
-                  className="w-full font-semibold text-sm py-3 rounded-xl border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors"
-                >
+                <button onClick={goHome} className="w-full font-semibold text-sm py-3 rounded-xl border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors">
                   Back to home
                 </button>
               </div>

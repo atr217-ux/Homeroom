@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import Link from "next/link";
+import { createClient } from "@/lib/supabase/client";
 
 const INITIAL_LIMIT = 15;
 const EXPANDED_LIMIT = 25;
@@ -10,18 +11,17 @@ type Task = {
   id: string;
   text: string;
   done: boolean;
-  estimatedMin: number | null;
-  addedAt: string | Date;
-  completedAt?: string;
+  addedAt: string;
+  completedAt?: string | null;
   lastSessionTime?: number;
-  scheduledForSessionId?: string;
-  scheduledForDate?: string;
   scheduledForTitle?: string;
+  scheduledForDate?: string | null;
+  homeroomId?: string | null;
 };
 
 type TaskHistory = { text: string; lastSessionTime: number };
 
-function completedLabel(completedAt: string | undefined): string {
+function completedLabel(completedAt: string | null | undefined): string {
   if (!completedAt) return "";
   const completed = new Date(completedAt);
   const now = new Date();
@@ -33,8 +33,8 @@ function completedLabel(completedAt: string | undefined): string {
   return `${diffDays} days ago`;
 }
 
-function addedAtLabel(addedAt: string | Date): string {
-  const added = typeof addedAt === "string" ? new Date(addedAt) : addedAt;
+function addedAtLabel(addedAt: string): string {
+  const added = new Date(addedAt);
   const now = new Date();
   const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   const addedStart = new Date(added.getFullYear(), added.getMonth(), added.getDate());
@@ -79,13 +79,8 @@ const EditIcon = () => (
 );
 
 export default function ListPage() {
-  const [tasks, setTasks] = useState<Task[]>(() => {
-    if (typeof window === "undefined") return [];
-    try {
-      const stored = localStorage.getItem("homeroom-tasks");
-      return stored ? JSON.parse(stored) : [];
-    } catch { return []; }
-  });
+  const [myUserId, setMyUserId] = useState<string | null>(null);
+  const [tasks, setTasks] = useState<Task[]>([]);
   const [input, setInput] = useState("");
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
@@ -100,14 +95,53 @@ export default function ListPage() {
   const inputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    localStorage.setItem("homeroom-tasks", JSON.stringify(tasks));
-  }, [tasks]);
+    const supabase = createClient();
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (!user) return;
+      setMyUserId(user.id);
+      Promise.all([
+        supabase
+          .from("tasks")
+          .select("id, text, done, time_spent, created_at, completed_at")
+          .eq("user_id", user.id)
+          .is("homeroom_id", null)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("tasks")
+          .select("id, text, done, time_spent, created_at, completed_at, homeroom_id, homerooms!inner(title, scheduled_for, status)")
+          .eq("user_id", user.id)
+          .eq("homerooms.status", "scheduled"),
+      ]).then(([{ data: listData }, { data: scheduledData }]) => {
+        const listTasks: Task[] = (listData ?? []).map(t => ({
+          id: t.id,
+          text: t.text,
+          done: t.done,
+          addedAt: t.created_at,
+          completedAt: t.completed_at ?? null,
+          lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
+        }));
+        const scheduledTasks: Task[] = (scheduledData ?? []).map(t => {
+          const hr = Array.isArray((t as any).homerooms) ? (t as any).homerooms[0] : (t as any).homerooms;
+          return {
+            id: t.id,
+            text: t.text,
+            done: t.done,
+            addedAt: t.created_at,
+            completedAt: t.completed_at ?? null,
+            lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
+            scheduledForTitle: hr?.title ?? "Homeroom",
+            scheduledForDate: hr?.scheduled_for ?? null,
+            homeroomId: t.homeroom_id,
+          };
+        });
+        setTasks([...listTasks, ...scheduledTasks]);
+      });
+    });
 
-  useEffect(() => {
     try {
       const h = localStorage.getItem("homeroom-task-history");
       if (h) setTaskHistory(JSON.parse(h));
-    } catch {}
+    } catch { /* ignore */ }
   }, []);
 
   useEffect(() => {
@@ -124,27 +158,50 @@ export default function ListPage() {
       )
     : [];
 
-  function addTask(text?: string, lastSessionTime?: number) {
+  async function addTask(text?: string, lastSessionTime?: number) {
     const t = (text ?? input).trim();
-    if (!t) return;
-    setTasks((prev) => [
-      ...prev,
-      { id: crypto.randomUUID(), text: t, done: false, estimatedMin: null, addedAt: new Date().toISOString(), lastSessionTime },
-    ]);
+    if (!t || !myUserId) return;
     setInput("");
     setShowSuggestions(false);
+    const supabase = createClient();
+    const { data } = await supabase.from("tasks").insert({
+      user_id: myUserId,
+      text: t,
+      done: false,
+      time_spent: lastSessionTime ?? 0,
+      homeroom_id: null,
+      sort_order: tasks.length,
+    }).select("id, created_at").single();
+    if (data) {
+      setTasks((prev) => [...prev, {
+        id: data.id,
+        text: t,
+        done: false,
+        addedAt: data.created_at,
+        completedAt: null,
+        lastSessionTime,
+      }]);
+    }
   }
 
-  function toggleTask(id: string) {
-    setTasks((prev) =>
-      prev.map((t) => t.id === id
-        ? { ...t, done: !t.done, completedAt: !t.done ? new Date().toISOString() : undefined }
-        : t
-      )
-    );
+  async function toggleTask(id: string) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const nowDone = !task.done;
+    const supabase = createClient();
+    await supabase.from("tasks").update({
+      done: nowDone,
+      completed_at: nowDone ? new Date().toISOString() : null,
+    }).eq("id", id);
+    setTasks((prev) => prev.map((t) => t.id === id
+      ? { ...t, done: nowDone, completedAt: nowDone ? new Date().toISOString() : null }
+      : t
+    ));
   }
 
-  function deleteTask(id: string) {
+  async function deleteTask(id: string) {
+    const supabase = createClient();
+    await supabase.from("tasks").delete().eq("id", id);
     setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
@@ -153,9 +210,11 @@ export default function ListPage() {
     setEditingText(text);
   }
 
-  function saveEdit() {
+  async function saveEdit() {
     const text = editingText.trim();
     if (text && editingId) {
+      const supabase = createClient();
+      await supabase.from("tasks").update({ text }).eq("id", editingId);
       setTasks((prev) => prev.map((t) => (t.id === editingId ? { ...t, text } : t)));
     }
     setEditingId(null);
@@ -250,7 +309,6 @@ export default function ListPage() {
             </button>
           </div>
 
-          {/* Autocomplete suggestions */}
           {showSuggestions && suggestions.length > 0 && (
             <div className="absolute left-0 right-8 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-md z-20 overflow-hidden">
               {suggestions.map((s) => (
@@ -272,14 +330,14 @@ export default function ListPage() {
           <div className="flex items-center gap-2 mt-3">
             <span className="text-xs text-warm-gray">Sort:</span>
             {(["date", "time"] as const).map((field) => {
-              const active = sortField === field;
-              const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+              const isActive = sortField === field;
+              const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
               return (
                 <button
                   key={field}
                   onClick={() => handleSort(field)}
                   className="text-xs px-2.5 py-1 rounded-full border transition-colors"
-                  style={active
+                  style={isActive
                     ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
                     : { background: "white", color: "#78716C", borderColor: "#E5E7EB" }}
                 >
@@ -303,7 +361,6 @@ export default function ListPage() {
             </div>
           ) : (
             <div className="space-y-2">
-              {/* Active tasks */}
               <div
                 className={showScrollable ? "overflow-y-auto space-y-2 pr-1" : "space-y-2"}
                 style={showScrollable ? { maxHeight: "480px" } : {}}
@@ -337,7 +394,6 @@ export default function ListPage() {
                         {t.scheduledForTitle || "Homeroom"} {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                       </span>
                     )}
-                    {/* Date label — hidden on hover, replaced by actions */}
                     <span className="text-xs text-warm-gray opacity-50 flex-shrink-0 group-hover:hidden">
                       {addedAtLabel(t.addedAt)}
                     </span>
@@ -353,7 +409,6 @@ export default function ListPage() {
                 ))}
               </div>
 
-              {/* Show more */}
               {canShowMore && (
                 <button
                   onClick={() => setDisplayLimit(EXPANDED_LIMIT)}
@@ -363,7 +418,6 @@ export default function ListPage() {
                 </button>
               )}
 
-              {/* Done section */}
               {done.length > 0 && (
                 <div className="mt-4">
                   <button
