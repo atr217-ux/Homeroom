@@ -1030,6 +1030,21 @@ export default function HomePage() {
       .eq("done", false)
       .order("sort_order", { ascending: true });
     if (tasks) {
+      // Clear stale homeroom associations (completed or missing homerooms)
+      const linkedIds = [...new Set(tasks.filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
+      if (linkedIds.length > 0) {
+        const { data: homerooms } = await supabase
+          .from("homerooms").select("id, status").in("id", linkedIds);
+        const validIds = new Set((homerooms ?? []).filter(h => h.status === "active" || h.status === "scheduled").map(h => h.id));
+        const staleTaskIds = tasks.filter(t => t.homeroom_id && !validIds.has(t.homeroom_id)).map(t => t.id);
+        if (staleTaskIds.length > 0) {
+          await supabase.from("tasks").update({ homeroom_id: null }).in("id", staleTaskIds);
+          staleTaskIds.forEach(id => {
+            const t = tasks.find(x => x.id === id);
+            if (t) t.homeroom_id = null;
+          });
+        }
+      }
       setAllListTasks(tasks.map(t => ({ id: t.id, text: t.text, done: false, homeroom_id: t.homeroom_id })));
       setPrepopSelected(new Set(tasks.filter(t => t.homeroom_id === session.id).map(t => t.id)));
     }
