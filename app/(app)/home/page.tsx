@@ -1141,17 +1141,21 @@ export default function HomePage() {
         </div>
         <h1 className="text-2xl font-bold text-charcoal leading-snug">Find your Homeroom.</h1>
         <p className="text-sm text-warm-gray mt-1">Adulting is hard. Don&apos;t do it alone.</p>
-        <div className="flex gap-2 mt-4">
-          <a href="#active-rooms" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
-            Join a Homeroom
-          </a>
-          <button
-            onClick={() => withJoinConfirm(() => router.push("/start"))}
-            className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors"
+        <button
+          onClick={() => withJoinConfirm(() => router.push("/start"))}
+          className="mt-4 flex items-center gap-2 text-sm font-semibold transition-colors"
+          style={{ color: "#7C3AED" }}
+        >
+          <span
+            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
+            style={{ background: "#EDE9FE" }}
           >
-            Start a Homeroom
-          </button>
-        </div>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+          </span>
+          Start a Homeroom
+        </button>
       </div>
 
       {/* Invites */}
