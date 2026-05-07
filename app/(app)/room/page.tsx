@@ -128,6 +128,22 @@ export default function RoomPage() {
       const { data: homeroom } = await supabase.from("homerooms").select("*").eq("id", homeroomId).single();
       if (!homeroom) return;
 
+      // If room already ended, load tasks then show end popup immediately
+      if (homeroom.status === "completed") {
+        const { data: taskData } = await supabase
+          .from("tasks").select("id, text, done, time_spent")
+          .eq("homeroom_id", homeroomId).order("sort_order", { ascending: true });
+        setSession({
+          homeroomId: homeroom.id, title: homeroom.title, duration: homeroom.duration,
+          isPublic: !homeroom.is_private, startedAt: homeroom.started_at ?? new Date().toISOString(),
+          squadTags: homeroom.squad_tags ?? [], invitedFriends: [],
+        });
+        if (taskData) setTasks(taskData.map(t => ({ id: t.id, text: t.text, done: t.done, timeSpent: t.time_spent ?? 0, startedAt: null })));
+        timerEndedRef.current = true;
+        setShowSummary(true);
+        return;
+      }
+
       // Load invited friends from homeroom_invites
       const { data: inviteData } = await supabase
         .from("homeroom_invites")
@@ -220,6 +236,12 @@ export default function RoomPage() {
             sharing: showTodosRef.current,
           },
         });
+      })
+      .on("broadcast", { event: "session-ended" }, () => {
+        if (!timerEndedRef.current) {
+          timerEndedRef.current = true;
+          leaveRoom();
+        }
       })
       .on("broadcast", { event: "reaction" }, ({ payload }) => {
         const me = myUsernameRef.current || myUsername;
@@ -1211,6 +1233,8 @@ export default function RoomPage() {
               supabase.from("tasks").update({ time_spent: t.timeSpent }).eq("id", t.id)
             ));
           }
+          // Notify others the session is ending
+          realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
           // Mark homeroom as completed
           await supabase.from("homerooms")
             .update({ status: "completed", ended_at: new Date().toISOString() })
