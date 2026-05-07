@@ -1233,12 +1233,13 @@ export default function RoomPage() {
               supabase.from("tasks").update({ time_spent: t.timeSpent }).eq("id", t.id)
             ));
           }
-          // Notify others the session is ending
-          realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
-          // Mark homeroom as completed
-          await supabase.from("homerooms")
-            .update({ status: "completed", ended_at: new Date().toISOString() })
-            .eq("id", session!.homeroomId);
+          // Only mark session ended for everyone when the timer ran out
+          if (timerEndedRef.current) {
+            realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
+            await supabase.from("homerooms")
+              .update({ status: "completed", ended_at: new Date().toISOString() })
+              .eq("id", session!.homeroomId);
+          }
           localStorage.removeItem("homeroom-active-id");
           localStorage.removeItem(`homeroom-chat-${session!.homeroomId}`);
           window.location.href = "/home";
