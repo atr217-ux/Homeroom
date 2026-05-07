@@ -453,6 +453,7 @@ export default function HomePage() {
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
   const [prepopSearch, setPrepopSearch] = useState("");
+  const [prepopNewTask, setPrepopNewTask] = useState("");
 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
@@ -1100,6 +1101,25 @@ export default function HomePage() {
     ));
 
     setPrepopSession(null);
+  }
+
+  async function addPrepopTask() {
+    const text = prepopNewTask.trim();
+    if (!text || !myUserId || !prepopSession) return;
+    setPrepopNewTask("");
+    const supabase = createClient();
+    const { data } = await supabase.from("tasks").insert({
+      user_id: myUserId,
+      text,
+      done: false,
+      homeroom_id: prepopSession.id,
+      sort_order: allListTasks.length,
+    }).select("id").single();
+    if (data) {
+      const newTask: ListTask = { id: data.id, text, done: false, homeroom_id: prepopSession.id };
+      setAllListTasks(prev => [...prev, newTask]);
+      setPrepopSelected(prev => new Set([...prev, data.id]));
+    }
   }
 
   const activePrepopTasks = allListTasks.filter(t => !t.done);
@@ -1853,7 +1873,29 @@ export default function HomePage() {
               })}
             </div>
 
-            <div className="px-5 pb-5 pt-2 flex-shrink-0 border-t border-gray-100">
+            <div className="px-5 pt-3 pb-2 flex-shrink-0 border-t border-gray-100">
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <input
+                  type="text"
+                  value={prepopNewTask}
+                  onChange={(e) => setPrepopNewTask(e.target.value)}
+                  onKeyDown={(e) => { if (e.key === "Enter") addPrepopTask(); }}
+                  placeholder="Add a task…"
+                  className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
+                />
+                <button
+                  onClick={addPrepopTask}
+                  disabled={!prepopNewTask.trim()}
+                  className="flex-shrink-0 transition-opacity"
+                  style={{ opacity: prepopNewTask.trim() ? 1 : 0.3 }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><line x1="12" y1="8" x2="12" y2="16" /><line x1="8" y1="12" x2="16" y2="12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            <div className="px-5 pb-5 pt-2 flex-shrink-0">
               <button
                 onClick={savePrepop}
                 className="w-full font-semibold text-sm py-3 rounded-xl text-white transition-opacity"
