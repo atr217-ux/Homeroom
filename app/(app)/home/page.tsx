@@ -797,6 +797,7 @@ export default function HomePage() {
   }
 
   function joinPublicRoom(room: ActiveRoom) {
+    localStorage.setItem("homeroom-active-id", room.id);
     router.push(`/room?id=${room.id}`);
   }
 
