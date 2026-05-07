@@ -235,6 +235,21 @@ export default function RoomPage() {
           ...prev,
           [payload.username]: { tasks: payload.tasks ?? [], sharing: payload.sharing ?? false },
         }));
+        // Re-sync DB participant list whenever someone announces themselves
+        setDbParticipants((prev) => {
+          if (prev.some(p => p.username === payload.username)) return prev;
+          // New person — re-fetch the full list from DB
+          const homeroomId = session?.homeroomId;
+          if (!homeroomId) return prev;
+          const supabase = createClient();
+          supabase.from("homeroom_participants").select("user_id").eq("homeroom_id", homeroomId)
+            .then(async ({ data: parts }) => {
+              if (!parts?.length) return;
+              const { data: profs } = await supabase.from("profiles").select("id, username, avatar").in("id", parts.map(p => p.user_id));
+              if (profs) setDbParticipants(profs.map(p => ({ userId: p.id, username: p.username, avatar: p.avatar ?? "" })));
+            });
+          return prev;
+        });
       })
       .on("broadcast", { event: "request-session-info" }, () => {
         const me = myUsernameRef.current || myUsername;
@@ -305,19 +320,7 @@ export default function RoomPage() {
         channel.send({ type: "broadcast", event: "request-session-info", payload: {} });
       });
     realtimeChannelRef.current = channel;
-
-    // Keep DB participant list live
-    const partsCh = supabase
-      .channel(`participants-db-${session.homeroomId}`)
-      .on("postgres_changes", { event: "*", schema: "public", table: "homeroom_participants", filter: `homeroom_id=eq.${session.homeroomId}` }, async () => {
-        const { data: parts } = await supabase.from("homeroom_participants").select("user_id").eq("homeroom_id", session.homeroomId);
-        if (!parts) return;
-        const { data: profs } = await supabase.from("profiles").select("id, username, avatar").in("id", parts.map(p => p.user_id));
-        if (profs) setDbParticipants(profs.map(p => ({ userId: p.id, username: p.username, avatar: p.avatar ?? "" })));
-      })
-      .subscribe();
-
-    return () => { supabase.removeChannel(channel); supabase.removeChannel(partsCh); };
+    return () => { supabase.removeChannel(channel); };
   }, [session?.homeroomId, myUsername]);
 
   // Register in homeroom_participants when session + userId are known
