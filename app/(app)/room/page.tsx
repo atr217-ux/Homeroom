@@ -939,42 +939,53 @@ export default function RoomPage() {
                         </div>
                       );
                     }
-                    return (
-                      <div
-                        key={msg.id}
-                        className={`flex flex-col ${msg.sender === myUsername ? "items-end" : "items-start"}`}
-                        onMouseEnter={() => setHoveredMsgId(msg.id)}
-                        onMouseLeave={() => setHoveredMsgId(null)}
-                      >
+                    {
+                      const isMe = msg.sender === myUsername;
+                      const av = isMe ? myAvatar : (dbParticipants.find(p => p.username === msg.sender)?.avatar ?? "");
+                      return (
                         <div
-                          className="max-w-[75%] px-3 py-2 rounded-2xl text-sm"
-                          style={msg.sender === myUsername ? { background: "#7C3AED", color: "white" } : { background: "#F3F4F6", color: "#1C1917" }}
+                          key={msg.id}
+                          className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                          onMouseEnter={() => setHoveredMsgId(msg.id)}
+                          onMouseLeave={() => setHoveredMsgId(null)}
                         >
-                          {msg.text}
+                          <div className={`flex items-end gap-1.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                            <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                              {av
+                                ? <span className="text-sm leading-none">{av}</span>
+                                : <span className="text-xs font-bold text-gray-500">{msg.sender.slice(0, 1).toUpperCase()}</span>}
+                            </div>
+                            <div
+                              className="max-w-[75%] px-3 py-2 rounded-2xl text-sm"
+                              style={isMe ? { background: "#7C3AED", color: "white" } : { background: "#F3F4F6", color: "#1C1917" }}
+                            >
+                              {msg.text}
+                            </div>
+                          </div>
+                          {hoveredMsgId === msg.id && (
+                            <div className={`flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm mt-1 ${isMe ? "self-end" : "self-start"}`}>
+                              {REACTION_EMOJIS.map((emoji) => {
+                                const reacted = msg.reactions.includes(emoji);
+                                return (
+                                  <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>
+                                );
+                              })}
+                            </div>
+                          )}
+                          {msg.reactions.length > 0 && (
+                            <div className={`flex gap-1 flex-wrap mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                              {msg.reactions.map((emoji) => (
+                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
+                              ))}
+                            </div>
+                          )}
+                          <span className="text-xs text-warm-gray mt-0.5 px-1">
+                            {!isMe && <span className="font-medium mr-1">{msg.sender}</span>}
+                            {msg.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                          </span>
                         </div>
-                        {hoveredMsgId === msg.id && (
-                          <div className={`flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm mt-1 ${msg.sender === myUsername ? "self-end" : "self-start"}`}>
-                            {REACTION_EMOJIS.map((emoji) => {
-                              const reacted = msg.reactions.includes(emoji);
-                              return (
-                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>
-                              );
-                            })}
-                          </div>
-                        )}
-                        {msg.reactions.length > 0 && (
-                          <div className={`flex gap-1 flex-wrap mt-1 ${msg.sender === myUsername ? "justify-end" : "justify-start"}`}>
-                            {msg.reactions.map((emoji) => (
-                              <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
-                            ))}
-                          </div>
-                        )}
-                        <span className="text-xs text-warm-gray mt-0.5 px-1">
-                          {msg.sender !== myUsername && <span className="font-medium mr-1">{msg.sender}</span>}
-                          {msg.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                        </span>
-                      </div>
-                    );
+                      );
+                    }
                   })
                 )}
               </div>
