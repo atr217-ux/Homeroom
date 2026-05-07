@@ -450,9 +450,8 @@ export default function HomePage() {
   const [endingBgSession, setEndingBgSession] = useState<BgSessionSummary | null>(null);
 
   const [allListTasks, setAllListTasks] = useState<ListTask[]>([]);
-  const [homeTasks, setHomeTasks] = useState<ListTask[]>([]);
-  const [homeTasksExpanded, setHomeTasksExpanded] = useState(false);
-  const [homeTasksPage, setHomeTasksPage] = useState(1);
+  const [upcomingExpanded, setUpcomingExpanded] = useState(false);
+  const [upcomingPage, setUpcomingPage] = useState(1);
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
   const [prepopSelected, setPrepopSelected] = useState<Set<string>>(new Set());
   const [prepopSearch, setPrepopSearch] = useState("");
@@ -741,14 +740,6 @@ export default function HomePage() {
         }
       } catch { /* ignore */ }
 
-      // Undone tasks for homepage preview
-      const { data: taskRows } = await supabase
-        .from("tasks")
-        .select("id, text, done, homeroom_id")
-        .eq("user_id", user.id)
-        .eq("done", false)
-        .order("sort_order", { ascending: true });
-      if (taskRows) setHomeTasks(taskRows.map(t => ({ id: t.id, text: t.text, done: false, homeroom_id: t.homeroom_id })));
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -1719,61 +1710,70 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* My tasks preview */}
-      {homeTasks.length > 0 && (() => {
+      {/* Upcoming homerooms */}
+      {scheduled.length > 0 && (() => {
+        const sorted = scheduled
+          .slice()
+          .sort((a, b) => new Date(a.scheduledFor).getTime() - new Date(b.scheduledFor).getTime())
+          .filter(s => new Date(s.scheduledFor).getTime() >= Date.now() - 5 * 60 * 1000);
+        if (sorted.length === 0) return null;
         const PAGE_SIZE = 10;
         const PREVIEW = 5;
-        const totalPages = Math.ceil(homeTasks.length / PAGE_SIZE);
-        const visibleTasks = homeTasksExpanded
-          ? homeTasks.slice((homeTasksPage - 1) * PAGE_SIZE, homeTasksPage * PAGE_SIZE)
-          : homeTasks.slice(0, PREVIEW);
+        const totalPages = Math.ceil(sorted.length / PAGE_SIZE);
+        const visible = upcomingExpanded
+          ? sorted.slice((upcomingPage - 1) * PAGE_SIZE, upcomingPage * PAGE_SIZE)
+          : sorted.slice(0, PREVIEW);
         return (
           <div className="mb-6">
             <h2 className="text-sm font-semibold text-charcoal mb-3">
-              My tasks
-              <span className="ml-1.5 text-warm-gray font-normal">· {homeTasks.length}</span>
+              Upcoming
+              <span className="ml-1.5 text-warm-gray font-normal">· {sorted.length}</span>
             </h2>
             <div className="bg-white rounded-2xl border border-gray-100 divide-y divide-gray-50">
-              {visibleTasks.map(task => (
-                <div key={task.id} className="px-4 py-3 flex items-center gap-3">
-                  <span className="w-4 h-4 rounded border border-gray-300 flex-shrink-0" />
-                  <span className="text-sm text-charcoal flex-1 leading-snug">{task.text}</span>
-                  {task.homeroom_id && (
-                    <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
-                      Scheduled
-                    </span>
-                  )}
-                </div>
-              ))}
+              {visible.map(s => {
+                const d = new Date(s.scheduledFor);
+                const dateLabel = d.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
+                const timeLabel = d.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+                return (
+                  <div key={s.id} className="px-4 py-3 flex items-center gap-3">
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-charcoal truncate">{s.title || "Homeroom"}</p>
+                      <p className="text-xs text-warm-gray mt-0.5">{dateLabel} · {timeLabel}{s.duration > 0 ? ` · ${formatDuration(s.duration)}` : ""}</p>
+                    </div>
+                    {s.tasks.length > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full flex-shrink-0" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                        {s.tasks.length} task{s.tasks.length !== 1 ? "s" : ""}
+                      </span>
+                    )}
+                  </div>
+                );
+              })}
             </div>
 
-            {/* Expand / paginate */}
-            {!homeTasksExpanded && homeTasks.length > PREVIEW && (
+            {!upcomingExpanded && sorted.length > PREVIEW && (
               <button
-                onClick={() => { setHomeTasksExpanded(true); setHomeTasksPage(1); }}
+                onClick={() => { setUpcomingExpanded(true); setUpcomingPage(1); }}
                 className="mt-2 w-full text-xs font-semibold py-2.5 rounded-xl border transition-colors hover:bg-gray-50"
                 style={{ borderColor: "#E5E7EB", color: "#78716C" }}
               >
-                Show more ({homeTasks.length - PREVIEW} remaining)
+                Show all {sorted.length} homerooms
               </button>
             )}
 
-            {homeTasksExpanded && totalPages > 1 && (
+            {upcomingExpanded && totalPages > 1 && (
               <div className="mt-2 flex items-center justify-between">
                 <button
-                  onClick={() => setHomeTasksPage(p => Math.max(1, p - 1))}
-                  disabled={homeTasksPage === 1}
+                  onClick={() => setUpcomingPage(p => Math.max(1, p - 1))}
+                  disabled={upcomingPage === 1}
                   className="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors hover:bg-gray-50 disabled:opacity-30"
                   style={{ borderColor: "#E5E7EB", color: "#78716C" }}
                 >
                   ← Prev
                 </button>
-                <span className="text-xs text-warm-gray">
-                  {homeTasksPage} / {totalPages}
-                </span>
+                <span className="text-xs text-warm-gray">{upcomingPage} / {totalPages}</span>
                 <button
-                  onClick={() => setHomeTasksPage(p => Math.min(totalPages, p + 1))}
-                  disabled={homeTasksPage === totalPages}
+                  onClick={() => setUpcomingPage(p => Math.min(totalPages, p + 1))}
+                  disabled={upcomingPage === totalPages}
                   className="text-xs font-semibold px-3 py-2 rounded-xl border transition-colors hover:bg-gray-50 disabled:opacity-30"
                   style={{ borderColor: "#E5E7EB", color: "#78716C" }}
                 >
@@ -1782,9 +1782,9 @@ export default function HomePage() {
               </div>
             )}
 
-            {homeTasksExpanded && totalPages === 1 && (
+            {upcomingExpanded && totalPages <= 1 && (
               <button
-                onClick={() => setHomeTasksExpanded(false)}
+                onClick={() => setUpcomingExpanded(false)}
                 className="mt-2 w-full text-xs font-semibold py-2.5 rounded-xl border transition-colors hover:bg-gray-50"
                 style={{ borderColor: "#E5E7EB", color: "#78716C" }}
               >
