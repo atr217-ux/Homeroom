@@ -104,7 +104,7 @@ export default function ProgressPage() {
     { label: "Sessions", value: loading ? "—" : String(sessions) },
     { label: "Tasks done", value: loading ? "—" : String(tasksDone) },
     { label: "Hours in", value: loading ? "—" : formatHours(timeSpentSec) },
-    { label: "Day streak", value: loading ? "—" : `${streak}🔥` },
+    { label: "Day streak", value: loading ? "—" : String(streak) },
   ];
 
   return (
