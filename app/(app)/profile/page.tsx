@@ -500,22 +500,6 @@ export default function ProfilePage() {
             </button>
           </div>
         )}
-        <p className="text-sm text-warm-gray mt-0.5">Stats will appear as you use the app.</p>
-      </div>
-
-      {/* Stats */}
-      <div className="grid grid-cols-2 gap-3 mb-6">
-        {[
-          { label: "Sessions",   value: "0" },
-          { label: "Tasks done", value: "0" },
-          { label: "Hours in",   value: "0" },
-          { label: "Day streak", value: "0" },
-        ].map((s) => (
-          <div key={s.label} className="bg-white rounded-2xl p-4 border border-gray-100 text-center">
-            <div className="text-2xl font-bold text-charcoal">{s.value}</div>
-            <div className="text-xs text-warm-gray mt-1">{s.label}</div>
-          </div>
-        ))}
       </div>
 
       {/* Social buttons */}

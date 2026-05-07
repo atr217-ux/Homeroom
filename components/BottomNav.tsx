@@ -36,6 +36,17 @@ const tabs = [
     ),
   },
   {
+    href: "/progress",
+    label: "Progress",
+    icon: (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M5 19a9 9 0 1 1 14 0" />
+        <line x1="12" y1="19" x2="16.5" y2="10" />
+        <circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none" />
+      </svg>
+    ),
+  },
+  {
     href: "/profile",
     label: "Profile",
     icon: (
