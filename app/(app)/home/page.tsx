@@ -1056,9 +1056,12 @@ export default function HomePage() {
           <a href="#active-rooms" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
             Join a Homeroom
           </a>
-          <Link href="/start" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors">
+          <button
+            onClick={() => withJoinConfirm(() => router.push("/start"))}
+            className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center hover:bg-black transition-colors"
+          >
             Start a Homeroom
-          </Link>
+          </button>
         </div>
       </div>
 

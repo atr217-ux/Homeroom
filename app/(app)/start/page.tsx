@@ -215,6 +215,21 @@ export default function StartPage() {
     }
 
     if (isLive) {
+      // Save any existing private active session to background before displacing it
+      try {
+        const existingId = localStorage.getItem("homeroom-active-id");
+        if (existingId && existingId !== homeroomId) {
+          const { data: existing } = await supabase
+            .from("homerooms").select("id, is_private, status")
+            .eq("id", existingId).eq("status", "active").single();
+          if (existing?.is_private) {
+            const prev: string[] = JSON.parse(localStorage.getItem("homeroom-bg-sessions") || "[]");
+            if (!prev.includes(existingId)) {
+              localStorage.setItem("homeroom-bg-sessions", JSON.stringify([...prev, existingId]));
+            }
+          }
+        }
+      } catch { /* ignore */ }
       localStorage.setItem("homeroom-active-id", homeroomId);
       router.push(`/room?id=${homeroomId}`);
     } else {
