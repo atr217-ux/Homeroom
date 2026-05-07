@@ -61,6 +61,10 @@ export default function RoomPage() {
   const [participantData, setParticipantData]     = useState<Record<string, { tasks: { id: string; text: string; done: boolean }[]; sharing: boolean }>>({});
   const [expandedCards, setExpandedCards]         = useState<Set<string>>(new Set());
   const [myFriendUsernames, setMyFriendUsernames] = useState<Set<string>>(new Set());
+  const [friendsWithIds, setFriendsWithIds] = useState<{ username: string; userId: string; color: string; initials: string }[]>([]);
+  const [showInviteModal, setShowInviteModal] = useState(false);
+  const [inviteSearch, setInviteSearch] = useState("");
+  const [invitedInSession, setInvitedInSession] = useState<Set<string>>(new Set());
   const [mySquads, setMySquads]                   = useState<{ id: string; name: string; emoji: string }[]>([]);
   const [squadMemberMap, setSquadMemberMap]       = useState<Record<string, Set<string>>>({});
   const [activeFilters, setActiveFilters]         = useState<Set<string>>(new Set());
@@ -405,6 +409,18 @@ export default function RoomPage() {
     touchDragRef.current = { taskId: "", startY: 0, active: false, timer: null };
   }
 
+  async function sendInvite(friend: { username: string; userId: string }) {
+    if (!session?.homeroomId || !myUserId) return;
+    const supabase = createClient();
+    const { error } = await supabase.from("homeroom_invites").upsert({
+      homeroom_id: session.homeroomId,
+      from_user: myUserId,
+      to_user: friend.userId,
+      status: "pending",
+    }, { onConflict: "homeroom_id,to_user" });
+    if (!error) setInvitedInSession(prev => new Set([...prev, friend.userId]));
+  }
+
   async function addTask() {
     const text = taskInput.trim();
     if (!text || !session?.homeroomId || !myUserId) return;
@@ -431,13 +447,22 @@ export default function RoomPage() {
       .select("from_username, to_username")
       .eq("status", "accepted")
       .or(`from_username.eq.${myUsername},to_username.eq.${myUsername}`)
-      .then(({ data }) => {
+      .then(async ({ data }) => {
         if (!data) return;
-        setMyFriendUsernames(new Set(
-          (data as { from_username: string; to_username: string }[]).map((r) =>
-            r.from_username === myUsername ? r.to_username : r.from_username
-          )
-        ));
+        const usernames = (data as { from_username: string; to_username: string }[]).map((r) =>
+          r.from_username === myUsername ? r.to_username : r.from_username
+        );
+        setMyFriendUsernames(new Set(usernames));
+        if (!usernames.length) return;
+        const { data: profiles } = await supabase.from("profiles").select("id, username").in("username", usernames);
+        if (profiles) {
+          setFriendsWithIds(profiles.map(p => ({
+            username: p.username,
+            userId: p.id,
+            color: colorFromUsername(p.username),
+            initials: p.username.slice(0, 2).toUpperCase(),
+          })));
+        }
       });
     supabase.from("squad_members")
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -966,7 +991,22 @@ export default function RoomPage() {
             <div className="mt-5">
               <div className="flex items-center justify-between mb-3">
                 <h2 className="text-sm font-semibold text-charcoal">In this room</h2>
-                <span className="text-xs text-warm-gray">{others.length} {others.length === 1 ? "other" : "others"}</span>
+                <div className="flex items-center gap-3">
+                  <span className="text-xs text-warm-gray">{others.length} {others.length === 1 ? "other" : "others"}</span>
+                  {friendsWithIds.length > 0 && (
+                    <button
+                      onClick={() => { setShowInviteModal(true); setInviteSearch(""); }}
+                      className="flex items-center gap-1 text-xs font-medium transition-colors"
+                      style={{ color: "#7C3AED" }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
+                        <line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
+                      </svg>
+                      Invite
+                    </button>
+                  )}
+                </div>
               </div>
 
               {others.length > 0 && (
@@ -1222,6 +1262,72 @@ export default function RoomPage() {
                 <button onClick={goHome} className="w-full font-semibold text-sm py-3 rounded-xl border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors">
                   Back to home
                 </button>
+              </div>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Invite friends modal */}
+      {showInviteModal && (() => {
+        const presentSet = new Set(presentUsers.map(p => p.username));
+        const alreadyInvited = new Set((session?.invitedFriends ?? []).map(f => f.name));
+        const available = friendsWithIds.filter(f =>
+          !presentSet.has(f.username) &&
+          (!inviteSearch || f.username.toLowerCase().includes(inviteSearch.toLowerCase()))
+        );
+        return (
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.4)" }}>
+            <div className="bg-white rounded-3xl w-full max-w-md max-h-[70vh] flex flex-col shadow-xl">
+              <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
+                <h2 className="font-bold text-charcoal text-base">Invite friends</h2>
+                <button onClick={() => setShowInviteModal(false)} className="text-warm-gray hover:text-charcoal p-1">
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                  </svg>
+                </button>
+              </div>
+              <div className="px-5 pb-3 flex-shrink-0">
+                <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                  </svg>
+                  <input
+                    value={inviteSearch}
+                    onChange={e => setInviteSearch(e.target.value)}
+                    placeholder="Search friends…"
+                    className="flex-1 bg-transparent text-sm text-charcoal placeholder:text-warm-gray focus:outline-none"
+                  />
+                </div>
+              </div>
+              <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-1">
+                {available.length === 0 ? (
+                  <p className="text-sm text-warm-gray text-center py-6">
+                    {inviteSearch ? "No matches." : "All friends are already in the room."}
+                  </p>
+                ) : available.map(f => {
+                  const sent = invitedInSession.has(f.userId) || alreadyInvited.has(f.username);
+                  return (
+                    <div key={f.userId} className="flex items-center justify-between py-2.5">
+                      <div className="flex items-center gap-3">
+                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
+                          {f.initials}
+                        </div>
+                        <span className="text-sm font-medium text-charcoal">{f.username}</span>
+                      </div>
+                      <button
+                        onClick={() => sendInvite(f)}
+                        disabled={sent}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
+                        style={sent
+                          ? { background: "#F3F4F6", color: "#9CA3AF" }
+                          : { background: "#7C3AED", color: "white" }}
+                      >
+                        {sent ? "Invited" : "Invite"}
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
