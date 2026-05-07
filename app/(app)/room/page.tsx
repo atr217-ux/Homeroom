@@ -1360,16 +1360,12 @@ export default function RoomPage() {
       })()}
 
       {/* Invite friends modal */}
-      {showInviteModal && (() => {
-        const presentSet = new Set(presentUsers.map(p => p.username));
-        const alreadyInvited = new Set((session?.invitedFriends ?? []).map(f => f.name));
-        const available = friendsWithIds.filter(f =>
-          !presentSet.has(f.username) &&
-          (!inviteSearch || f.username.toLowerCase().includes(inviteSearch.toLowerCase()))
-        );
-        return (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center" style={{ background: "rgba(0,0,0,0.4)" }} onClick={(e) => { if (e.target === e.currentTarget) setShowInviteModal(false); }}>
-            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full max-w-md max-h-[80vh] flex flex-col shadow-xl" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
+      {showInviteModal && (
+        <div className="fixed inset-0 z-50">
+          {/* Backdrop — sibling to content, no propagation tricks needed */}
+          <div className="absolute inset-0" style={{ background: "rgba(0,0,0,0.4)" }} onClick={() => setShowInviteModal(false)} />
+          <div className="absolute inset-x-0 bottom-0 sm:inset-0 flex sm:items-center sm:justify-center sm:p-4 pointer-events-none">
+            <div className="bg-white rounded-t-3xl sm:rounded-3xl w-full sm:max-w-md max-h-[80vh] flex flex-col shadow-xl pointer-events-auto" style={{ paddingBottom: "env(safe-area-inset-bottom, 0px)" }}>
               <div className="flex items-center justify-between px-5 pt-5 pb-3 flex-shrink-0">
                 <h2 className="font-bold text-charcoal text-base">Invite friends</h2>
                 <button onClick={() => setShowInviteModal(false)} className="text-warm-gray hover:text-charcoal p-2">
@@ -1392,38 +1388,47 @@ export default function RoomPage() {
                 </div>
               </div>
               <div className="overflow-y-auto flex-1 px-5 pb-5 space-y-1">
-                {available.length === 0 ? (
-                  <p className="text-sm text-warm-gray text-center py-6">
-                    {inviteSearch ? "No matches." : "All friends are already in the room."}
-                  </p>
-                ) : available.map(f => {
-                  const sent = invitedInSession.has(f.userId) || alreadyInvited.has(f.username);
-                  return (
-                    <div key={f.userId} className="flex items-center justify-between py-2.5">
-                      <div className="flex items-center gap-3">
-                        <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
-                          {f.initials}
-                        </div>
-                        <span className="text-sm font-medium text-charcoal">{f.username}</span>
-                      </div>
-                      <button
-                        onClick={() => sendInvite(f)}
-                        disabled={sent}
-                        className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-all"
-                        style={sent
-                          ? { background: "#F3F4F6", color: "#9CA3AF" }
-                          : { background: "#7C3AED", color: "white" }}
-                      >
-                        {sent ? "Invited" : "Invite"}
-                      </button>
-                    </div>
+                {(() => {
+                  const presentSet = new Set(presentUsers.map(p => p.username));
+                  const alreadyInvited = new Set((session?.invitedFriends ?? []).map(f => f.name));
+                  const available = friendsWithIds.filter(f =>
+                    !presentSet.has(f.username) &&
+                    (!inviteSearch || f.username.toLowerCase().includes(inviteSearch.toLowerCase()))
                   );
-                })}
+                  if (available.length === 0) return (
+                    <p className="text-sm text-warm-gray text-center py-6">
+                      {inviteSearch ? "No matches." : "All friends are already in the room."}
+                    </p>
+                  );
+                  return available.map(f => {
+                    const sent = invitedInSession.has(f.userId) || alreadyInvited.has(f.username);
+                    return (
+                      <div key={f.userId} className="flex items-center justify-between py-2.5">
+                        <div className="flex items-center gap-3">
+                          <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
+                            {f.initials}
+                          </div>
+                          <span className="text-sm font-medium text-charcoal">{f.username}</span>
+                        </div>
+                        <button
+                          onClick={() => sendInvite(f)}
+                          disabled={sent}
+                          className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
+                          style={sent
+                            ? { background: "#F3F4F6", color: "#9CA3AF" }
+                            : { background: "#7C3AED", color: "white" }}
+                        >
+                          {sent ? "Invited" : "Invite"}
+                        </button>
+                      </div>
+                    );
+                  });
+                })()}
               </div>
             </div>
           </div>
-        );
-      })()}
+        </div>
+      )}
     </div>
   );
 }
