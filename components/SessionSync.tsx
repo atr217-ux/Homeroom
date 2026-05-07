@@ -186,7 +186,7 @@ export default function SessionSync() {
             </button>
           )}
           <button
-            onClick={() => { setWrapped(null); router.push("/home"); }}
+            onClick={() => { setWrapped(null); window.location.href = "/home"; }}
             className="w-full font-semibold text-sm py-3 rounded-xl border hover:bg-gray-50 transition-colors"
             style={{ borderColor: "#E5E7EB", color: "#1C1917" }}
           >

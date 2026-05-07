@@ -834,6 +834,31 @@ export default function HomePage() {
     } catch { /* ignore */ }
   }
 
+  async function handleEndActiveSession() {
+    if (!activeSession) return;
+    const session = activeSession;
+    const supabase = createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    await supabase.from("homerooms").update({ status: "completed", ended_at: new Date().toISOString() }).eq("id", session.id);
+    let tasksDone: { id: string; text: string }[] = [];
+    let tasksRemaining: { id: string; text: string }[] = [];
+    if (user) {
+      const { data: tasks } = await supabase.from("tasks").select("id, text, done").eq("homeroom_id", session.id).eq("user_id", user.id);
+      if (tasks) {
+        tasksDone = tasks.filter(t => t.done).map(t => ({ id: t.id, text: t.text }));
+        tasksRemaining = tasks.filter(t => !t.done).map(t => ({ id: t.id, text: t.text }));
+        if (tasksRemaining.length > 0) {
+          await supabase.from("tasks").update({ homeroom_id: null }).in("id", tasksRemaining.map(t => t.id));
+        }
+      }
+    }
+    localStorage.removeItem("homeroom-active-id");
+    localStorage.removeItem(`homeroom-chat-${session.id}`);
+    setActiveSession(null);
+    const elapsedMin = Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 60000);
+    setEndingBgSession({ session, tasksDone, tasksRemaining, elapsedMin });
+  }
+
   async function handleEndBgSession(session: ActiveSession) {
     const supabase = createClient();
     const { data: { user } } = await supabase.auth.getUser();
@@ -1250,9 +1275,15 @@ export default function HomePage() {
                     <p className="text-xs text-warm-gray mt-0.5">No time limit</p>
                   )}
                 </div>
-                <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
-                  Rejoin
-                </Link>
+                {remainingSec === 0 ? (
+                  <button onClick={handleEndActiveSession} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#DC2626" }}>
+                    End Session
+                  </button>
+                ) : (
+                  <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
+                    Rejoin
+                  </Link>
+                )}
               </div>
               {activeSession.duration > 0 && (
                 <div className="bg-gray-100 rounded-full h-1.5">
