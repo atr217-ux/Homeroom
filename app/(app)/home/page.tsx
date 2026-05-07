@@ -442,6 +442,8 @@ export default function HomePage() {
 
   const [timeChanges] = useState<TimeChangeNotif[]>([]);
   const [declinedTimeChanges, setDeclinedTimeChanges] = useState<Set<string>>(new Set());
+  const [pendingJoin, setPendingJoin] = useState<{ title: string; action: () => void } | null>(null);
+  const [backgroundSessions, setBackgroundSessions] = useState<ActiveSession[]>([]);
 
   const [allListTasks, setAllListTasks] = useState<ListTask[]>([]);
   const [prepopSession, setPrepopSession] = useState<ScheduledSession | null>(null);
@@ -709,6 +711,26 @@ export default function HomePage() {
           localStorage.removeItem("homeroom-active-id");
         }
       }
+
+      // Background sessions (private rooms displaced when joining another)
+      try {
+        const bgIds: string[] = JSON.parse(localStorage.getItem("homeroom-bg-sessions") || "[]");
+        const filteredBgIds = bgIds.filter(id => id !== activeId);
+        if (filteredBgIds.length > 0) {
+          const { data: bgRooms } = await supabase
+            .from("homerooms")
+            .select("id, title, duration, started_at, is_private, status")
+            .in("id", filteredBgIds)
+            .eq("status", "active");
+          const stillActive = bgRooms ?? [];
+          setBackgroundSessions(stillActive.map(r => ({
+            id: r.id, title: r.title, duration: r.duration,
+            startedAt: r.started_at!, isPublic: !r.is_private,
+          })));
+          const activeSet = new Set(stillActive.map(r => r.id));
+          localStorage.setItem("homeroom-bg-sessions", JSON.stringify(filteredBgIds.filter(id => activeSet.has(id))));
+        }
+      } catch { /* ignore */ }
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -796,9 +818,34 @@ export default function HomePage() {
     }
   }
 
+  function saveSessionAsBackground(session: ActiveSession) {
+    if (session.isPublic) return;
+    try {
+      const prev: string[] = JSON.parse(localStorage.getItem("homeroom-bg-sessions") || "[]");
+      if (!prev.includes(session.id)) {
+        localStorage.setItem("homeroom-bg-sessions", JSON.stringify([...prev, session.id]));
+        setBackgroundSessions(p => [...p, session]);
+      }
+    } catch { /* ignore */ }
+  }
+
+  function withJoinConfirm(action: () => void) {
+    if (activeSession) {
+      const captured = activeSession;
+      setPendingJoin({
+        title: captured.title,
+        action: () => { saveSessionAsBackground(captured); action(); },
+      });
+    } else {
+      action();
+    }
+  }
+
   function joinPublicRoom(room: ActiveRoom) {
-    localStorage.setItem("homeroom-active-id", room.id);
-    router.push(`/room?id=${room.id}`);
+    withJoinConfirm(() => {
+      localStorage.setItem("homeroom-active-id", room.id);
+      router.push(`/room?id=${room.id}`);
+    });
   }
 
   function showToast(msg: string) {
@@ -807,6 +854,18 @@ export default function HomePage() {
   }
 
   async function acceptInvite(invite: Invite) {
+    if (invite.isLive && activeSession) {
+      const doAccept = async () => {
+        const supabase = createClient();
+        await supabase.from("homeroom_invites").update({ status: "accepted" }).eq("id", invite.id);
+        setInvites(prev => prev.filter(i => i.id !== invite.id));
+        localStorage.setItem("homeroom-active-id", invite.homeroomId);
+        router.push(`/room?id=${invite.homeroomId}`);
+      };
+      withJoinConfirm(() => { doAccept(); });
+      return;
+    }
+
     const supabase = createClient();
     await supabase.from("homeroom_invites").update({ status: "accepted" }).eq("id", invite.id);
     setInvites(prev => prev.filter(i => i.id !== invite.id));
@@ -839,16 +898,19 @@ export default function HomePage() {
   }
 
   async function launchScheduled(session: ScheduledSession) {
-    const supabase = createClient();
-    if (session.ownedByMe) {
-      await supabase
-        .from("homerooms")
-        .update({ status: "active", started_at: new Date().toISOString() })
-        .eq("id", session.id);
-    }
-    localStorage.setItem("homeroom-active-id", session.id);
-    setScheduled(prev => prev.filter(s => s.id !== session.id));
-    router.push(`/room?id=${session.id}`);
+    const doLaunch = async () => {
+      const supabase = createClient();
+      if (session.ownedByMe) {
+        await supabase
+          .from("homerooms")
+          .update({ status: "active", started_at: new Date().toISOString() })
+          .eq("id", session.id);
+      }
+      localStorage.setItem("homeroom-active-id", session.id);
+      setScheduled(prev => prev.filter(s => s.id !== session.id));
+      router.push(`/room?id=${session.id}`);
+    };
+    withJoinConfirm(() => { doLaunch(); });
   }
 
   async function removeScheduled(id: string) {
@@ -1152,6 +1214,61 @@ export default function HomePage() {
           </div>
         );
       })()}
+
+      {/* Background (displaced private) sessions */}
+      {backgroundSessions.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-charcoal mb-3">In progress</h2>
+          <div className="space-y-2">
+            {backgroundSessions.map((session) => {
+              const elapsedSec = Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000);
+              const remainingSec = session.duration > 0 ? Math.max(0, session.duration * 60 - elapsedSec) : null;
+              const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
+              const remSec = remainingSec !== null ? remainingSec % 60 : null;
+              function dismissBg(id: string) {
+                try {
+                  const prev: string[] = JSON.parse(localStorage.getItem("homeroom-bg-sessions") || "[]");
+                  localStorage.setItem("homeroom-bg-sessions", JSON.stringify(prev.filter(x => x !== id)));
+                } catch { /* ignore */ }
+                setBackgroundSessions(p => p.filter(s => s.id !== id));
+              }
+              return (
+                <div key={session.id} className="bg-white rounded-2xl border border-amber-100 px-4 py-3">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm font-semibold text-charcoal">{session.title || "Homeroom"}</p>
+                      <p className="text-xs text-warm-gray mt-0.5">
+                        {remainingSec !== null && remainingSec > 0
+                          ? `${remMin}:${String(remSec).padStart(2, "0")} remaining`
+                          : remainingSec === 0 ? "Time's up"
+                          : "No time limit"}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <button
+                        onClick={() => withJoinConfirm(() => {
+                          localStorage.setItem("homeroom-active-id", session.id);
+                          dismissBg(session.id);
+                          router.push(`/room?id=${session.id}`);
+                        })}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                        style={{ background: "#D97706" }}
+                      >
+                        Rejoin
+                      </button>
+                      <button onClick={() => dismissBg(session.id)} className="text-warm-gray hover:text-charcoal p-1 transition-colors">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
 
       {/* Scheduled homerooms */}
       {scheduled.length > 0 && (
@@ -1693,6 +1810,33 @@ export default function HomePage() {
                 {prepopSelected.size === 0
                   ? "Save (no tasks)"
                   : `Save ${prepopSelected.size} task${prepopSelected.size !== 1 ? "s" : ""}`}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Join confirmation modal */}
+      {pendingJoin && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-xl">
+            <p className="text-sm font-semibold text-charcoal mb-1">Leave active session?</p>
+            <p className="text-sm text-warm-gray mb-4">
+              Are you sure you want to leave <span className="font-medium text-charcoal">&ldquo;{pendingJoin.title}&rdquo;</span>?
+            </p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { pendingJoin.action(); setPendingJoin(null); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                style={{ background: "#7C3AED" }}
+              >
+                Yes, leave
+              </button>
+              <button
+                onClick={() => setPendingJoin(null)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors"
+              >
+                No, stay
               </button>
             </div>
           </div>
