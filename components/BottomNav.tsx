@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useState, useEffect } from "react";
 
 const leftTabs = [
   {
@@ -54,6 +55,12 @@ const rightTabs = [
 export default function BottomNav() {
   const pathname = usePathname();
   const roomActive = pathname.startsWith("/room");
+  const [roomHref, setRoomHref] = useState("/start");
+
+  useEffect(() => {
+    const activeId = localStorage.getItem("homeroom-active-id");
+    setRoomHref(activeId ? `/room?id=${activeId}` : "/start");
+  }, [pathname]);
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100 flex items-end">
@@ -75,7 +82,7 @@ export default function BottomNav() {
       {/* Centre Room button */}
       <div className="flex-1 flex flex-col items-center pb-3" style={{ marginTop: "-22px" }}>
         <Link
-          href="/room"
+          href={roomHref}
           className="flex flex-col items-center gap-1"
         >
           <div
