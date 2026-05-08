@@ -70,6 +70,7 @@ export default function RoomPage() {
   const [squadMemberMap, setSquadMemberMap]       = useState<Record<string, Set<string>>>({});
   const [activeFilters, setActiveFilters]         = useState<Set<string>>(new Set());
   const [participantsExpanded, setParticipantsExpanded] = useState(false);
+  const [confirmLeave, setConfirmLeave] = useState(false);
   const PARTICIPANTS_VISIBLE = 6;
   const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks] = useState<{ id: string; text: string; done: boolean }[]>([]);
@@ -680,7 +681,7 @@ export default function RoomPage() {
             </div>
           </div>
           <button
-            onClick={leaveRoom}
+            onClick={() => setConfirmLeave(true)}
             className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors"
           >
             Leave
@@ -1294,6 +1295,31 @@ export default function RoomPage() {
           </div>
         );
       })()}
+
+      {/* Leave confirmation */}
+      {confirmLeave && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ background: "rgba(0,0,0,0.5)" }}>
+          <div className="bg-white rounded-2xl p-5 max-w-xs w-full shadow-xl">
+            <p className="text-sm font-semibold text-charcoal mb-1">Leave this room?</p>
+            <p className="text-sm text-warm-gray mb-4">Are you sure you want to leave your current homeroom?</p>
+            <div className="flex gap-2">
+              <button
+                onClick={() => { setConfirmLeave(false); leaveRoom(); }}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
+                style={{ background: "#DC2626" }}
+              >
+                Yes, leave
+              </button>
+              <button
+                onClick={() => setConfirmLeave(false)}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold border border-gray-200 text-charcoal hover:bg-gray-50 transition-colors"
+              >
+                Stay
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Leave summary modal */}
       {showSummary && (() => {
