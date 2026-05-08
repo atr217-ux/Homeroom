@@ -680,12 +680,30 @@ export default function RoomPage() {
               </div>
             </div>
           </div>
-          <button
-            onClick={() => setConfirmLeave(true)}
-            className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors"
-          >
-            Leave
-          </button>
+          <div className="flex items-center gap-2">
+            {tasks.length > 0 && (
+              <div
+                key={doneTasks}
+                className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1 rounded-full select-none"
+                style={
+                  doneTasks === tasks.length
+                    ? { background: "#ECFDF5", color: "#059669" }
+                    : doneTasks > 0
+                    ? { background: "#F3E8FF", color: "#7C3AED" }
+                    : { background: "#F3F4F6", color: "#9CA3AF" }
+                }
+              >
+                <span>{doneTasks === tasks.length ? "🏆" : doneTasks > 0 ? "🔥" : "🎯"}</span>
+                <span>{doneTasks === tasks.length ? "All done!" : `${doneTasks} done`}</span>
+              </div>
+            )}
+            <button
+              onClick={() => setConfirmLeave(true)}
+              className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors"
+            >
+              Leave
+            </button>
+          </div>
         </div>
       </div>
 
