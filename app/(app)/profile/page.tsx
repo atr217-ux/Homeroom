@@ -264,10 +264,21 @@ export default function ProfilePage() {
       setUsernameError("That username is already taken");
       return;
     }
+    const oldUsername = username;
     setUsername(val);
     localStorage.setItem("homeroom-username", val);
     const { data: { user } } = await supabase.auth.getUser();
-    if (user) await supabase.from("profiles").update({ username: val }).eq("id", user.id);
+    if (user) {
+      await supabase.from("profiles").update({ username: val }).eq("id", user.id);
+      await Promise.all([
+        supabase.from("squads").update({ created_by: val }).eq("created_by", oldUsername),
+        supabase.from("squad_members").update({ username: val }).eq("username", oldUsername),
+        supabase.from("squad_invites").update({ from_username: val }).eq("from_username", oldUsername),
+        supabase.from("squad_invites").update({ to_username: val }).eq("to_username", oldUsername),
+        supabase.from("friend_requests").update({ from_username: val }).eq("from_username", oldUsername),
+        supabase.from("friend_requests").update({ to_username: val }).eq("to_username", oldUsername),
+      ]);
+    }
     setEditingUsername(false);
     setUsernameInput("");
     setUsernameError("");

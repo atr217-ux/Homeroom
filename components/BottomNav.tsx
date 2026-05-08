@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 export default function BottomNav() {
@@ -11,6 +11,7 @@ export default function BottomNav() {
   const [roomHref, setRoomHref] = useState("/start");
   const [homeNotif, setHomeNotif] = useState(false);
   const [profileNotif, setProfileNotif] = useState(false);
+  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
 
   useEffect(() => {
     const activeId = localStorage.getItem("homeroom-active-id");
@@ -19,36 +20,57 @@ export default function BottomNav() {
 
   useEffect(() => {
     const supabase = createClient();
+
+    async function fetchCounts(userId: string, username: string) {
+      const { count: inviteCount } = await supabase
+        .from("homeroom_invites")
+        .select("id", { count: "exact", head: true })
+        .eq("to_user", userId)
+        .eq("status", "pending");
+      setHomeNotif((inviteCount ?? 0) > 0);
+
+      if (username) {
+        const [{ count: frCount }, { count: sqCount }] = await Promise.all([
+          supabase.from("friend_requests").select("id", { count: "exact", head: true }).eq("to_username", username).eq("status", "pending"),
+          supabase.from("squad_invites").select("id", { count: "exact", head: true }).eq("to_username", username).eq("status", "pending"),
+        ]);
+        setProfileNotif((frCount ?? 0) + (sqCount ?? 0) > 0);
+      }
+    }
+
     supabase.auth.getUser().then(async ({ data: { user } }) => {
       if (!user) return;
       const username = localStorage.getItem("homeroom-username") ?? "";
 
-      // Home badge: pending homeroom invites sent directly to this user
-      const { count: inviteCount } = await supabase
-        .from("homeroom_invites")
-        .select("id", { count: "exact", head: true })
-        .eq("to_user", user.id)
-        .eq("status", "pending");
-      setHomeNotif((inviteCount ?? 0) > 0);
+      await fetchCounts(user.id, username);
 
-      // Profile badge: pending friend requests or squad invites
+      let ch = supabase
+        .channel("bottom-nav-notifs")
+        .on("postgres_changes", { event: "INSERT", schema: "public", table: "homeroom_invites", filter: `to_user=eq.${user.id}` }, () => fetchCounts(user.id, username))
+        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "homeroom_invites", filter: `to_user=eq.${user.id}` }, () => fetchCounts(user.id, username));
+
       if (username) {
-        const [{ count: frCount }, { count: sqCount }] = await Promise.all([
-          supabase
-            .from("friend_requests")
-            .select("id", { count: "exact", head: true })
-            .eq("to_username", username)
-            .eq("status", "pending"),
-          supabase
-            .from("squad_invites")
-            .select("id", { count: "exact", head: true })
-            .eq("to_username", username)
-            .eq("status", "pending"),
-        ]);
-        setProfileNotif((frCount ?? 0) + (sqCount ?? 0) > 0);
+        ch = ch
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "friend_requests", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username))
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "friend_requests", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username))
+          .on("postgres_changes", { event: "INSERT", schema: "public", table: "squad_invites", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username))
+          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "squad_invites", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username));
       }
+
+      channelRef.current = ch.subscribe();
+
+      const userId = user.id;
+      function onVisibility() {
+        if (document.visibilityState === "visible") fetchCounts(userId, username);
+      }
+      document.addEventListener("visibilitychange", onVisibility);
     });
-  }, [pathname]);
+
+    return () => {
+      if (channelRef.current) supabase.removeChannel(channelRef.current);
+    };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const leftTabs = [
     {

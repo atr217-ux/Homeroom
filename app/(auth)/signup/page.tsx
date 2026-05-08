@@ -12,7 +12,7 @@ export default function SignupPage() {
       <div className="mb-8 text-center">
         <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
         <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Create your account.</h1>
-        <p className="text-sm text-warm-gray mt-1">Adulting is hard. Don&apos;t do it alone.</p>
+        <p className="text-sm text-warm-gray mt-1">Better focus. Better company.</p>
       </div>
 
       <form action={action} className="space-y-3">

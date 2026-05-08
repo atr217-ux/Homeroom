@@ -499,10 +499,10 @@ export default function HomePage() {
   useEffect(() => {
     const a = localStorage.getItem("homeroom-avatar");
     if (a) setAvatar(a);
-    const myUsername = localStorage.getItem("homeroom-username") ?? "";
 
-    const supabase = createClient();
-    (async () => {
+    async function loadData() {
+      const myUsername = localStorage.getItem("homeroom-username") ?? "";
+      const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setMyUserId(user.id);
@@ -746,8 +746,15 @@ export default function HomePage() {
           localStorage.setItem("homeroom-bg-sessions", JSON.stringify(filteredBgIds.filter(id => activeSet.has(id))));
         }
       } catch { /* ignore */ }
+    }
 
-    })();
+    loadData();
+
+    function onVisibility() {
+      if (document.visibilityState === "visible") loadData();
+    }
+    document.addEventListener("visibilitychange", onVisibility);
+    return () => document.removeEventListener("visibilitychange", onVisibility);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -1150,7 +1157,7 @@ export default function HomePage() {
           </Link>
         </div>
         <h1 className="text-2xl font-bold text-charcoal leading-snug">Find your Homeroom.</h1>
-        <p className="text-sm text-warm-gray mt-1">Adulting is hard. Don&apos;t do it alone.</p>
+        <p className="text-sm text-warm-gray mt-1">Better focus. Better company.</p>
         <button
           onClick={() => withJoinConfirm(() => router.push("/start"))}
           className="mt-4 flex items-center gap-2 text-sm font-semibold transition-colors"
