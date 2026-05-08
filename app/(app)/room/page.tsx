@@ -687,7 +687,7 @@ export default function RoomPage() {
               style={groupDone > 0 ? { background: "#F3E8FF", color: "#7C3AED" } : { background: "#F3F4F6", color: "#9CA3AF" }}
             >
               <span>{groupDone > 0 ? "🔥" : "🎯"}</span>
-              <span>{groupDone} task{groupDone !== 1 ? "s" : ""} done</span>
+              <span>{groupDone} task{groupDone !== 1 ? "s" : ""} done together</span>
             </div>
             <button
               onClick={() => setConfirmLeave(true)}
