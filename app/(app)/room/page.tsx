@@ -1218,7 +1218,10 @@ export default function RoomPage() {
 
         {/* Invited but not yet joined */}
         {(() => {
-          const presentSet = new Set(presentUsers.map(p => p.username));
+          const presentSet = new Set([
+            ...presentUsers.map(p => p.username),
+            ...Object.keys(participantData),
+          ]);
           const pending = (session.invitedFriends ?? []).filter(f => !presentSet.has(f.name));
           if (pending.length === 0) return null;
           return (
