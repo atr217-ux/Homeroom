@@ -19,6 +19,7 @@ function colorFromUsername(u: string): string {
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string };
 type Squad = { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean; invite_code?: string };
+type TaskDetail = { text: string; done: boolean };
 type SessionHistoryEntry = {
   id: string;
   title: string;
@@ -27,6 +28,7 @@ type SessionHistoryEntry = {
   participants: string[];
   tasksCompleted: number;
   tasksNotCompleted: number;
+  tasks: TaskDetail[];
 };
 
 function formatDuration(min: number): string {
@@ -112,6 +114,8 @@ export default function ProfilePage() {
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>([]);
   const [historyPopup, setHistoryPopup] = useState<{ title: string; participants: string[] } | null>(null);
   const [historyPopupSearch, setHistoryPopupSearch] = useState("");
+  const [sessionDetailPopup, setSessionDetailPopup] = useState<SessionHistoryEntry | null>(null);
+  const didSwipeRef = useRef(false);
   const [squadsExpanded, setSquadsExpanded] = useState(true);
   const [friendsExpanded, setFriendsExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
@@ -141,7 +145,7 @@ export default function ProfilePage() {
     const dx = e.touches[0].clientX - s.x;
     const dy = e.touches[0].clientY - s.y;
     if (s.isH === null) {
-      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) swipeRef.current = { ...s, isH: true };
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) { swipeRef.current = { ...s, isH: true }; didSwipeRef.current = true; }
       else if (Math.abs(dy) > 8) { swipeRef.current = null; return; }
     }
     if (!swipeRef.current?.isH) return;
@@ -152,10 +156,11 @@ export default function ProfilePage() {
   }
   function onSwipeTouchEnd(id: string, actionW = SWIPE_W) {
     const s = swipeRef.current;
-    if (!s?.isH) { swipeRef.current = null; return; }
+    if (!s?.isH) { swipeRef.current = null; didSwipeRef.current = false; return; }
     const offset = liveSwipe?.id === s.id ? liveSwipe.offset : (swipedId === s.id ? -actionW : 0);
     swipeRef.current = null;
     setLiveSwipe(null);
+    setTimeout(() => { didSwipeRef.current = false; }, 50);
     if (offset < -(actionW * 0.4)) { setSwipedId(id); return; }
     if (swipedId === s.id) { setSwipedId(null); return; }
   }
@@ -270,7 +275,7 @@ export default function ProfilePage() {
     const sessionIds = allHomerooms.map(h => h.id);
     const [{ data: allParticipants }, { data: allTasks }] = await Promise.all([
       supabase.from("homeroom_participants").select("homeroom_id, user_id").in("homeroom_id", sessionIds),
-      supabase.from("tasks").select("homeroom_id, done").eq("user_id", user.id).in("homeroom_id", sessionIds),
+      supabase.from("tasks").select("homeroom_id, done, text").eq("user_id", user.id).in("homeroom_id", sessionIds),
     ]);
 
     const participantUserIds = [...new Set((allParticipants ?? []).map((p: any) => p.user_id as string))];
@@ -287,11 +292,12 @@ export default function ProfilePage() {
       participantsByHomeroom[(p as any).homeroom_id].push(uname);
     }
 
-    const tasksByHomeroom: Record<string, { done: number; notDone: number }> = {};
+    const tasksByHomeroom: Record<string, { done: number; notDone: number; tasks: TaskDetail[] }> = {};
     for (const t of allTasks ?? []) {
-      if (!tasksByHomeroom[(t as any).homeroom_id]) tasksByHomeroom[(t as any).homeroom_id] = { done: 0, notDone: 0 };
+      if (!tasksByHomeroom[(t as any).homeroom_id]) tasksByHomeroom[(t as any).homeroom_id] = { done: 0, notDone: 0, tasks: [] };
       if ((t as any).done) tasksByHomeroom[(t as any).homeroom_id].done++;
       else tasksByHomeroom[(t as any).homeroom_id].notDone++;
+      tasksByHomeroom[(t as any).homeroom_id].tasks.push({ text: (t as any).text ?? "", done: !!(t as any).done });
     }
 
     const entries: SessionHistoryEntry[] = allHomerooms
@@ -309,6 +315,7 @@ export default function ProfilePage() {
           participants: participantsByHomeroom[h.id] ?? [],
           tasksCompleted: tasksByHomeroom[h.id]?.done ?? 0,
           tasksNotCompleted: tasksByHomeroom[h.id]?.notDone ?? 0,
+          tasks: tasksByHomeroom[h.id]?.tasks ?? [],
         };
       });
     setSessionHistory(entries);
@@ -932,6 +939,11 @@ export default function ProfilePage() {
                   onTouchStart={(e) => onSwipeTouchStart(e, s.id)}
                   onTouchMove={onSwipeTouchMove}
                   onTouchEnd={() => onSwipeTouchEnd(s.id)}
+                  onClick={() => {
+                    if (didSwipeRef.current) return;
+                    if (swipedId === s.id) { setSwipedId(null); return; }
+                    setSessionDetailPopup(s);
+                  }}
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <p className="text-sm font-semibold text-charcoal leading-snug flex-1 min-w-0">{s.title}</p>
@@ -1002,6 +1014,60 @@ export default function ProfilePage() {
                     <span className="text-sm text-charcoal">{uname}</span>
                   </div>
                 ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Session detail popup */}
+      {sessionDetailPopup && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSessionDetailPopup(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-start justify-between px-5 pt-5 pb-3 flex-shrink-0">
+              <div className="flex-1 min-w-0 pr-3">
+                <h2 className="font-bold text-charcoal text-base leading-snug">{sessionDetailPopup.title}</h2>
+                <p className="text-xs text-warm-gray mt-0.5">{formatSessionDate(sessionDetailPopup.endedAt)}{sessionDetailPopup.durationMin > 0 ? ` · ${formatDuration(sessionDetailPopup.durationMin)}` : ""}</p>
+              </div>
+              <button onClick={() => setSessionDetailPopup(null)} className="text-warm-gray hover:text-charcoal p-1 flex-shrink-0 mt-0.5"><XIcon /></button>
+            </div>
+            <div className="overflow-y-auto px-5 pb-6 flex-1">
+              {sessionDetailPopup.tasks.length === 0 ? (
+                <p className="text-sm text-warm-gray text-center py-6">No tasks recorded for this session.</p>
+              ) : (
+                <>
+                  {sessionDetailPopup.tasks.filter(t => t.done).length > 0 && (
+                    <div className="mb-4">
+                      <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Completed</p>
+                      <div className="space-y-2">
+                        {sessionDetailPopup.tasks.filter(t => t.done).map((t, i) => (
+                          <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "#ECFDF5" }}>
+                            <span className="text-emerald-600 flex-shrink-0">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
+                            </span>
+                            <span className="text-sm text-charcoal">{t.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                  {sessionDetailPopup.tasks.filter(t => !t.done).length > 0 && (
+                    <div>
+                      <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Not completed</p>
+                      <div className="space-y-2">
+                        {sessionDetailPopup.tasks.filter(t => !t.done).map((t, i) => (
+                          <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "#F3F4F6" }}>
+                            <span className="text-gray-400 flex-shrink-0">
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /></svg>
+                            </span>
+                            <span className="text-sm text-warm-gray">{t.text}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              )}
             </div>
           </div>
         </div>
