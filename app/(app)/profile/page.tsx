@@ -136,6 +136,8 @@ export default function ProfilePage() {
 
   const SWIPE_W = 80;
   const SWIPE_W_SQUAD = 160;
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => { setIsTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
   const [swipedId, setSwipedId] = useState<string | null>(null);
   const [liveSwipe, setLiveSwipe] = useState<{ id: string; offset: number } | null>(null);
   const swipeRef = useRef<{ id: string; x: number; y: number; isH: boolean | null } | null>(null);
@@ -757,22 +759,23 @@ export default function ProfilePage() {
           </button>
           {squadsExpanded && <div className="space-y-2">
             {allSquads.filter((s) => joinedSquads.includes(s.id)).map((squad) => (
-              <div key={squad.id} className="relative rounded-2xl overflow-hidden bg-white">
-                <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_W_SQUAD, borderRadius: "16px 0 0 16px", overflow: "hidden" }}>
-                  <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#7C3AED" }}
-                    onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); setSwipedId(null); }}>
-                    Invite
-                  </button>
-                  <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#EF4444" }}
-                    onClick={() => leaveSquad(squad.id)}>
-                    Leave
-                  </button>
-                </div>
+              <div key={squad.id} className="relative rounded-2xl overflow-hidden">
+                {isTouch && (
+                  <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_W_SQUAD, borderRadius: "16px 0 0 16px", overflow: "hidden" }}>
+                    <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#7C3AED" }}
+                      onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); setSwipedId(null); }}>
+                      Invite
+                    </button>
+                    <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#EF4444" }}
+                      onClick={() => leaveSquad(squad.id)}>
+                      Leave
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(squad.id, SWIPE_W_SQUAD)}px)`,
                     transition: liveSwipe?.id === squad.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
-                    zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, squad.id)}
                   onTouchMove={onSwipeTouchMove}
@@ -883,18 +886,19 @@ export default function ProfilePage() {
           <h2 className="text-sm font-semibold text-charcoal mb-3">Sent · {outgoingRequests.length}</h2>
           <div className="space-y-2">
             {outgoingRequests.map((f) => (
-              <div key={f.id} className="relative rounded-2xl overflow-hidden bg-white">
-                <div className="absolute inset-y-0 right-0 flex items-center justify-center"
-                  style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
-                  <button className="w-full h-full text-white text-sm font-semibold" onClick={() => cancelRequest(f.id)}>
-                    Cancel
-                  </button>
-                </div>
+              <div key={f.id} className="relative rounded-2xl overflow-hidden">
+                {isTouch && (
+                  <div className="absolute inset-y-0 right-0 flex items-center justify-center"
+                    style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
+                    <button className="w-full h-full text-white text-sm font-semibold" onClick={() => cancelRequest(f.id)}>
+                      Cancel
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(f.id)}px)`,
                     transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
-                    zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, f.id)}
                   onTouchMove={onSwipeTouchMove}
@@ -931,18 +935,19 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-2">
             {friends.map((f) => (
-              <div key={f.id} className="relative rounded-2xl overflow-hidden bg-white">
-                <div className="absolute inset-y-0 right-0 flex items-center justify-center"
-                  style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
-                  <button className="w-full h-full text-white text-sm font-semibold" onClick={() => removeFriend(f.id)}>
-                    Remove
-                  </button>
-                </div>
+              <div key={f.id} className="relative rounded-2xl overflow-hidden">
+                {isTouch && (
+                  <div className="absolute inset-y-0 right-0 flex items-center justify-center"
+                    style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
+                    <button className="w-full h-full text-white text-sm font-semibold" onClick={() => removeFriend(f.id)}>
+                      Remove
+                    </button>
+                  </div>
+                )}
                 <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(f.id)}px)`,
                     transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
-                    zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, f.id)}
                   onTouchMove={onSwipeTouchMove}
@@ -986,18 +991,19 @@ export default function ProfilePage() {
             const visible = s.participants.slice(0, SHOW);
             const overflow = s.participants.length - SHOW;
             return (
-              <div key={s.id} className="relative rounded-2xl overflow-hidden bg-white">
-                <div className="absolute inset-y-0 right-0 flex items-center justify-center"
-                  style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
-                  <button className="w-full h-full text-white text-sm font-semibold" onClick={() => deleteSessionHistory(s.id)}>
-                    Delete
-                  </button>
-                </div>
+              <div key={s.id} className="relative rounded-2xl overflow-hidden">
+                {isTouch && (
+                  <div className="absolute inset-y-0 right-0 flex items-center justify-center"
+                    style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
+                    <button className="w-full h-full text-white text-sm font-semibold" onClick={() => deleteSessionHistory(s.id)}>
+                      Delete
+                    </button>
+                  </div>
+                )}
                 <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(s.id)}px)`,
                     transition: liveSwipe?.id === s.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
-                  zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, s.id)}
                   onTouchMove={onSwipeTouchMove}

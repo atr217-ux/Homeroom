@@ -98,6 +98,8 @@ export default function ListPage() {
 
   // ── Swipe-to-delete ──────────────────────────────────────────────────────
   const SWIPE_W = 80;
+  const [isTouch, setIsTouch] = useState(false);
+  useEffect(() => { setIsTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
   const [swipedId, setSwipedId] = useState<string | null>(null);
   const [liveSwipe, setLiveSwipe] = useState<{ id: string; offset: number } | null>(null);
   const swipeRef = useRef<{ id: string; x: number; y: number; isH: boolean | null } | null>(null);
@@ -443,26 +445,27 @@ export default function ListPage() {
                 style={showScrollable ? { maxHeight: "480px" } : {}}
               >
                 {visibleActive.map((t) => (
-                  <div key={t.id} className="relative rounded-2xl overflow-hidden bg-white">
-                    {/* Swipe-revealed delete */}
-                    <div
-                      className="absolute inset-y-0 right-0 flex items-center justify-center"
-                      style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}
-                    >
-                      <button
-                        className="w-full h-full text-white text-sm font-semibold"
-                        onClick={() => { deleteTask(t.id); setSwipedId(null); }}
+                  <div key={t.id} className="relative rounded-2xl overflow-hidden">
+                    {/* Swipe-revealed delete (touch only) */}
+                    {isTouch && (
+                      <div
+                        className="absolute inset-y-0 right-0 flex items-center justify-center"
+                        style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}
                       >
-                        Delete
-                      </button>
-                    </div>
+                        <button
+                          className="w-full h-full text-white text-sm font-semibold"
+                          onClick={() => { deleteTask(t.id); setSwipedId(null); }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                    )}
                     {/* Row content */}
                     <div
                       className="bg-white border border-gray-200 rounded-2xl px-3 py-2.5 flex items-start gap-2 group relative"
                       style={{
                         transform: `translateX(${rowOffset(t.id)}px)`,
                         transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
-                        zIndex: 1,
                       }}
                       onTouchStart={(e) => onRowTouchStart(e, t.id)}
                       onTouchMove={onRowTouchMove}
@@ -549,26 +552,27 @@ export default function ListPage() {
                     </svg>
                   </button>
                   {doneExpanded && done.map((t) => (
-                    <div key={t.id} className="relative rounded-2xl overflow-hidden mb-2 bg-white">
-                      {/* Swipe-revealed delete */}
-                      <div
-                        className="absolute inset-y-0 right-0 flex items-center justify-center"
-                        style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}
-                      >
-                        <button
-                          className="w-full h-full text-white text-sm font-semibold"
-                          onClick={() => { deleteTask(t.id); setSwipedId(null); }}
+                    <div key={t.id} className="relative rounded-2xl overflow-hidden mb-2">
+                      {/* Swipe-revealed delete (touch only) */}
+                      {isTouch && (
+                        <div
+                          className="absolute inset-y-0 right-0 flex items-center justify-center"
+                          style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}
                         >
-                          Delete
-                        </button>
-                      </div>
+                          <button
+                            className="w-full h-full text-white text-sm font-semibold"
+                            onClick={() => { deleteTask(t.id); setSwipedId(null); }}
+                          >
+                            Delete
+                          </button>
+                        </div>
+                      )}
                       {/* Row content */}
                       <div
                         className="bg-white border border-gray-100 rounded-2xl px-3 py-2.5 flex items-start gap-2 group relative"
                         style={{
                           transform: `translateX(${rowOffset(t.id)}px)`,
                           transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
-                          zIndex: 1,
                         }}
                         onTouchStart={(e) => onRowTouchStart(e, t.id)}
                         onTouchMove={onRowTouchMove}
