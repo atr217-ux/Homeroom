@@ -434,7 +434,7 @@ export default function ListPage() {
                     {/* Swipe-revealed delete */}
                     <div
                       className="absolute inset-y-0 right-0 flex items-center justify-center"
-                      style={{ width: SWIPE_W, background: "#EF4444" }}
+                      style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "0 16px 16px 0" }}
                     >
                       <button
                         className="w-full h-full text-white text-sm font-semibold"
@@ -539,7 +539,7 @@ export default function ListPage() {
                       {/* Swipe-revealed delete */}
                       <div
                         className="absolute inset-y-0 right-0 flex items-center justify-center"
-                        style={{ width: SWIPE_W, background: "#EF4444" }}
+                        style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "0 16px 16px 0" }}
                       >
                         <button
                           className="w-full h-full text-white text-sm font-semibold"
