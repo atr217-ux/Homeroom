@@ -29,8 +29,8 @@ export default function StartPage() {
   const TASK_LIMIT = 10;
 
   const [title, setTitle] = useState("");
-  const [durationHours, setDurationHours] = useState("");
-  const [durationMinutes, setDurationMinutes] = useState("");
+  const [durationHours, setDurationHours] = useState(1);
+  const [durationMinutes, setDurationMinutes] = useState(0);
   const [isPrivate, setIsPrivate] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
   const [scheduleDate, setScheduleDate] = useState("");
@@ -138,7 +138,7 @@ export default function StartPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  const finalDuration = (parseInt(durationHours) || 0) * 60 + (parseInt(durationMinutes) || 0);
+  const finalDuration = durationHours * 60 + durationMinutes;
 
   function toggleInvite(id: string) {
     setInvitedIds(prev => { const n = new Set(prev); n.has(id) ? n.delete(id) : n.add(id); return n; });
@@ -313,21 +313,34 @@ export default function StartPage() {
       {/* Duration */}
       <div className="mb-6">
         <label className="block text-sm font-semibold text-charcoal mb-3">How long are you committing?</label>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-4">
+          {/* Hours */}
           <div className="flex flex-col items-center gap-1">
-            <input type="number" min="0" max="23" value={durationHours} onChange={e => setDurationHours(e.target.value)} placeholder="0"
-              className="w-20 text-center text-xl font-semibold border-2 rounded-xl px-2 py-2.5 focus:outline-none"
-              style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }} />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setDurationHours(h => Math.max(0, h - 1))}
+                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
+                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
+              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{durationHours}</span>
+              <button type="button" onClick={() => setDurationHours(h => Math.min(23, h + 1))}
+                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
+                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>+</button>
+            </div>
             <span className="text-xs text-warm-gray">hours</span>
           </div>
-          <span className="text-xl font-semibold text-charcoal pb-5">:</span>
+          <span className="text-xl font-semibold text-charcoal mb-4">:</span>
+          {/* Minutes — cycles 0 / 15 / 30 / 45 */}
           <div className="flex flex-col items-center gap-1">
-            <input type="number" min="0" max="59" value={durationMinutes} onChange={e => setDurationMinutes(e.target.value)} placeholder="0"
-              className="w-20 text-center text-xl font-semibold border-2 rounded-xl px-2 py-2.5 focus:outline-none"
-              style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }} />
+            <div className="flex items-center gap-2">
+              <button type="button" onClick={() => setDurationMinutes(m => m === 0 ? 45 : m - 15)}
+                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
+                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
+              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{String(durationMinutes).padStart(2, "0")}</span>
+              <button type="button" onClick={() => setDurationMinutes(m => m === 45 ? 0 : m + 15)}
+                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
+                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>+</button>
+            </div>
             <span className="text-xs text-warm-gray">minutes</span>
           </div>
-          {finalDuration > 0 && <span className="text-sm text-warm-gray pb-5">{finalDuration} min</span>}
         </div>
       </div>
 
