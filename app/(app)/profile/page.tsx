@@ -1000,7 +1000,7 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 )}
-                <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                <div className="group bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(s.id)}px)`,
                     transition: liveSwipe?.id === s.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
@@ -1016,7 +1016,19 @@ export default function ProfilePage() {
                 >
                   <div className="flex items-start justify-between gap-2 mb-2">
                     <p className="text-sm font-semibold text-charcoal leading-snug flex-1 min-w-0">{s.title}</p>
-                    <span className="text-xs text-warm-gray whitespace-nowrap flex-shrink-0">{formatSessionDate(s.endedAt)}</span>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <span className="text-xs text-warm-gray whitespace-nowrap">{formatSessionDate(s.endedAt)}</span>
+                      {!isTouch && (
+                        <button
+                          onClick={(e) => { e.stopPropagation(); deleteSessionHistory(s.id); }}
+                          className="opacity-0 group-hover:opacity-100 transition-opacity text-warm-gray hover:text-red-500"
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14H6L5 6" /><path d="M10 11v6M14 11v6" /><path d="M9 6V4h6v2" />
+                          </svg>
+                        </button>
+                      )}
+                    </div>
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {s.durationMin > 0 && (
