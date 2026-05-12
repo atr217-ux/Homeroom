@@ -81,6 +81,7 @@ export default function ProfilePage() {
 
   const [showFindFriends, setShowFindFriends] = useState(false);
   const [friendSearch, setFriendSearch]       = useState("");
+  const [onlineUsernames, setOnlineUsernames] = useState<Set<string>>(new Set());
 
   const [showSquads, setShowSquads]         = useState(false);
   const [squadSearch, setSquadSearch]       = useState("");
@@ -233,10 +234,19 @@ export default function ProfilePage() {
       data.filter(r => r.from_username === currentUsername && r.status === "pending")
           .map(r => toFriend(r.to_username))
     );
-    setFriends(
-      data.filter(r => r.status === "accepted")
-          .map(r => toFriend(r.from_username === currentUsername ? r.to_username : r.from_username))
-    );
+    const acceptedFriends = data.filter(r => r.status === "accepted")
+      .map(r => toFriend(r.from_username === currentUsername ? r.to_username : r.from_username));
+    setFriends(acceptedFriends);
+
+    if (acceptedFriends.length > 0) {
+      const cutoff = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+      const { data: presenceData } = await supabase
+        .from("profiles")
+        .select("username")
+        .in("username", acceptedFriends.map(f => f.username))
+        .gte("last_seen", cutoff);
+      setOnlineUsernames(new Set((presenceData ?? []).map(p => p.username)));
+    }
   }
 
   function getTakenUsernames(): string[] {
@@ -708,7 +718,12 @@ export default function ProfilePage() {
                   {f.initials}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-charcoal">{f.name}</p>
+                  <div className="flex items-center gap-1.5">
+                    <p className="text-sm font-semibold text-charcoal">{f.name}</p>
+                    {onlineUsernames.has(f.username) && (
+                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#22C55E" }} />
+                    )}
+                  </div>
                   <p className="text-xs text-warm-gray">@{f.username}</p>
                 </div>
                 {removingId === f.id ? (

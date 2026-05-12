@@ -12,6 +12,7 @@ export default function BottomNav() {
   const [homeNotif, setHomeNotif] = useState(false);
   const [profileNotif, setProfileNotif] = useState(false);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
+  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     const activeId = localStorage.getItem("homeroom-active-id");
@@ -42,6 +43,12 @@ export default function BottomNav() {
       if (!user) return;
       const username = localStorage.getItem("homeroom-username") ?? "";
 
+      // Presence heartbeat
+      const pingPresence = () =>
+        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", user.id).then(() => {});
+      pingPresence();
+      heartbeatRef.current = setInterval(pingPresence, 90_000);
+
       await fetchCounts(user.id, username);
 
       let ch = supabase
@@ -68,6 +75,7 @@ export default function BottomNav() {
 
     return () => {
       if (channelRef.current) supabase.removeChannel(channelRef.current);
+      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
     };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

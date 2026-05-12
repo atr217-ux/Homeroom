@@ -43,6 +43,7 @@ export default function StartPage() {
   const [selectedSquads, setSelectedSquads] = useState<Set<string>>(new Set());
   const [userSquads, setUserSquads] = useState<{ id: string; name: string; emoji: string }[]>([]);
   const [friends, setFriends] = useState<Friend[]>([]);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
   const [carryForward, setCarryForward] = useState<{ id: string; text: string }[]>([]);
@@ -91,6 +92,13 @@ export default function StartPage() {
               username: p.username,
               userId: p.id,
             })));
+            const cutoff = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+            const { data: presence } = await supabase
+              .from("profiles")
+              .select("id")
+              .in("id", profiles.map(p => p.id))
+              .gte("last_seen", cutoff);
+            setOnlineUserIds(new Set((presence ?? []).map(p => p.id)));
           }
         });
 
@@ -406,12 +414,16 @@ export default function StartPage() {
           <div className="flex flex-wrap gap-2">
             {friends.slice(0, 8).map(f => {
               const invited = invitedIds.has(f.id);
+              const online = onlineUserIds.has((f as any).userId ?? "");
               return (
                 <button key={f.id} onClick={() => toggleInvite(f.id)}
                   className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all"
                   style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}>
-                  <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
-                    {f.initials}
+                  <div className="relative w-7 h-7 flex-shrink-0">
+                    <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ background: f.color }}>
+                      {f.initials}
+                    </div>
+                    {online && <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white" style={{ background: "#22C55E" }} />}
                   </div>
                   <span className="text-sm text-charcoal">{f.name}</span>
                   {invited && (
@@ -442,11 +454,15 @@ export default function StartPage() {
             <div className="overflow-y-auto space-y-2 flex-1">
               {friends.filter(f => !friendSearch || f.name.toLowerCase().includes(friendSearch.toLowerCase())).map(f => {
                 const invited = invitedIds.has(f.id);
+                const online = onlineUserIds.has((f as any).userId ?? "");
                 return (
                   <button key={f.id} onClick={() => toggleInvite(f.id)}
                     className="w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all text-left"
                     style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}>
-                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>{f.initials}</div>
+                    <div className="relative w-8 h-8 flex-shrink-0">
+                      <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ background: f.color }}>{f.initials}</div>
+                      {online && <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white" style={{ background: "#22C55E" }} />}
+                    </div>
                     <span className="text-sm text-charcoal flex-1">{f.name}</span>
                     {invited && <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </button>
