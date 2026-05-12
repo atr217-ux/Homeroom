@@ -317,13 +317,13 @@ export default function StartPage() {
           {/* Hours */}
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setDurationHours(h => Math.max(0, h - 1))}
-                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
-              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{durationHours}</span>
               <button type="button" onClick={() => setDurationHours(h => Math.min(23, h + 1))}
                 className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
                 style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>+</button>
+              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{durationHours}</span>
+              <button type="button" onClick={() => setDurationHours(h => Math.max(0, h - 1))}
+                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
+                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
             </div>
             <span className="text-xs text-warm-gray">hours</span>
           </div>
@@ -331,13 +331,13 @@ export default function StartPage() {
           {/* Minutes — cycles 0 / 15 / 30 / 45 */}
           <div className="flex flex-col items-center gap-1">
             <div className="flex items-center gap-2">
-              <button type="button" onClick={() => setDurationMinutes(m => m === 0 ? 45 : m - 15)}
-                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
-              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{String(durationMinutes).padStart(2, "0")}</span>
               <button type="button" onClick={() => setDurationMinutes(m => m === 45 ? 0 : m + 15)}
                 className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
                 style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>+</button>
+              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{String(durationMinutes).padStart(2, "0")}</span>
+              <button type="button" onClick={() => setDurationMinutes(m => m === 0 ? 45 : m - 15)}
+                className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
+                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
             </div>
             <span className="text-xs text-warm-gray">minutes</span>
           </div>
