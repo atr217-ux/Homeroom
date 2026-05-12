@@ -772,6 +772,7 @@ export default function ProfilePage() {
                   style={{
                     transform: `translateX(${rowOffset(squad.id, SWIPE_W_SQUAD)}px)`,
                     transition: liveSwipe?.id === squad.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                    zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, squad.id)}
                   onTouchMove={onSwipeTouchMove}
@@ -893,6 +894,7 @@ export default function ProfilePage() {
                   style={{
                     transform: `translateX(${rowOffset(f.id)}px)`,
                     transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                    zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, f.id)}
                   onTouchMove={onSwipeTouchMove}
@@ -940,6 +942,7 @@ export default function ProfilePage() {
                   style={{
                     transform: `translateX(${rowOffset(f.id)}px)`,
                     transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                    zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, f.id)}
                   onTouchMove={onSwipeTouchMove}
@@ -994,6 +997,7 @@ export default function ProfilePage() {
                   style={{
                     transform: `translateX(${rowOffset(s.id)}px)`,
                     transition: liveSwipe?.id === s.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                  zIndex: 1,
                   }}
                   onTouchStart={(e) => onSwipeTouchStart(e, s.id)}
                   onTouchMove={onSwipeTouchMove}

@@ -462,6 +462,7 @@ export default function ListPage() {
                       style={{
                         transform: `translateX(${rowOffset(t.id)}px)`,
                         transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                        zIndex: 1,
                       }}
                       onTouchStart={(e) => onRowTouchStart(e, t.id)}
                       onTouchMove={onRowTouchMove}
@@ -567,6 +568,7 @@ export default function ListPage() {
                         style={{
                           transform: `translateX(${rowOffset(t.id)}px)`,
                           transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                          zIndex: 1,
                         }}
                         onTouchStart={(e) => onRowTouchStart(e, t.id)}
                         onTouchMove={onRowTouchMove}
