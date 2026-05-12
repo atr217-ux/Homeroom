@@ -772,7 +772,7 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 )}
-                <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                <div className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(squad.id, SWIPE_W_SQUAD)}px)`,
                     transition: liveSwipe?.id === squad.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
@@ -806,6 +806,20 @@ export default function ProfilePage() {
                       );
                     })()}
                   </div>
+                  {!isTouch && (
+                    <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center gap-1.5 flex-shrink-0">
+                      <button
+                        onClick={(e) => { e.stopPropagation(); setInviteSquadId(squad.id); setInviteSearch(""); }}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                        style={{ background: "#EDE9FE", color: "#7C3AED" }}
+                      >Invite</button>
+                      <button
+                        onClick={(e) => { e.stopPropagation(); leaveSquad(squad.id); }}
+                        className="text-xs font-semibold px-2.5 py-1 rounded-lg"
+                        style={{ background: "#FEE2E2", color: "#EF4444" }}
+                      >Leave</button>
+                    </div>
+                  )}
                 </div>
               </div>
             ))}
@@ -895,7 +909,7 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 )}
-                <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                <div className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(f.id)}px)`,
                     transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
@@ -912,6 +926,13 @@ export default function ProfilePage() {
                     <p className="text-xs text-warm-gray">@{f.username}</p>
                   </div>
                   <span className="text-xs text-warm-gray border border-gray-200 rounded-full px-2.5 py-1 flex-shrink-0">Requested</span>
+                  {!isTouch && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); cancelRequest(f.id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                      style={{ background: "#FEE2E2", color: "#EF4444" }}
+                    >Cancel</button>
+                  )}
                 </div>
               </div>
             ))}
@@ -944,7 +965,7 @@ export default function ProfilePage() {
                     </button>
                   </div>
                 )}
-                <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                <div className="group flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
                   style={{
                     transform: `translateX(${rowOffset(f.id)}px)`,
                     transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
@@ -965,6 +986,13 @@ export default function ProfilePage() {
                     </div>
                     <p className="text-xs text-warm-gray">@{f.username}</p>
                   </div>
+                  {!isTouch && (
+                    <button
+                      onClick={(e) => { e.stopPropagation(); removeFriend(f.id); }}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity text-xs font-semibold px-2.5 py-1 rounded-lg flex-shrink-0"
+                      style={{ background: "#FEE2E2", color: "#EF4444" }}
+                    >Remove</button>
+                  )}
                 </div>
               </div>
             ))}
