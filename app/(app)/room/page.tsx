@@ -814,7 +814,7 @@ export default function RoomPage() {
                           />
                         ) : (
                           <span
-                            className={`text-sm flex-1 truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}
+                            className={`text-sm flex-1 break-words min-w-0 ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}
                             onDoubleClick={() => { if (!t.done) { setEditingTaskId(t.id); setEditingTaskText(t.text); } }}
                           >
                             {t.text}
