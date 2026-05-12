@@ -348,10 +348,12 @@ export default function ListPage() {
             </div>
           </div>
           <div className="flex gap-2">
-            <Link href="/home" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-black transition-colors">
+            <Link href="/home" className="flex-1 font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 border-2 transition-colors"
+              style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "white" }}>
               Find a Room
             </Link>
-            <Link href="/start" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-black transition-colors">
+            <Link href="/start" className="flex-1 font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
+              style={{ background: "#7C3AED", color: "white" }}>
               Host a Room
             </Link>
           </div>
