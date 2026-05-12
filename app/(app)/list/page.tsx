@@ -300,7 +300,11 @@ export default function ListPage() {
   }
 
   const active = tasks.filter((t) => !t.done);
-  const done = tasks.filter((t) => t.done);
+  const done = tasks.filter((t) => t.done).sort((a, b) => {
+    const aT = a.completedAt ? new Date(a.completedAt).getTime() : 0;
+    const bT = b.completedAt ? new Date(b.completedAt).getTime() : 0;
+    return bT - aT;
+  });
 
   const sortedActive = !sortField
     ? [...active].reverse()
