@@ -92,38 +92,63 @@ export default function ListPage() {
   const [taskHistory, setTaskHistory] = useState<TaskHistory[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
 
-  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const editInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
-  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const lastTap = useRef<{ id: string; time: number } | null>(null);
 
-  function handleNameTouchStart(id: string) {
-    if (longPressTimer.current) clearTimeout(longPressTimer.current);
-    longPressTimer.current = setTimeout(() => {
-      longPressTimer.current = null;
-      setDeleteConfirmId(id);
-      if (navigator.vibrate) navigator.vibrate(40);
-    }, 500);
+  // ── Swipe-to-delete ──────────────────────────────────────────────────────
+  const SWIPE_W = 80;
+  const [swipedId, setSwipedId] = useState<string | null>(null);
+  const [liveSwipe, setLiveSwipe] = useState<{ id: string; offset: number } | null>(null);
+  const swipeRef = useRef<{ id: string; x: number; y: number; isH: boolean | null } | null>(null);
+
+  function onRowTouchStart(e: React.TouchEvent, id: string) {
+    if (swipedId && swipedId !== id) setSwipedId(null);
+    setLiveSwipe(null);
+    const t = e.touches[0];
+    swipeRef.current = { id, x: t.clientX, y: t.clientY, isH: null };
   }
 
-  function handleNameTouchMove() {
-    if (longPressTimer.current) { clearTimeout(longPressTimer.current); longPressTimer.current = null; }
+  function onRowTouchMove(e: React.TouchEvent) {
+    const s = swipeRef.current;
+    if (!s) return;
+    const t = e.touches[0];
+    const dx = t.clientX - s.x;
+    const dy = t.clientY - s.y;
+    if (s.isH === null) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) s.isH = true;
+      else if (Math.abs(dy) > 8) { swipeRef.current = null; return; }
+      else return;
+    }
+    if (!s.isH) return;
+    const base = swipedId === s.id ? -SWIPE_W : 0;
+    setLiveSwipe({ id: s.id, offset: Math.max(-SWIPE_W, Math.min(0, base + dx)) });
   }
 
-  function handleNameTouchEnd(id: string, text: string, allowEdit: boolean) {
-    if (!longPressTimer.current) return; // fired as long press already
-    clearTimeout(longPressTimer.current);
-    longPressTimer.current = null;
-    if (!allowEdit) return;
+  function onRowTouchEnd(taskId: string, text: string) {
+    const s = swipeRef.current;
+    if (!s) return;
+    const offset = liveSwipe?.id === s.id ? liveSwipe.offset : (swipedId === s.id ? -SWIPE_W : 0);
+    const wasH = s.isH === true;
+    swipeRef.current = null;
+    setLiveSwipe(null);
+    if (wasH) {
+      if (offset < -SWIPE_W * 0.4) { setSwipedId(s.id); if (navigator.vibrate) navigator.vibrate(10); }
+      else setSwipedId(null);
+      return;
+    }
+    if (swipedId === s.id) { setSwipedId(null); return; }
+    // double-tap to edit
     const now = Date.now();
     const last = lastTap.current;
-    if (last && last.id === id && now - last.time < 350) {
-      lastTap.current = null;
-      startEdit(id, text);
-    } else {
-      lastTap.current = { id, time: now };
-    }
+    if (last && last.id === taskId && now - last.time < 350) { lastTap.current = null; startEdit(taskId, text); }
+    else lastTap.current = { id: taskId, time: now };
+  }
+
+  function rowOffset(id: string) {
+    if (liveSwipe?.id === id) return liveSwipe.offset;
+    if (swipedId === id) return -SWIPE_W;
+    return 0;
   }
 
   useEffect(() => {
@@ -405,57 +430,69 @@ export default function ListPage() {
                 style={showScrollable ? { maxHeight: "480px" } : {}}
               >
                 {visibleActive.map((t) => (
-                  <div key={t.id} className="bg-white rounded-2xl border border-gray-200 px-3 py-2.5 flex items-start gap-2 group hover:shadow-sm transition-all" style={deleteConfirmId === t.id ? { borderColor: "#FCA5A5" } : {}}>
-                    <button
-                      onClick={() => toggleTask(t.id)}
-                      className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5 hover:border-sage transition-colors"
-                    />
-                    <div className="flex-1 min-w-0">
-                      {editingId === t.id ? (
-                        <input
-                          ref={editInputRef}
-                          type="text"
-                          value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
-                          onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
-                          onBlur={saveEdit}
-                          className="w-full text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
-                        />
-                      ) : (
-                        <span
-                          className="text-sm text-charcoal select-none leading-snug"
-                          onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
-                          onTouchMove={handleNameTouchMove}
-                          onTouchEnd={() => handleNameTouchEnd(t.id, t.text, true)}
-                        >{t.text}</span>
-                      )}
-                      {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle)) && (
-                        <div className="flex flex-wrap gap-1 mt-1.5">
-                          {t.lastSessionTime !== undefined && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
-                              {formatSeconds(t.lastSessionTime)}
-                            </span>
-                          )}
-                          {t.homeroomStatus === "active" && t.scheduledForTitle && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                              {t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                            </span>
-                          )}
-                          {t.scheduledForDate && t.scheduledForTitle && (
-                            <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
-                              {t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                            </span>
-                          )}
-                        </div>
-                      )}
+                  <div key={t.id} className="relative rounded-2xl overflow-hidden">
+                    {/* Swipe-revealed delete */}
+                    <div
+                      className="absolute inset-y-0 right-0 flex items-center justify-center"
+                      style={{ width: SWIPE_W, background: "#EF4444" }}
+                    >
+                      <button
+                        className="w-full h-full text-white text-sm font-semibold"
+                        onClick={() => { deleteTask(t.id); setSwipedId(null); }}
+                      >
+                        Delete
+                      </button>
                     </div>
-                    {deleteConfirmId === t.id ? (
-                      <div className="flex items-center gap-1.5 flex-shrink-0 self-start">
-                        <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-warm-gray px-2 py-1">Cancel</button>
-                        <button onClick={() => { deleteTask(t.id); setDeleteConfirmId(null); }} className="text-xs text-white rounded-lg px-2.5 py-1" style={{ background: "#EF4444" }}>Delete</button>
+                    {/* Row content */}
+                    <div
+                      className="bg-white border border-gray-200 rounded-2xl px-3 py-2.5 flex items-start gap-2 group relative"
+                      style={{
+                        transform: `translateX(${rowOffset(t.id)}px)`,
+                        transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                      }}
+                      onTouchStart={(e) => onRowTouchStart(e, t.id)}
+                      onTouchMove={onRowTouchMove}
+                      onTouchEnd={() => onRowTouchEnd(t.id, t.text)}
+                    >
+                      <button
+                        onClick={() => toggleTask(t.id)}
+                        className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5 hover:border-sage transition-colors"
+                      />
+                      <div className="flex-1 min-w-0">
+                        {editingId === t.id ? (
+                          <input
+                            ref={editInputRef}
+                            type="text"
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
+                            onBlur={saveEdit}
+                            className="w-full text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
+                          />
+                        ) : (
+                          <span className="text-sm text-charcoal select-none leading-snug">{t.text}</span>
+                        )}
+                        {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle)) && (
+                          <div className="flex flex-wrap gap-1 mt-1.5">
+                            {t.lastSessionTime !== undefined && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
+                                {formatSeconds(t.lastSessionTime)}
+                              </span>
+                            )}
+                            {t.homeroomStatus === "active" && t.scheduledForTitle && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                                {t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                              </span>
+                            )}
+                            {t.scheduledForDate && t.scheduledForTitle && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                                {t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
-                    ) : (
                       <div className="flex-shrink-0 self-start flex flex-col items-end gap-0.5">
                         <span className="text-xs text-warm-gray opacity-50 group-hover:hidden whitespace-nowrap">
                           {addedAtLabel(t.addedAt)}
@@ -469,7 +506,7 @@ export default function ListPage() {
                           </button>
                         </div>
                       </div>
-                    )}
+                    </div>
                   </div>
                 ))}
               </div>
@@ -498,7 +535,30 @@ export default function ListPage() {
                     </svg>
                   </button>
                   {doneExpanded && done.map((t) => (
-                    <div key={t.id} className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5 flex items-start gap-2 group hover:shadow-sm transition-all mb-2 opacity-60" style={deleteConfirmId === t.id ? { borderColor: "#FCA5A5", opacity: 1 } : {}}>
+                    <div key={t.id} className="relative rounded-2xl overflow-hidden mb-2">
+                      {/* Swipe-revealed delete */}
+                      <div
+                        className="absolute inset-y-0 right-0 flex items-center justify-center"
+                        style={{ width: SWIPE_W, background: "#EF4444" }}
+                      >
+                        <button
+                          className="w-full h-full text-white text-sm font-semibold"
+                          onClick={() => { deleteTask(t.id); setSwipedId(null); }}
+                        >
+                          Delete
+                        </button>
+                      </div>
+                      {/* Row content */}
+                      <div
+                        className="bg-white border border-gray-100 rounded-2xl px-3 py-2.5 flex items-start gap-2 group relative opacity-60"
+                        style={{
+                          transform: `translateX(${rowOffset(t.id)}px)`,
+                          transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                        }}
+                        onTouchStart={(e) => onRowTouchStart(e, t.id)}
+                        onTouchMove={onRowTouchMove}
+                        onTouchEnd={() => onRowTouchEnd(t.id, t.text)}
+                      >
                       <button
                         onClick={() => toggleTask(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
@@ -509,25 +569,14 @@ export default function ListPage() {
                         </svg>
                       </button>
                       <div className="flex-1 min-w-0">
-                        <span
-                          className="text-sm text-warm-gray line-through select-none leading-snug"
-                          onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
-                          onTouchMove={handleNameTouchMove}
-                          onTouchEnd={() => handleNameTouchEnd(t.id, t.text, false)}
-                        >{t.text}</span>
+                        <span className="text-sm text-warm-gray line-through select-none leading-snug">{t.text}</span>
                         {t.lastSessionTime !== undefined && (
                           <div className="mt-1">
                             <span className="text-xs text-warm-gray">{formatSeconds(t.lastSessionTime)}</span>
                           </div>
                         )}
                       </div>
-                      {deleteConfirmId === t.id ? (
-                        <div className="flex items-center gap-1.5 flex-shrink-0 self-start">
-                          <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-warm-gray px-2 py-1">Cancel</button>
-                          <button onClick={() => { deleteTask(t.id); setDeleteConfirmId(null); }} className="text-xs text-white rounded-lg px-2.5 py-1" style={{ background: "#EF4444" }}>Delete</button>
-                        </div>
-                      ) : (
-                        <div className="flex-shrink-0 self-start flex items-center gap-0.5">
+                      <div className="flex-shrink-0 self-start flex items-center gap-0.5">
                           <span className="text-xs text-warm-gray opacity-70 whitespace-nowrap">{completedLabel(t.completedAt)}</span>
                           <button
                             onClick={() => deleteTask(t.id)}
@@ -536,7 +585,7 @@ export default function ListPage() {
                             <TrashIcon />
                           </button>
                         </div>
-                      )}
+                      </div>
                     </div>
                   ))}
                 </div>
