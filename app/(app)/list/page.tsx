@@ -405,56 +405,62 @@ export default function ListPage() {
                 style={showScrollable ? { maxHeight: "480px" } : {}}
               >
                 {visibleActive.map((t) => (
-                  <div key={t.id} className="bg-white rounded-2xl border border-gray-200 px-3 py-2.5 flex items-center gap-2 group hover:shadow-sm transition-all" style={deleteConfirmId === t.id ? { borderColor: "#FCA5A5" } : {}}>
+                  <div key={t.id} className="bg-white rounded-2xl border border-gray-200 px-3 py-2.5 flex items-start gap-2 group hover:shadow-sm transition-all" style={deleteConfirmId === t.id ? { borderColor: "#FCA5A5" } : {}}>
                     <button
                       onClick={() => toggleTask(t.id)}
-                      className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 hover:border-sage transition-colors"
+                      className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5 hover:border-sage transition-colors"
                     />
-                    {editingId === t.id ? (
-                      <input
-                        ref={editInputRef}
-                        type="text"
-                        value={editingText}
-                        onChange={(e) => setEditingText(e.target.value)}
-                        onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
-                        onBlur={saveEdit}
-                        className="flex-1 text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
-                      />
-                    ) : (
-                      <span
-                        className="text-sm text-charcoal flex-1 min-w-0 truncate select-none"
-                        onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
-                        onTouchMove={handleNameTouchMove}
-                        onTouchEnd={() => handleNameTouchEnd(t.id, t.text, true)}
-                      >{t.text}</span>
-                    )}
+                    <div className="flex-1 min-w-0">
+                      {editingId === t.id ? (
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editingText}
+                          onChange={(e) => setEditingText(e.target.value)}
+                          onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
+                          onBlur={saveEdit}
+                          className="w-full text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
+                        />
+                      ) : (
+                        <span
+                          className="text-sm text-charcoal select-none leading-snug"
+                          onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
+                          onTouchMove={handleNameTouchMove}
+                          onTouchEnd={() => handleNameTouchEnd(t.id, t.text, true)}
+                        >{t.text}</span>
+                      )}
+                      {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle)) && (
+                        <div className="flex flex-wrap gap-1 mt-1.5">
+                          {t.lastSessionTime !== undefined && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
+                              {formatSeconds(t.lastSessionTime)}
+                            </span>
+                          )}
+                          {t.homeroomStatus === "active" && t.scheduledForTitle && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
+                              {t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                            </span>
+                          )}
+                          {t.scheduledForDate && t.scheduledForTitle && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                              {t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                            </span>
+                          )}
+                        </div>
+                      )}
+                    </div>
                     {deleteConfirmId === t.id ? (
-                      <div className="flex items-center gap-1.5 flex-shrink-0">
+                      <div className="flex items-center gap-1.5 flex-shrink-0 self-start">
                         <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-warm-gray px-2 py-1">Cancel</button>
                         <button onClick={() => { deleteTask(t.id); setDeleteConfirmId(null); }} className="text-xs text-white rounded-lg px-2.5 py-1" style={{ background: "#EF4444" }}>Delete</button>
                       </div>
                     ) : (
-                      <>
-                        {t.lastSessionTime !== undefined && (
-                          <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
-                            {formatSeconds(t.lastSessionTime)}
-                          </span>
-                        )}
-                        {t.homeroomStatus === "active" && t.scheduledForTitle && (
-                          <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                            {t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                          </span>
-                        )}
-                        {t.scheduledForDate && t.scheduledForTitle && (
-                          <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
-                            {t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                          </span>
-                        )}
-                        <span className="text-xs text-warm-gray opacity-50 flex-shrink-0 group-hover:hidden">
+                      <div className="flex-shrink-0 self-start flex flex-col items-end gap-0.5">
+                        <span className="text-xs text-warm-gray opacity-50 group-hover:hidden whitespace-nowrap">
                           {addedAtLabel(t.addedAt)}
                         </span>
-                        <div className="hidden group-hover:flex items-center gap-0.5 flex-shrink-0">
+                        <div className="hidden group-hover:flex items-center gap-0.5">
                           <button onClick={() => startEdit(t.id, t.text)} className="text-warm-gray hover:text-sage transition-colors p-1">
                             <EditIcon />
                           </button>
@@ -462,7 +468,7 @@ export default function ListPage() {
                             <TrashIcon />
                           </button>
                         </div>
-                      </>
+                      </div>
                     )}
                   </div>
                 ))}
@@ -492,40 +498,44 @@ export default function ListPage() {
                     </svg>
                   </button>
                   {doneExpanded && done.map((t) => (
-                    <div key={t.id} className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5 flex items-center gap-2 group hover:shadow-sm transition-all mb-2 opacity-60" style={deleteConfirmId === t.id ? { borderColor: "#FCA5A5", opacity: 1 } : {}}>
+                    <div key={t.id} className="bg-white rounded-2xl border border-gray-100 px-3 py-2.5 flex items-start gap-2 group hover:shadow-sm transition-all mb-2 opacity-60" style={deleteConfirmId === t.id ? { borderColor: "#FCA5A5", opacity: 1 } : {}}>
                       <button
                         onClick={() => toggleTask(t.id)}
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                        className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
                         style={{ background: "#7C3AED", border: "2px solid #7C3AED" }}
                       >
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />
                         </svg>
                       </button>
-                      <span
-                        className="text-sm text-warm-gray flex-1 line-through truncate select-none"
-                        onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
-                        onTouchMove={handleNameTouchMove}
-                        onTouchEnd={() => handleNameTouchEnd(t.id, t.text, false)}
-                      >{t.text}</span>
+                      <div className="flex-1 min-w-0">
+                        <span
+                          className="text-sm text-warm-gray line-through select-none leading-snug"
+                          onTouchStart={() => { if (deleteConfirmId && deleteConfirmId !== t.id) setDeleteConfirmId(null); handleNameTouchStart(t.id); }}
+                          onTouchMove={handleNameTouchMove}
+                          onTouchEnd={() => handleNameTouchEnd(t.id, t.text, false)}
+                        >{t.text}</span>
+                        {t.lastSessionTime !== undefined && (
+                          <div className="mt-1">
+                            <span className="text-xs text-warm-gray">{formatSeconds(t.lastSessionTime)}</span>
+                          </div>
+                        )}
+                      </div>
                       {deleteConfirmId === t.id ? (
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
+                        <div className="flex items-center gap-1.5 flex-shrink-0 self-start">
                           <button onClick={() => setDeleteConfirmId(null)} className="text-xs text-warm-gray px-2 py-1">Cancel</button>
                           <button onClick={() => { deleteTask(t.id); setDeleteConfirmId(null); }} className="text-xs text-white rounded-lg px-2.5 py-1" style={{ background: "#EF4444" }}>Delete</button>
                         </div>
                       ) : (
-                        <>
-                          {t.lastSessionTime !== undefined && (
-                            <span className="text-xs text-warm-gray flex-shrink-0">{formatSeconds(t.lastSessionTime)}</span>
-                          )}
-                          <span className="text-xs text-warm-gray opacity-70 flex-shrink-0">{completedLabel(t.completedAt)}</span>
+                        <div className="flex-shrink-0 self-start flex items-center gap-0.5">
+                          <span className="text-xs text-warm-gray opacity-70 whitespace-nowrap">{completedLabel(t.completedAt)}</span>
                           <button
                             onClick={() => deleteTask(t.id)}
                             className="opacity-0 group-hover:opacity-100 text-warm-gray hover:text-red-400 transition-all p-1"
                           >
                             <TrashIcon />
                           </button>
-                        </>
+                        </div>
                       )}
                     </div>
                   ))}
