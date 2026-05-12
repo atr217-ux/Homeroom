@@ -192,11 +192,7 @@ export default function ListPage() {
               completedAt: t.completed_at ?? null,
               lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
               scheduledForTitle: hr ? hr.title : undefined,
-              scheduledForDate: (() => {
-                if (hr?.status !== "scheduled" || !hr.scheduled_for) return null;
-                const today = new Date(); today.setHours(0, 0, 0, 0);
-                return new Date(hr.scheduled_for) >= today ? hr.scheduled_for : null;
-              })(),
+              scheduledForDate: hr?.scheduled_for ?? null,
               homeroomId: t.homeroom_id,
               homeroomStatus: hr?.status ?? null,
             };
@@ -502,7 +498,7 @@ export default function ListPage() {
                                 {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                               </span>
                             )}
-                            {t.scheduledForDate && t.scheduledForTitle && (
+                            {t.scheduledForDate && t.scheduledForTitle && t.homeroomStatus !== "active" && (
                               <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#FEF9C3", color: "#92400E" }}>
                                 {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                               </span>
