@@ -47,7 +47,8 @@ export default function StartPage() {
   const [error, setError] = useState("");
   const [carryForward, setCarryForward] = useState<{ id: string; text: string }[]>([]);
 
-  const todayStr = new Date().toISOString().slice(0, 10);
+  const now = new Date();
+  const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
 
   useEffect(() => {
     try {
@@ -160,7 +161,7 @@ export default function StartPage() {
       const h24 = schedulePeriod === "PM"
         ? (parseInt(scheduleHour) % 12) + 12
         : parseInt(scheduleHour) % 12;
-      scheduledFor = `${scheduleDate}T${String(h24).padStart(2,"0")}:${scheduleMinute.padStart(2,"0") || "00"}:00`;
+      scheduledFor = new Date(`${scheduleDate}T${String(h24).padStart(2,"0")}:${scheduleMinute.padStart(2,"0") || "00"}:00`).toISOString();
     }
 
     const isLive = scheduleMode === "now";
