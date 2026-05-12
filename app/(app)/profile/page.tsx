@@ -371,8 +371,15 @@ export default function ProfilePage() {
   async function leaveSquad(squadId: string) {
     const { error } = await supabase.from("squad_members").delete().eq("squad_id", squadId).eq("username", username);
     if (error) { console.error("leaveSquad delete failed:", error.message, error.code); return; }
-    const squad = mySquads.find((s) => s.id === squadId);
-    if (squad) await supabase.from("squads").update({ member_count: Math.max(0, squad.members - 1) }).eq("id", squadId);
+    const { count: remaining } = await supabase
+      .from("squad_members")
+      .select("username", { count: "exact", head: true })
+      .eq("squad_id", squadId);
+    if ((remaining ?? 0) === 0) {
+      await supabase.from("squads").delete().eq("id", squadId);
+    } else {
+      await supabase.from("squads").update({ member_count: remaining }).eq("id", squadId);
+    }
     setMySquads((prev) => prev.filter((s) => s.id !== squadId));
     setJoinedSquads((prev) => prev.filter((id) => id !== squadId));
   }
