@@ -125,15 +125,44 @@ export default function ProfilePage() {
   const [newSquadEmoji, setNewSquadEmoji]     = useState("🏆");
   const [newSquadPrivate, setNewSquadPrivate] = useState(false);
 
-  const [removingId, setRemovingId] = useState<string | null>(null);
-  const [revealedId, setRevealedId] = useState<string | null>(null);
-  const longPressRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const SWIPE_W = 80;
+  const SWIPE_W_SQUAD = 160;
+  const [swipedId, setSwipedId] = useState<string | null>(null);
+  const [liveSwipe, setLiveSwipe] = useState<{ id: string; offset: number } | null>(null);
+  const swipeRef = useRef<{ id: string; x: number; y: number; isH: boolean | null } | null>(null);
 
-  function startLongPress(id: string) {
-    longPressRef.current = setTimeout(() => setRevealedId(id), 400);
+  function onSwipeTouchStart(e: React.TouchEvent, id: string) {
+    if (swipedId && swipedId !== id) setSwipedId(null);
+    swipeRef.current = { id, x: e.touches[0].clientX, y: e.touches[0].clientY, isH: null };
   }
-  function endLongPress() {
-    if (longPressRef.current) { clearTimeout(longPressRef.current); longPressRef.current = null; }
+  function onSwipeTouchMove(e: React.TouchEvent) {
+    const s = swipeRef.current;
+    if (!s) return;
+    const dx = e.touches[0].clientX - s.x;
+    const dy = e.touches[0].clientY - s.y;
+    if (s.isH === null) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) swipeRef.current = { ...s, isH: true };
+      else if (Math.abs(dy) > 8) { swipeRef.current = null; return; }
+    }
+    if (!swipeRef.current?.isH) return;
+    const actionW = SWIPE_W;
+    const base = swipedId === s.id ? -actionW : 0;
+    const offset = Math.min(0, Math.max(-(actionW * 1.5), base + dx));
+    setLiveSwipe({ id: s.id, offset });
+  }
+  function onSwipeTouchEnd(id: string, actionW = SWIPE_W) {
+    const s = swipeRef.current;
+    if (!s?.isH) { swipeRef.current = null; return; }
+    const offset = liveSwipe?.id === s.id ? liveSwipe.offset : (swipedId === s.id ? -actionW : 0);
+    swipeRef.current = null;
+    setLiveSwipe(null);
+    if (offset < -(actionW * 0.4)) { setSwipedId(id); return; }
+    if (swipedId === s.id) { setSwipedId(null); return; }
+  }
+  function rowOffset(id: string, actionW = SWIPE_W): number {
+    if (liveSwipe?.id === id) return liveSwipe.offset;
+    if (swipedId === id) return -actionW;
+    return 0;
   }
 
   const [inviteSquadId, setInviteSquadId]         = useState<string | null>(null);
@@ -480,7 +509,16 @@ export default function ProfilePage() {
       .delete()
       .or(`and(from_username.eq.${username},to_username.eq.${friend.username}),and(from_username.eq.${friend.username},to_username.eq.${username})`);
     setFriends((prev) => prev.filter((f) => f.id !== id));
-    setRemovingId(null);
+    setSwipedId(null);
+  }
+
+  async function deleteSessionHistory(id: string) {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase.from("homeroom_participants").delete().eq("homeroom_id", id).eq("user_id", user.id);
+    }
+    setSessionHistory(prev => prev.filter(s => s.id !== id));
+    setSwipedId(null);
   }
 
   async function leaveSquad(squadId: string) {
@@ -670,30 +708,35 @@ export default function ProfilePage() {
           </button>
           {squadsExpanded && <div className="space-y-2">
             {allSquads.filter((s) => joinedSquads.includes(s.id)).map((squad) => (
-              <div key={squad.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3">
-                <span className="text-xl flex-shrink-0">{squad.emoji}</span>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-charcoal truncate">{squad.name}</p>
-                    <span className="text-warm-gray flex-shrink-0">
-                      {squad.isPublic ? <GlobeIcon /> : <LockIcon />}
-                    </span>
-                  </div>
-                  <p className="text-xs text-warm-gray">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
+              <div key={squad.id} className="relative rounded-2xl overflow-hidden">
+                <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_W_SQUAD, borderRadius: "16px 0 0 16px", overflow: "hidden" }}>
+                  <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#7C3AED" }}
+                    onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); setSwipedId(null); }}>
+                    Invite
+                  </button>
+                  <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#EF4444" }}
+                    onClick={() => leaveSquad(squad.id)}>
+                    Leave
+                  </button>
                 </div>
-                <button
-                  onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); }}
-                  className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0 transition-colors"
-                  style={{ background: "#7C3AED", color: "white" }}
+                <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                  style={{
+                    transform: `translateX(${rowOffset(squad.id, SWIPE_W_SQUAD)}px)`,
+                    transition: liveSwipe?.id === squad.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                  }}
+                  onTouchStart={(e) => onSwipeTouchStart(e, squad.id)}
+                  onTouchMove={onSwipeTouchMove}
+                  onTouchEnd={() => onSwipeTouchEnd(squad.id, SWIPE_W_SQUAD)}
                 >
-                  Invite
-                </button>
-                <button
-                  onClick={() => leaveSquad(squad.id)}
-                  className="text-xs text-warm-gray hover:text-red-400 transition-colors flex-shrink-0"
-                >
-                  Leave
-                </button>
+                  <span className="text-xl flex-shrink-0">{squad.emoji}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-charcoal truncate">{squad.name}</p>
+                      <span className="text-warm-gray flex-shrink-0">{squad.isPublic ? <GlobeIcon /> : <LockIcon />}</span>
+                    </div>
+                    <p className="text-xs text-warm-gray">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>}
@@ -773,30 +816,31 @@ export default function ProfilePage() {
           <h2 className="text-sm font-semibold text-charcoal mb-3">Sent · {outgoingRequests.length}</h2>
           <div className="space-y-2">
             {outgoingRequests.map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group"
-                onTouchStart={() => startLongPress(f.id)}
-                onTouchEnd={endLongPress}
-                onTouchMove={endLongPress}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                  style={{ background: f.color }}
-                >
-                  {f.initials}
+              <div key={f.id} className="relative rounded-2xl overflow-hidden">
+                <div className="absolute inset-y-0 right-0 flex items-center justify-center"
+                  style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
+                  <button className="w-full h-full text-white text-sm font-semibold" onClick={() => cancelRequest(f.id)}>
+                    Cancel
+                  </button>
                 </div>
-                <div className="flex-1 min-w-0">
-                  <p className="text-sm font-semibold text-charcoal">{f.name}</p>
-                  <p className="text-xs text-warm-gray">@{f.username}</p>
-                </div>
-                <span className="text-xs text-warm-gray border border-gray-200 rounded-full px-2.5 py-1 flex-shrink-0">Requested</span>
-                <button
-                  onClick={() => { cancelRequest(f.id); setRevealedId(null); }}
-                  className={`text-xs text-warm-gray hover:text-red-400 transition-all flex-shrink-0 ${revealedId === f.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
+                <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                  style={{
+                    transform: `translateX(${rowOffset(f.id)}px)`,
+                    transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                  }}
+                  onTouchStart={(e) => onSwipeTouchStart(e, f.id)}
+                  onTouchMove={onSwipeTouchMove}
+                  onTouchEnd={() => onSwipeTouchEnd(f.id)}
                 >
-                  Cancel
-                </button>
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
+                    {f.initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-charcoal">{f.name}</p>
+                    <p className="text-xs text-warm-gray">@{f.username}</p>
+                  </div>
+                  <span className="text-xs text-warm-gray border border-gray-200 rounded-full px-2.5 py-1 flex-shrink-0">Requested</span>
+                </div>
               </div>
             ))}
           </div>
@@ -819,42 +863,35 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-2">
             {friends.map((f) => (
-              <div
-                key={f.id}
-                className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3 group"
-                onTouchStart={() => startLongPress(f.id)}
-                onTouchEnd={endLongPress}
-                onTouchMove={endLongPress}
-              >
-                <div
-                  className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                  style={{ background: f.color }}
-                >
-                  {f.initials}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <p className="text-sm font-semibold text-charcoal">{f.name}</p>
-                    {onlineUsernames.has(f.username) && (
-                      <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#22C55E" }} />
-                    )}
-                  </div>
-                  <p className="text-xs text-warm-gray">@{f.username}</p>
-                </div>
-                {removingId === f.id ? (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs text-warm-gray">Remove?</span>
-                    <button onClick={() => removeFriend(f.id)} className="text-xs font-semibold text-red-500 hover:text-red-600">Yes</button>
-                    <button onClick={() => setRemovingId(null)} className="text-xs text-warm-gray hover:text-charcoal">No</button>
-                  </div>
-                ) : (
-                  <button
-                    onClick={() => { setRemovingId(f.id); setRevealedId(null); }}
-                    className={`text-xs text-warm-gray hover:text-red-400 transition-all ${revealedId === f.id ? "opacity-100" : "opacity-0 group-hover:opacity-100"}`}
-                  >
+              <div key={f.id} className="relative rounded-2xl overflow-hidden">
+                <div className="absolute inset-y-0 right-0 flex items-center justify-center"
+                  style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
+                  <button className="w-full h-full text-white text-sm font-semibold" onClick={() => removeFriend(f.id)}>
                     Remove
                   </button>
-                )}
+                </div>
+                <div className="flex items-center gap-3 bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                  style={{
+                    transform: `translateX(${rowOffset(f.id)}px)`,
+                    transition: liveSwipe?.id === f.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                  }}
+                  onTouchStart={(e) => onSwipeTouchStart(e, f.id)}
+                  onTouchMove={onSwipeTouchMove}
+                  onTouchEnd={() => onSwipeTouchEnd(f.id)}
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
+                    {f.initials}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-1.5">
+                      <p className="text-sm font-semibold text-charcoal">{f.name}</p>
+                      {onlineUsernames.has(f.username) && (
+                        <span className="w-2 h-2 rounded-full flex-shrink-0" style={{ background: "#22C55E" }} />
+                      )}
+                    </div>
+                    <p className="text-xs text-warm-gray">@{f.username}</p>
+                  </div>
+                </div>
               </div>
             ))}
           </div>
@@ -880,43 +917,59 @@ export default function ProfilePage() {
             const visible = s.participants.slice(0, SHOW);
             const overflow = s.participants.length - SHOW;
             return (
-              <div key={s.id} className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
-                <div className="flex items-start justify-between gap-2 mb-2">
-                  <p className="text-sm font-semibold text-charcoal leading-snug flex-1 min-w-0">{s.title}</p>
-                  <span className="text-xs text-warm-gray whitespace-nowrap flex-shrink-0">{formatSessionDate(s.endedAt)}</span>
+              <div key={s.id} className="relative rounded-2xl overflow-hidden">
+                <div className="absolute inset-y-0 right-0 flex items-center justify-center"
+                  style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
+                  <button className="w-full h-full text-white text-sm font-semibold" onClick={() => deleteSessionHistory(s.id)}>
+                    Delete
+                  </button>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {s.durationMin > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
-                      ⏱ {formatDuration(s.durationMin)}
+                <div className="bg-white border border-gray-100 rounded-2xl px-4 py-3"
+                  style={{
+                    transform: `translateX(${rowOffset(s.id)}px)`,
+                    transition: liveSwipe?.id === s.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                  }}
+                  onTouchStart={(e) => onSwipeTouchStart(e, s.id)}
+                  onTouchMove={onSwipeTouchMove}
+                  onTouchEnd={() => onSwipeTouchEnd(s.id)}
+                >
+                  <div className="flex items-start justify-between gap-2 mb-2">
+                    <p className="text-sm font-semibold text-charcoal leading-snug flex-1 min-w-0">{s.title}</p>
+                    <span className="text-xs text-warm-gray whitespace-nowrap flex-shrink-0">{formatSessionDate(s.endedAt)}</span>
+                  </div>
+                  <div className="flex flex-wrap items-center gap-2">
+                    {s.durationMin > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                        ⏱ {formatDuration(s.durationMin)}
+                      </span>
+                    )}
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                      ✓ {s.tasksCompleted} done
                     </span>
-                  )}
-                  <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#ECFDF5", color: "#065F46" }}>
-                    ✓ {s.tasksCompleted} done
-                  </span>
-                  {s.tasksNotCompleted > 0 && (
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#F3F4F6", color: "#6B7280" }}>
-                      {s.tasksNotCompleted} left
-                    </span>
-                  )}
-                </div>
-                {s.participants.length > 0 && (
-                  <div className="flex items-center gap-1.5 mt-2">
-                    {visible.map(uname => (
-                      <div key={uname} className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
-                        style={{ background: colorFromUsername(uname) }} title={uname}>
-                        {uname.slice(0, 2).toUpperCase()}
-                      </div>
-                    ))}
-                    {overflow > 0 && (
-                      <button
-                        onClick={() => { setHistoryPopup({ title: s.title, participants: s.participants }); setHistoryPopupSearch(""); }}
-                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold border"
-                        style={{ background: "#F3F4F6", color: "#6B7280", borderColor: "#E5E7EB" }}
-                      >+{overflow}</button>
+                    {s.tasksNotCompleted > 0 && (
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#F3F4F6", color: "#6B7280" }}>
+                        {s.tasksNotCompleted} left
+                      </span>
                     )}
                   </div>
-                )}
+                  {s.participants.length > 0 && (
+                    <div className="flex items-center gap-1.5 mt-2">
+                      {visible.map(uname => (
+                        <div key={uname} className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                          style={{ background: colorFromUsername(uname) }} title={uname}>
+                          {uname.slice(0, 2).toUpperCase()}
+                        </div>
+                      ))}
+                      {overflow > 0 && (
+                        <button
+                          onClick={() => { setHistoryPopup({ title: s.title, participants: s.participants }); setHistoryPopupSearch(""); }}
+                          className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold border"
+                          style={{ background: "#F3F4F6", color: "#6B7280", borderColor: "#E5E7EB" }}
+                        >+{overflow}</button>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             );
           })}
