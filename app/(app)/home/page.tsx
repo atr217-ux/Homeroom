@@ -447,6 +447,7 @@ export default function HomePage() {
   const [publicScheduled, setPublicScheduled] = useState<PublicScheduledSession[]>([]);
   const [userSquads, setUserSquads] = useState<UserSquad[]>([]);
   const [squadFilter, setSquadFilter] = useState<string | null>(null);
+  const [friendsFilter, setFriendsFilter] = useState(false);
   const [pubSchedDateFilter, setPubSchedDateFilter] = useState<string | null>(null);
   const [savedSessionIds, setSavedSessionIds] = useState<Set<string>>(new Set());
 
@@ -1417,16 +1418,26 @@ export default function HomePage() {
         </div>
       )}
 
-      {/* Squad filter chips */}
-      {userSquads.length > 0 && (
+      {/* Filter chips */}
+      {(userSquads.length > 0 || friends.length > 0) && (
         <div className="mb-4 flex flex-wrap gap-2">
           <button
-            onClick={() => setSquadFilter(null)}
+            onClick={() => { setSquadFilter(null); setFriendsFilter(false); }}
             className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-            style={squadFilter === null ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+            style={squadFilter === null && !friendsFilter ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
           >
             All
           </button>
+          {friends.length > 0 && (
+            <button
+              onClick={() => setFriendsFilter(f => !f)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+              style={friendsFilter ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+            >
+              <span>👥</span>
+              <span>Friends</span>
+            </button>
+          )}
           {userSquads.map((sq) => (
             <button
               key={sq.id}
@@ -1554,9 +1565,14 @@ export default function HomePage() {
           {/* Other active rooms */}
           {(() => {
             const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
+            const friendUsernames = new Set(friends.map(f => f.name));
             const filtered = publicRooms.filter(r => {
               if (r.id === ownRoomId) return false;
               if (squadFilter && !r.squad_tags.includes(squadFilter)) return false;
+              if (friendsFilter) {
+                const participants = roomParticipants[r.id] ?? [];
+                if (!participants.some(u => friendUsernames.has(u))) return false;
+              }
               // Hide rooms whose timer has expired — mark them completed in the background
               if (r.duration > 0) {
                 const elapsed = (Date.now() - new Date(r.started_at).getTime()) / 1000;
@@ -1666,7 +1682,12 @@ export default function HomePage() {
 
       {/* Public scheduled sessions */}
       {(() => {
-        const filtered = publicScheduled.filter(s => !squadFilter || s.squad_tags.includes(squadFilter));
+        const friendIds = new Set(friends.map(f => f.id));
+        const filtered = publicScheduled.filter(s => {
+          if (squadFilter && !s.squad_tags.includes(squadFilter)) return false;
+          if (friendsFilter && !friendIds.has(s.created_by)) return false;
+          return true;
+        });
         const dateFiltered = pubSchedDateFilter
           ? filtered.filter(s => s.scheduled_for.startsWith(pubSchedDateFilter))
           : filtered;
