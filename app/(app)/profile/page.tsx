@@ -18,6 +18,7 @@ function colorFromUsername(u: string): string {
 }
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string };
+type SquadMember = { username: string; isOnline: boolean; isFriend: boolean };
 type Squad = { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean; invite_code?: string };
 type TaskDetail = { text: string; done: boolean };
 type SessionHistoryEntry = {
@@ -115,6 +116,10 @@ export default function ProfilePage() {
   const [historyPopup, setHistoryPopup] = useState<{ title: string; participants: string[] } | null>(null);
   const [historyPopupSearch, setHistoryPopupSearch] = useState("");
   const [sessionDetailPopup, setSessionDetailPopup] = useState<SessionHistoryEntry | null>(null);
+  const [squadDetailPopup, setSquadDetailPopup] = useState<{ squad: Squad; members: SquadMember[] } | null>(null);
+  const [squadDetailSearch, setSquadDetailSearch] = useState("");
+  const [squadDetailFriendsOnly, setSquadDetailFriendsOnly] = useState(false);
+  const [squadDetailLoading, setSquadDetailLoading] = useState(false);
   const didSwipeRef = useRef(false);
   const [squadsExpanded, setSquadsExpanded] = useState(true);
   const [friendsExpanded, setFriendsExpanded] = useState(true);
@@ -319,6 +324,35 @@ export default function ProfilePage() {
         };
       });
     setSessionHistory(entries);
+  }
+
+  async function openSquadDetail(squad: Squad) {
+    setSquadDetailSearch("");
+    setSquadDetailFriendsOnly(false);
+    setSquadDetailLoading(true);
+    setSquadDetailPopup({ squad, members: [] });
+
+    const { data: memberRows } = await supabase
+      .from("squad_members").select("username").eq("squad_id", squad.id);
+    const usernames = (memberRows ?? []).map((r: any) => r.username as string);
+
+    const cutoff = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const { data: onlineData } = usernames.length > 0
+      ? await supabase.from("profiles").select("username").in("username", usernames).gte("last_seen", cutoff)
+      : { data: [] };
+    const onlineSet = new Set((onlineData ?? []).map((p: any) => p.username as string));
+    const friendSet = new Set(friends.map(f => f.username));
+
+    const members: SquadMember[] = usernames
+      .map(u => ({ username: u, isOnline: onlineSet.has(u), isFriend: friendSet.has(u) }))
+      .sort((a, b) => {
+        if (a.isFriend !== b.isFriend) return a.isFriend ? -1 : 1;
+        if (a.isOnline !== b.isOnline) return a.isOnline ? -1 : 1;
+        return a.username.localeCompare(b.username);
+      });
+
+    setSquadDetailPopup({ squad, members });
+    setSquadDetailLoading(false);
   }
 
   async function loadPublicSquads() {
@@ -734,6 +768,11 @@ export default function ProfilePage() {
                   onTouchStart={(e) => onSwipeTouchStart(e, squad.id)}
                   onTouchMove={onSwipeTouchMove}
                   onTouchEnd={() => onSwipeTouchEnd(squad.id, SWIPE_W_SQUAD)}
+                  onClick={() => {
+                    if (didSwipeRef.current) return;
+                    if (swipedId === squad.id) { setSwipedId(null); return; }
+                    openSquadDetail(squad);
+                  }}
                 >
                   <span className="text-xl flex-shrink-0">{squad.emoji}</span>
                   <div className="flex-1 min-w-0">
@@ -1014,6 +1053,79 @@ export default function ProfilePage() {
                     <span className="text-sm text-charcoal">{uname}</span>
                   </div>
                 ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Squad detail popup */}
+      {squadDetailPopup && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setSquadDetailPopup(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-xl max-h-[80vh] flex flex-col">
+            <div className="flex items-start justify-between px-5 pt-5 pb-3 flex-shrink-0">
+              <div className="flex items-center gap-2.5 flex-1 min-w-0 pr-3">
+                <span className="text-2xl flex-shrink-0">{squadDetailPopup.squad.emoji}</span>
+                <div className="min-w-0">
+                  <h2 className="font-bold text-charcoal text-base leading-snug truncate">{squadDetailPopup.squad.name}</h2>
+                  <p className="text-xs text-warm-gray">{squadDetailPopup.squad.members} member{squadDetailPopup.squad.members !== 1 ? "s" : ""}</p>
+                </div>
+              </div>
+              <button onClick={() => setSquadDetailPopup(null)} className="text-warm-gray hover:text-charcoal p-1 flex-shrink-0"><XIcon /></button>
+            </div>
+            <div className="px-5 pb-3 flex-shrink-0 space-y-2">
+              <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2">
+                <span className="text-warm-gray"><SearchIcon /></span>
+                <input
+                  type="text"
+                  value={squadDetailSearch}
+                  onChange={e => setSquadDetailSearch(e.target.value)}
+                  placeholder="Search members…"
+                  className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
+                />
+              </div>
+              <button
+                onClick={() => setSquadDetailFriendsOnly(v => !v)}
+                className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors"
+                style={squadDetailFriendsOnly
+                  ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
+                  : { background: "white", color: "#78716C", borderColor: "#E5E7EB" }}
+              >
+                👥 Friends only
+              </button>
+            </div>
+            <div className="overflow-y-auto px-5 pb-5 flex-1">
+              {squadDetailLoading ? (
+                <p className="text-sm text-warm-gray text-center py-6">Loading…</p>
+              ) : (() => {
+                const filtered = squadDetailPopup.members.filter(m => {
+                  if (squadDetailFriendsOnly && !m.isFriend) return false;
+                  if (squadDetailSearch && !m.username.toLowerCase().includes(squadDetailSearch.toLowerCase())) return false;
+                  return true;
+                });
+                if (filtered.length === 0) return <p className="text-sm text-warm-gray text-center py-6">No members found.</p>;
+                return (
+                  <div className="space-y-2">
+                    {filtered.map(m => (
+                      <div key={m.username} className="flex items-center gap-3 py-1.5">
+                        <div className="relative flex-shrink-0">
+                          <div className="w-9 h-9 rounded-full flex items-center justify-center text-white text-xs font-semibold"
+                            style={{ background: colorFromUsername(m.username) }}>
+                            {m.username.slice(0, 2).toUpperCase()}
+                          </div>
+                          {m.isOnline && (
+                            <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2 border-white" style={{ background: "#22C55E" }} />
+                          )}
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm font-semibold text-charcoal truncate">{m.username}</p>
+                          {m.isFriend && <p className="text-xs text-warm-gray">Friend</p>}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         </div>
