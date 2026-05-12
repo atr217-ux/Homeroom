@@ -349,10 +349,10 @@ export default function ListPage() {
           </div>
           <div className="flex gap-2">
             <Link href="/home" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-black transition-colors">
-              Join a Homeroom
+              Find a Room
             </Link>
             <Link href="/start" className="flex-1 bg-charcoal text-white font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 hover:bg-black transition-colors">
-              Start a Homeroom
+              Host a Room
             </Link>
           </div>
         </div>
