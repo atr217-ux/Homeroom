@@ -112,6 +112,9 @@ export default function ProfilePage() {
   const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>([]);
   const [historyPopup, setHistoryPopup] = useState<{ title: string; participants: string[] } | null>(null);
   const [historyPopupSearch, setHistoryPopupSearch] = useState("");
+  const [squadsExpanded, setSquadsExpanded] = useState(true);
+  const [friendsExpanded, setFriendsExpanded] = useState(true);
+  const [historyExpanded, setHistoryExpanded] = useState(false);
 
   const [showSquads, setShowSquads]         = useState(false);
   const [squadSearch, setSquadSearch]       = useState("");
@@ -658,8 +661,14 @@ export default function ProfilePage() {
       {/* My squads */}
       {(joinedSquads.length > 0) && (
         <div className="mb-6">
-          <h2 className="text-sm font-semibold text-charcoal mb-3">My Squads</h2>
-          <div className="space-y-2">
+          <button onClick={() => setSquadsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-charcoal">My Squads · {allSquads.filter(s => joinedSquads.includes(s.id)).length}</h2>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ transform: squadsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {squadsExpanded && <div className="space-y-2">
             {allSquads.filter((s) => joinedSquads.includes(s.id)).map((squad) => (
               <div key={squad.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3">
                 <span className="text-xl flex-shrink-0">{squad.emoji}</span>
@@ -687,7 +696,7 @@ export default function ProfilePage() {
                 </button>
               </div>
             ))}
-          </div>
+          </div>}
         </div>
       )}
 
@@ -796,10 +805,14 @@ export default function ProfilePage() {
 
       {/* Friends */}
       <div className="mb-6">
-        <div className="flex items-center justify-between mb-3">
+        <button onClick={() => setFriendsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-charcoal">Friends · {friends.length}</h2>
-        </div>
-        {friends.length === 0 ? (
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transform: friendsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        {friendsExpanded && (friends.length === 0 ? (
           <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
             No friends yet. Find some above!
           </div>
@@ -845,12 +858,18 @@ export default function ProfilePage() {
               </div>
             ))}
           </div>
-        )}
+        ))}
       </div>
 
       {/* Session history */}
-      <h2 className="text-sm font-semibold text-charcoal mb-3">Session History</h2>
-      {sessionHistory.length === 0 ? (
+      <button onClick={() => setHistoryExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
+        <h2 className="text-sm font-semibold text-charcoal">Session History{sessionHistory.length > 0 ? ` · ${sessionHistory.length}` : ""}</h2>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          style={{ transform: historyExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+          <polyline points="6 9 12 15 18 9" />
+        </svg>
+      </button>
+      {historyExpanded && (sessionHistory.length === 0 ? (
         <div className="text-center py-8 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
           No sessions yet.
         </div>
@@ -902,7 +921,7 @@ export default function ProfilePage() {
             );
           })}
         </div>
-      )}
+      ))}
 
       {/* Participants popup */}
       {historyPopup && (
