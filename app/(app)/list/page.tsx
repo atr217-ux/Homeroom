@@ -443,7 +443,7 @@ export default function ListPage() {
                 style={showScrollable ? { maxHeight: "480px" } : {}}
               >
                 {visibleActive.map((t) => (
-                  <div key={t.id} className="relative rounded-2xl overflow-hidden">
+                  <div key={t.id} className="relative rounded-2xl overflow-hidden bg-white">
                     {/* Swipe-revealed delete */}
                     <div
                       className="absolute inset-y-0 right-0 flex items-center justify-center"
@@ -548,7 +548,7 @@ export default function ListPage() {
                     </svg>
                   </button>
                   {doneExpanded && done.map((t) => (
-                    <div key={t.id} className="relative rounded-2xl overflow-hidden mb-2">
+                    <div key={t.id} className="relative rounded-2xl overflow-hidden mb-2 bg-white">
                       {/* Swipe-revealed delete */}
                       <div
                         className="absolute inset-y-0 right-0 flex items-center justify-center"
