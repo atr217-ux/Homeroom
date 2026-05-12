@@ -181,6 +181,22 @@ export default function RoomPage() {
         invitedFriends,
       });
 
+      // Load all participants who have joined this session
+      const { data: participantRows } = await supabase
+        .from("homeroom_participants")
+        .select("user_id, profiles(username, avatar)")
+        .eq("homeroom_id", homeroomId);
+      if (participantRows) {
+        const myId = (await supabase.auth.getUser()).data.user?.id;
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const others = (participantRows as any[]).filter(r => r.user_id !== myId).map(r => ({
+          userId: r.user_id as string,
+          username: (Array.isArray(r.profiles) ? r.profiles[0]?.username : r.profiles?.username) as string ?? "",
+          avatar: (Array.isArray(r.profiles) ? r.profiles[0]?.avatar : r.profiles?.avatar) as string ?? "",
+        })).filter(p => p.username);
+        setDbParticipants(others);
+      }
+
       // Load tasks
       const { data: taskData } = await supabase
         .from("tasks")
@@ -245,10 +261,8 @@ export default function RoomPage() {
           return [...prev, { userId: "", username: payload.username, avatar: payload.avatar ?? "" }];
         });
       })
-      .on("broadcast", { event: "user-left" }, ({ payload }) => {
-        if (!payload.username) return;
-        setDbParticipants((prev) => prev.filter(p => p.username !== payload.username));
-        setParticipantData((prev) => { const n = { ...prev }; delete n[payload.username]; return n; });
+      .on("broadcast", { event: "user-left" }, () => {
+        // Card stays visible — presence sync handles the "Here now" dot
       })
       .on("broadcast", { event: "request-session-info" }, () => {
         const me = myUsernameRef.current || myUsername;
