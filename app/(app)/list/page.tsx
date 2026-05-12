@@ -554,7 +554,7 @@ export default function ListPage() {
                       </div>
                       {/* Row content */}
                       <div
-                        className="bg-white border border-gray-100 rounded-2xl px-3 py-2.5 flex items-start gap-2 group relative opacity-60"
+                        className="bg-white border border-gray-100 rounded-2xl px-3 py-2.5 flex items-start gap-2 group relative"
                         style={{
                           transform: `translateX(${rowOffset(t.id)}px)`,
                           transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
@@ -563,6 +563,7 @@ export default function ListPage() {
                         onTouchMove={onRowTouchMove}
                         onTouchEnd={() => onRowTouchEnd(t.id, t.text)}
                       >
+                      <div className="flex items-start gap-2 flex-1 min-w-0 opacity-60">
                       <button
                         onClick={() => toggleTask(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
@@ -589,6 +590,7 @@ export default function ListPage() {
                             <TrashIcon />
                           </button>
                         </div>
+                      </div>
                       </div>
                     </div>
                   ))}
