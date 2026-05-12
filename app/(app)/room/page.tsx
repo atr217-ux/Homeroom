@@ -36,6 +36,7 @@ function formatTime(seconds: number): string {
 }
 
 export default function RoomPage() {
+  const [loading, setLoading] = useState(true);
   const [myUsername, setMyUsername] = useState("You");
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const myUsernameRef = useRef<string>("");
@@ -106,7 +107,7 @@ export default function RoomPage() {
 
   useEffect(() => {
     const homeroomId = new URLSearchParams(window.location.search).get("id");
-    if (!homeroomId) return;
+    if (!homeroomId) { setLoading(false); return; }
 
     const local = localStorage.getItem("homeroom-username");
     if (local) { myUsernameRef.current = local; setMyUsername(local); }
@@ -129,7 +130,7 @@ export default function RoomPage() {
 
     (async () => {
       const { data: homeroom } = await supabase.from("homerooms").select("*").eq("id", homeroomId).single();
-      if (!homeroom) return;
+      if (!homeroom) { setLoading(false); return; }
 
       // If room already ended, load tasks then show end popup immediately
       if (homeroom.status === "completed") {
@@ -144,6 +145,7 @@ export default function RoomPage() {
         if (taskData) setTasks(taskData.map(t => ({ id: t.id, text: t.text, done: t.done, timeSpent: t.time_spent ?? 0, startedAt: null })));
         timerEndedRef.current = true;
         setShowSummary(true);
+        setLoading(false);
         return;
       }
 
@@ -196,16 +198,26 @@ export default function RoomPage() {
         tasksInitializedRef.current = true;
       }
 
-      // Restore chat
-      try {
-        const savedChat = localStorage.getItem(`homeroom-chat-${homeroom.id}`);
-        if (savedChat) {
-          setChatMessages(
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            JSON.parse(savedChat).map((m: any) => ({ ...m, time: new Date(m.time) }))
-          );
-        }
-      } catch { /* ignore */ }
+      // Load chat from DB
+      const { data: msgData } = await supabase
+        .from("homeroom_messages")
+        .select("id, sender, text, type, created_at")
+        .eq("homeroom_id", homeroomId)
+        .order("created_at", { ascending: true });
+      if (msgData) {
+        setChatMessages(
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          msgData.map((m: any) => ({
+            id: m.id,
+            type: m.type as "chat" | "activity",
+            text: m.text,
+            sender: m.sender,
+            time: new Date(m.created_at),
+            reactions: [],
+          }))
+        );
+      }
+      setLoading(false);
     })();
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -249,25 +261,6 @@ export default function RoomPage() {
             tasks: tasksRef.current.map((t) => ({ id: t.id, text: t.text, done: t.done })),
             sharing: showTodosRef.current,
           },
-        });
-        const history = chatMessagesRef.current;
-        if (history.length > 0) {
-          channel.send({
-            type: "broadcast", event: "chat-history",
-            payload: { messages: history.map(m => ({ ...m, time: m.time.toISOString() })) },
-          });
-        }
-      })
-      .on("broadcast", { event: "chat-history" }, ({ payload }) => {
-        if (!payload.messages?.length) return;
-        setChatMessages(prev => {
-          const existingIds = new Set(prev.map((m: { id: string }) => m.id));
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const incoming = (payload.messages as any[])
-            .filter(m => !existingIds.has(m.id))
-            .map(m => ({ ...m, time: new Date(m.time) }));
-          if (!incoming.length) return prev;
-          return [...prev, ...incoming].sort((a, b) => a.time.getTime() - b.time.getTime());
         });
       })
       .on("broadcast", { event: "session-ended" }, () => {
@@ -346,11 +339,18 @@ export default function RoomPage() {
     if (!task) return;
     const timeSpent = getElapsed(task);
     const nowDone = !task.done;
+    const supabase = createClient();
 
     if (nowDone) {
       const activityMsg = { id: crypto.randomUUID(), type: "activity" as const, text: task.text, sender: myUsernameRef.current || myUsername, time: new Date(), reactions: [] };
       setChatMessages((prev) => [...prev, activityMsg]);
       realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...activityMsg, time: activityMsg.time.toISOString() } });
+      if (session?.homeroomId) {
+        supabase.from("homeroom_messages").insert({
+          id: activityMsg.id, homeroom_id: session.homeroomId, sender: activityMsg.sender,
+          text: activityMsg.text, type: "activity", created_at: activityMsg.time.toISOString(),
+        }).then(() => {});
+      }
 
       // Save to task history for autocomplete
       try {
@@ -364,7 +364,6 @@ export default function RoomPage() {
     }
 
     // Write to DB
-    const supabase = createClient();
     await supabase.from("tasks").update({
       done: nowDone,
       time_spent: timeSpent,
@@ -552,12 +551,6 @@ export default function RoomPage() {
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { chatMessagesRef.current = chatMessages; }, [chatMessages]);
 
-  // Persist chat keyed by homeroomId
-  useEffect(() => {
-    if (!session?.homeroomId) return;
-    try { localStorage.setItem(`homeroom-chat-${session.homeroomId}`, JSON.stringify(chatMessages)); } catch { /* ignore */ }
-  }, [chatMessages, session?.homeroomId]);
-
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
 
@@ -636,6 +629,14 @@ export default function RoomPage() {
       JSON.stringify(remaining.map((t) => ({ id: t.id, text: t.text })))
     );
     window.location.href = "/start";
+  }
+
+  if (loading) {
+    return (
+      <div className="max-w-2xl mx-auto px-4 flex items-center justify-center min-h-[70vh]">
+        <div className="w-8 h-8 rounded-full border-2 border-gray-200 border-t-sage animate-spin" />
+      </div>
+    );
   }
 
   if (!session) {
@@ -1018,6 +1019,10 @@ export default function RoomPage() {
                       const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
                       setChatMessages((prev) => [...prev, msg]);
                       realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
+                      if (session?.homeroomId) {
+                        const supabase = createClient();
+                        supabase.from("homeroom_messages").insert({ id: msg.id, homeroom_id: session.homeroomId, sender: msg.sender, text: msg.text, type: "chat", created_at: msg.time.toISOString() }).then(() => {});
+                      }
                       setChatInput("");
                     }
                   }}
@@ -1031,6 +1036,10 @@ export default function RoomPage() {
                     const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
                     setChatMessages((prev) => [...prev, msg]);
                     realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
+                    if (session?.homeroomId) {
+                      const supabase = createClient();
+                      supabase.from("homeroom_messages").insert({ id: msg.id, homeroom_id: session.homeroomId, sender: msg.sender, text: msg.text, type: "chat", created_at: msg.time.toISOString() }).then(() => {});
+                    }
                     setChatInput("");
                   }}
                   style={{ color: "#7C3AED" }}
@@ -1349,7 +1358,6 @@ export default function RoomPage() {
             ));
           }
           localStorage.removeItem("homeroom-active-id");
-          localStorage.removeItem(`homeroom-chat-${session!.homeroomId}`);
           window.location.href = "/home";
         }
 
