@@ -1021,9 +1021,9 @@ export default function ProfilePage() {
 
       {/* Session detail popup */}
       {sessionDetailPopup && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="absolute inset-0 bg-black/40" onClick={() => setSessionDetailPopup(null)} />
-          <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl max-h-[80vh] flex flex-col">
+          <div className="relative bg-white w-full max-w-sm rounded-3xl shadow-xl max-h-[80vh] flex flex-col">
             <div className="flex items-start justify-between px-5 pt-5 pb-3 flex-shrink-0">
               <div className="flex-1 min-w-0 pr-3">
                 <h2 className="font-bold text-charcoal text-base leading-snug">{sessionDetailPopup.title}</h2>
