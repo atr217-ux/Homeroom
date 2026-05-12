@@ -524,24 +524,30 @@ export default function StartPage() {
               return (
                 <button key={t.id}
                   onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
-                  className="w-full bg-white rounded-xl border px-3 py-2.5 flex items-center gap-2 hover:shadow-sm transition-all text-left"
+                  className="w-full bg-white rounded-xl border px-3 py-2.5 flex items-start gap-2 hover:shadow-sm transition-all text-left"
                   style={{ borderColor: checked ? "#7C3AED" : "#E5E7EB" }}>
-                  <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                  <div className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
                     style={checked ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
                     {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
-                  <span className="text-sm text-charcoal flex-1">{t.text}</span>
-                  {t.homeroomStatus === "active" && t.homeroomTitle && (
-                    <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
-                      <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                      {t.homeroomTitle}
-                    </span>
-                  )}
-                  {t.scheduledForDate && t.homeroomTitle && (
-                    <span className="text-xs px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
-                      {t.homeroomTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                    </span>
-                  )}
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-charcoal leading-snug">{t.text}</span>
+                    {(t.homeroomStatus === "active" && t.homeroomTitle) || (t.scheduledForDate && t.homeroomTitle) ? (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {t.homeroomStatus === "active" && t.homeroomTitle && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block" />
+                            {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle}
+                          </span>
+                        )}
+                        {t.scheduledForDate && t.homeroomTitle && (
+                          <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                            {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                          </span>
+                        )}
+                      </div>
+                    ) : null}
+                  </div>
                 </button>
               );
             })}
