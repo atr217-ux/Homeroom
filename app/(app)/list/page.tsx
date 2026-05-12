@@ -321,13 +321,12 @@ export default function ListPage() {
           if (bT === null) return -1;
           return sortDir === "desc" ? bT - aT : aT - bT;
         } else {
-          const aH = a.scheduledForTitle ?? null;
-          const bH = b.scheduledForTitle ?? null;
-          if (aH === null && bH === null) return 0;
-          if (aH === null) return 1;
-          if (bH === null) return -1;
-          const cmp = aH.localeCompare(bH);
-          return sortDir === "asc" ? cmp : -cmp;
+          const aD = a.scheduledForDate ? new Date(a.scheduledForDate).getTime() : null;
+          const bD = b.scheduledForDate ? new Date(b.scheduledForDate).getTime() : null;
+          if (aD === null && bD === null) return 0;
+          if (aD === null) return 1;
+          if (bD === null) return -1;
+          return sortDir === "asc" ? aD - bD : bD - aD;
         }
       });
 
