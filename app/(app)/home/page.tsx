@@ -656,7 +656,7 @@ export default function HomePage() {
         const inv: Invite[] = (pendingInvites as any[]).flatMap((row: any) => {
           const h = Array.isArray(row.homerooms) ? row.homerooms[0] : row.homerooms;
           const profile = fromProfiles?.find(p => p.id === row.from_user);
-          if (!h || !profile) return [];
+          if (!h || !profile || h.status === "completed") return [];
           const uname = profile.username;
           return [{
             id: row.id,
