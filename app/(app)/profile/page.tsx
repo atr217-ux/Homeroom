@@ -19,6 +19,33 @@ function colorFromUsername(u: string): string {
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string };
 type Squad = { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean; invite_code?: string };
+type SessionHistoryEntry = {
+  id: string;
+  title: string;
+  endedAt: string;
+  durationMin: number;
+  participants: string[];
+  tasksCompleted: number;
+  tasksNotCompleted: number;
+};
+
+function formatDuration(min: number): string {
+  if (min <= 0) return "";
+  if (min < 60) return `${min}m`;
+  const h = Math.floor(min / 60);
+  const m = min % 60;
+  return m > 0 ? `${h}h ${m}m` : `${h}h`;
+}
+
+function formatSessionDate(iso: string): string {
+  const d = new Date(iso);
+  const now = new Date();
+  const diffDays = Math.round((now.getTime() - d.getTime()) / 86400000);
+  if (diffDays === 0) return "Today";
+  if (diffDays === 1) return "Yesterday";
+  if (diffDays < 7) return d.toLocaleDateString(undefined, { weekday: "long" });
+  return d.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+}
 
 const LockIcon = () => (
   <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -82,6 +109,9 @@ export default function ProfilePage() {
   const [showFindFriends, setShowFindFriends] = useState(false);
   const [friendSearch, setFriendSearch]       = useState("");
   const [onlineUsernames, setOnlineUsernames] = useState<Set<string>>(new Set());
+  const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>([]);
+  const [historyPopup, setHistoryPopup] = useState<{ title: string; participants: string[] } | null>(null);
+  const [historyPopupSearch, setHistoryPopupSearch] = useState("");
 
   const [showSquads, setShowSquads]         = useState(false);
   const [squadSearch, setSquadSearch]       = useState("");
@@ -139,6 +169,7 @@ export default function ProfilePage() {
     loadFriendData(currentUsername);
     loadSquads(currentUsername);
     loadSquadInvites(currentUsername);
+    loadSessionHistory();
 
     const channel = supabase
       .channel("profile-realtime:" + currentUsername)
@@ -178,6 +209,77 @@ export default function ProfilePage() {
       const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
       return { id: row.id, squad_id: row.squad_id, from_username: row.from_username, squad_name: s?.name ?? "Squad", squad_emoji: s?.emoji ?? "🏆" };
     }));
+  }
+
+  async function loadSessionHistory() {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return;
+    const myUsername = localStorage.getItem("homeroom-username") ?? "";
+
+    const { data: participantRows } = await supabase
+      .from("homeroom_participants").select("homeroom_id").eq("user_id", user.id);
+    const participantIds = (participantRows ?? []).map((r: any) => r.homeroom_id as string);
+
+    const allIds = [...new Set(participantIds)];
+    const [{ data: participatedRooms }, { data: ownedRooms }] = await Promise.all([
+      allIds.length > 0
+        ? supabase.from("homerooms").select("id, title, started_at, ended_at, duration").eq("status", "completed").in("id", allIds).order("ended_at", { ascending: false }).limit(30)
+        : Promise.resolve({ data: [] }),
+      supabase.from("homerooms").select("id, title, started_at, ended_at, duration").eq("status", "completed").eq("created_by", user.id).order("ended_at", { ascending: false }).limit(30),
+    ]);
+
+    const seenIds = new Set<string>();
+    const allHomerooms: any[] = [];
+    for (const h of [...(participatedRooms ?? []), ...(ownedRooms ?? [])]) {
+      if (!seenIds.has(h.id)) { seenIds.add(h.id); allHomerooms.push(h); }
+    }
+    if (allHomerooms.length === 0) return;
+
+    const sessionIds = allHomerooms.map(h => h.id);
+    const [{ data: allParticipants }, { data: allTasks }] = await Promise.all([
+      supabase.from("homeroom_participants").select("homeroom_id, user_id").in("homeroom_id", sessionIds),
+      supabase.from("tasks").select("homeroom_id, done").eq("user_id", user.id).in("homeroom_id", sessionIds),
+    ]);
+
+    const participantUserIds = [...new Set((allParticipants ?? []).map((p: any) => p.user_id as string))];
+    const { data: participantProfiles } = participantUserIds.length > 0
+      ? await supabase.from("profiles").select("id, username").in("id", participantUserIds)
+      : { data: [] };
+    const profileMap: Record<string, string> = Object.fromEntries((participantProfiles ?? []).map((p: any) => [p.id, p.username]));
+
+    const participantsByHomeroom: Record<string, string[]> = {};
+    for (const p of allParticipants ?? []) {
+      const uname = profileMap[(p as any).user_id];
+      if (!uname || uname === myUsername) continue;
+      if (!participantsByHomeroom[(p as any).homeroom_id]) participantsByHomeroom[(p as any).homeroom_id] = [];
+      participantsByHomeroom[(p as any).homeroom_id].push(uname);
+    }
+
+    const tasksByHomeroom: Record<string, { done: number; notDone: number }> = {};
+    for (const t of allTasks ?? []) {
+      if (!tasksByHomeroom[(t as any).homeroom_id]) tasksByHomeroom[(t as any).homeroom_id] = { done: 0, notDone: 0 };
+      if ((t as any).done) tasksByHomeroom[(t as any).homeroom_id].done++;
+      else tasksByHomeroom[(t as any).homeroom_id].notDone++;
+    }
+
+    const entries: SessionHistoryEntry[] = allHomerooms
+      .sort((a, b) => new Date(b.ended_at ?? b.started_at).getTime() - new Date(a.ended_at ?? a.started_at).getTime())
+      .map(h => {
+        let durationMin = h.duration ?? 0;
+        if (h.started_at && h.ended_at) {
+          durationMin = Math.round((new Date(h.ended_at).getTime() - new Date(h.started_at).getTime()) / 60000);
+        }
+        return {
+          id: h.id,
+          title: h.title ?? "Homeroom",
+          endedAt: h.ended_at ?? h.started_at,
+          durationMin,
+          participants: participantsByHomeroom[h.id] ?? [],
+          tasksCompleted: tasksByHomeroom[h.id]?.done ?? 0,
+          tasksNotCompleted: tasksByHomeroom[h.id]?.notDone ?? 0,
+        };
+      });
+    setSessionHistory(entries);
   }
 
   async function loadPublicSquads() {
@@ -748,9 +850,90 @@ export default function ProfilePage() {
 
       {/* Session history */}
       <h2 className="text-sm font-semibold text-charcoal mb-3">Session History</h2>
-      <div className="text-center py-8 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
-        No sessions yet.
-      </div>
+      {sessionHistory.length === 0 ? (
+        <div className="text-center py-8 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
+          No sessions yet.
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {sessionHistory.map(s => {
+            const SHOW = 3;
+            const visible = s.participants.slice(0, SHOW);
+            const overflow = s.participants.length - SHOW;
+            return (
+              <div key={s.id} className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+                <div className="flex items-start justify-between gap-2 mb-2">
+                  <p className="text-sm font-semibold text-charcoal leading-snug flex-1 min-w-0">{s.title}</p>
+                  <span className="text-xs text-warm-gray whitespace-nowrap flex-shrink-0">{formatSessionDate(s.endedAt)}</span>
+                </div>
+                <div className="flex flex-wrap items-center gap-2">
+                  {s.durationMin > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                      ⏱ {formatDuration(s.durationMin)}
+                    </span>
+                  )}
+                  <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                    ✓ {s.tasksCompleted} done
+                  </span>
+                  {s.tasksNotCompleted > 0 && (
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#F3F4F6", color: "#6B7280" }}>
+                      {s.tasksNotCompleted} left
+                    </span>
+                  )}
+                </div>
+                {s.participants.length > 0 && (
+                  <div className="flex items-center gap-1.5 mt-2">
+                    {visible.map(uname => (
+                      <div key={uname} className="w-6 h-6 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                        style={{ background: colorFromUsername(uname) }} title={uname}>
+                        {uname.slice(0, 2).toUpperCase()}
+                      </div>
+                    ))}
+                    {overflow > 0 && (
+                      <button
+                        onClick={() => { setHistoryPopup({ title: s.title, participants: s.participants }); setHistoryPopupSearch(""); }}
+                        className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold border"
+                        style={{ background: "#F3F4F6", color: "#6B7280", borderColor: "#E5E7EB" }}
+                      >+{overflow}</button>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Participants popup */}
+      {historyPopup && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setHistoryPopup(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-t-2xl sm:rounded-2xl p-5 shadow-xl max-h-[70vh] flex flex-col">
+            <div className="flex items-center justify-between mb-3">
+              <h2 className="font-semibold text-charcoal text-sm">In this session</h2>
+              <button onClick={() => setHistoryPopup(null)} className="text-warm-gray hover:text-charcoal p-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <p className="text-xs text-warm-gray mb-3 truncate">{historyPopup.title}</p>
+            <input type="text" value={historyPopupSearch} onChange={e => setHistoryPopupSearch(e.target.value)} placeholder="Search…"
+              className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2 bg-cream placeholder:text-warm-gray focus:outline-none focus:border-sage mb-3" />
+            <div className="overflow-y-auto space-y-2 flex-1">
+              {historyPopup.participants
+                .filter(u => !historyPopupSearch || u.toLowerCase().includes(historyPopupSearch.toLowerCase()))
+                .map(uname => (
+                  <div key={uname} className="flex items-center gap-3 px-1 py-1">
+                    <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
+                      style={{ background: colorFromUsername(uname) }}>
+                      {uname.slice(0, 2).toUpperCase()}
+                    </div>
+                    <span className="text-sm text-charcoal">{uname}</span>
+                  </div>
+                ))}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Avatar picker modal */}
       {showAvatarPicker && (
