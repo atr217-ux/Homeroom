@@ -87,7 +87,7 @@ export default function ListPage() {
   const [editingText, setEditingText] = useState("");
   const [doneExpanded, setDoneExpanded] = useState(false);
   const [displayLimit, setDisplayLimit] = useState(INITIAL_LIMIT);
-  const [sortField, setSortField] = useState<"date" | "time" | null>(null);
+  const [sortField, setSortField] = useState<"date" | "time" | "homeroom" | null>(null);
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [taskHistory, setTaskHistory] = useState<TaskHistory[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -290,7 +290,7 @@ export default function ListPage() {
     setEditingText("");
   }
 
-  function handleSort(field: "date" | "time") {
+  function handleSort(field: "date" | "time" | "homeroom") {
     if (sortField === field) {
       setSortDir((d) => (d === "asc" ? "desc" : "asc"));
     } else {
@@ -313,13 +313,21 @@ export default function ListPage() {
           const aT = new Date(a.addedAt).getTime();
           const bT = new Date(b.addedAt).getTime();
           return sortDir === "asc" ? aT - bT : bT - aT;
-        } else {
+        } else if (sortField === "time") {
           const aT = a.lastSessionTime ?? null;
           const bT = b.lastSessionTime ?? null;
           if (aT === null && bT === null) return 0;
           if (aT === null) return 1;
           if (bT === null) return -1;
           return sortDir === "desc" ? bT - aT : aT - bT;
+        } else {
+          const aH = a.scheduledForTitle ?? null;
+          const bH = b.scheduledForTitle ?? null;
+          if (aH === null && bH === null) return 0;
+          if (aH === null) return 1;
+          if (bH === null) return -1;
+          const cmp = aH.localeCompare(bH);
+          return sortDir === "asc" ? cmp : -cmp;
         }
       });
 
@@ -397,7 +405,7 @@ export default function ListPage() {
         {active.length > 1 && (
           <div className="flex items-center gap-2 mt-3">
             <span className="text-xs text-warm-gray">Sort:</span>
-            {(["date", "time"] as const).map((field) => {
+            {(["date", "time", "homeroom"] as const).map((field) => {
               const isActive = sortField === field;
               const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
               return (
@@ -409,7 +417,7 @@ export default function ListPage() {
                     ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
                     : { background: "white", color: "#78716C", borderColor: "#E5E7EB" }}
                 >
-                  {field === "date" ? "Date added" : "Time required"}{arrow}
+                  {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
                 </button>
               );
             })}
