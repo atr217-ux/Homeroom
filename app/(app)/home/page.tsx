@@ -1016,6 +1016,20 @@ export default function HomePage() {
     const newInvited = friends.filter(f => editInvitedIds.has(f.id));
     const prevIds = new Set(editingSession.invitedFriends.map(f => f.id));
     const newlyAdded = newInvited.filter(f => !prevIds.has(f.id));
+
+    const dateChanged = newIso !== editingSession.scheduledFor;
+
+    // Re-notify existing invitees if the date changed
+    if (dateChanged) {
+      await supabase
+        .from("homeroom_invites")
+        .update({ status: "pending" })
+        .eq("homeroom_id", editingSession.id)
+        .neq("to_user", myUserId)
+        .in("status", ["accepted", "declined"]);
+    }
+
+    // Send invites to newly added friends
     if (newlyAdded.length > 0) {
       const { data: profiles } = await supabase
         .from("profiles")
@@ -1037,10 +1051,12 @@ export default function HomePage() {
       s.id === editingSession.id ? { ...s, title: editTitle.trim() || s.title, scheduledFor: newIso, invitedFriends: newInvited } : s
     ));
 
-    if (newInvited.length > 0) {
+    if (dateChanged) {
+      showToast("Date updated · invitees re-notified");
+    } else if (newInvited.length > 0) {
       showToast(`Saved · notified ${newInvited.map(f => f.name).join(", ")}`);
     } else {
-      showToast("Time updated");
+      showToast("Saved");
     }
     setEditingSession(null);
   }
