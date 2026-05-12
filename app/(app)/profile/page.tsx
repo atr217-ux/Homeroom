@@ -19,7 +19,7 @@ function colorFromUsername(u: string): string {
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string };
 type SquadMember = { username: string; isOnline: boolean; isFriend: boolean };
-type Squad = { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean; invite_code?: string };
+type Squad = { id: string; name: string; members: number; description: string; emoji: string; isPublic: boolean; invite_code?: string; memberUsernames: string[] };
 type TaskDetail = { text: string; done: boolean };
 type SessionHistoryEntry = {
   id: string;
@@ -233,8 +233,16 @@ export default function ProfilePage() {
     const squads: Squad[] = (data as any[]).flatMap((row) => {
       const s = Array.isArray(row.squads) ? row.squads[0] : row.squads;
       if (!s) return [];
-      return [{ id: s.id, name: s.name, members: s.member_count, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public, invite_code: s.invite_code }];
+      return [{ id: s.id, name: s.name, members: s.member_count, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public, invite_code: s.invite_code, memberUsernames: [] }];
     });
+    if (squads.length > 0) {
+      const { data: memberRows } = await supabase
+        .from("squad_members").select("squad_id, username").in("squad_id", squads.map(s => s.id));
+      for (const row of memberRows ?? []) {
+        const sq = squads.find(s => s.id === (row as any).squad_id);
+        if (sq) sq.memberUsernames.push((row as any).username);
+      }
+    }
     setMySquads(squads);
     setJoinedSquads(squads.map((s) => s.id));
   }
@@ -362,7 +370,7 @@ export default function ProfilePage() {
       .select("id, name, emoji, description, is_public, member_count")
       .eq("is_public", true)
       .order("member_count", { ascending: false });
-    if (data) setPublicSquads(data.map((s) => ({ id: s.id, name: s.name, members: s.member_count ?? 0, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public })));
+    if (data) setPublicSquads(data.map((s) => ({ id: s.id, name: s.name, members: s.member_count ?? 0, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public, memberUsernames: [] })));
     setPublicSquadsLoading(false);
   }
 
@@ -374,7 +382,7 @@ export default function ProfilePage() {
     const { data: squadData } = await supabase.from("squads").select("id, name, emoji, description, is_public, member_count").eq("id", invite.squad_id).single();
     if (squadData) {
       await supabase.from("squads").update({ member_count: (squadData.member_count ?? 0) + 1 }).eq("id", invite.squad_id);
-      setMySquads((prev) => [...prev, { id: squadData.id, name: squadData.name, members: (squadData.member_count ?? 0) + 1, description: squadData.description ?? "", emoji: squadData.emoji, isPublic: squadData.is_public }]);
+      setMySquads((prev) => [...prev, { id: squadData.id, name: squadData.name, members: (squadData.member_count ?? 0) + 1, description: squadData.description ?? "", emoji: squadData.emoji, isPublic: squadData.is_public, memberUsernames: [currentUsername] }]);
       setJoinedSquads((prev) => [...prev, invite.squad_id]);
     }
     setSquadInvites((prev) => prev.filter((i) => i.id !== invite.id));
@@ -606,7 +614,7 @@ export default function ProfilePage() {
     if (error || !data) { setCreateSquadError(error?.message ?? "Could not create squad."); return; }
     const { error: memberError } = await supabase.from("squad_members").insert({ squad_id: data.id, username: currentUsername, role: "owner" });
     if (memberError) { setCreateSquadError(memberError.message); return; }
-    const squad: Squad = { id: data.id, name: data.name, members: 1, description: data.description ?? "", emoji: data.emoji, isPublic: data.is_public };
+    const squad: Squad = { id: data.id, name: data.name, members: 1, description: data.description ?? "", emoji: data.emoji, isPublic: data.is_public, memberUsernames: [currentUsername] };
     setMySquads((prev) => [...prev, squad]);
     setJoinedSquads((prev) => [...prev, data.id]);
     setNewSquadName(""); setNewSquadNameError(""); setNewSquadDesc(""); setNewSquadEmoji("🏆"); setNewSquadPrivate(false); setShowCreateSquad(false); setCreateSquadError("");
@@ -780,7 +788,19 @@ export default function ProfilePage() {
                       <p className="text-sm font-semibold text-charcoal truncate">{squad.name}</p>
                       <span className="text-warm-gray flex-shrink-0">{squad.isPublic ? <GlobeIcon /> : <LockIcon />}</span>
                     </div>
-                    <p className="text-xs text-warm-gray">{squad.members} member{squad.members !== 1 ? "s" : ""}</p>
+                    {(() => {
+                      const friendCount = squad.memberUsernames.filter(u => friends.some(f => f.username === u)).length;
+                      return (
+                        <div className="flex items-center gap-1.5 mt-0.5">
+                          <span className="text-xs text-warm-gray">{squad.members} member{squad.members !== 1 ? "s" : ""}</span>
+                          {friendCount > 0 && (
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                              👥 {friendCount} friend{friendCount !== 1 ? "s" : ""}
+                            </span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </div>
                 </div>
               </div>
