@@ -319,11 +319,17 @@ export default function ListPage() {
           if (bT === null) return -1;
           return sortDir === "desc" ? bT - aT : aT - bT;
         } else {
-          const aD = a.scheduledForDate ? new Date(a.scheduledForDate).getTime() : null;
-          const bD = b.scheduledForDate ? new Date(b.scheduledForDate).getTime() : null;
-          if (aD === null && bD === null) return 0;
-          if (aD === null) return 1;
-          if (bD === null) return -1;
+          const aId = a.homeroomId ?? null;
+          const bId = b.homeroomId ?? null;
+          // Tasks without a homeroom go to the end
+          if (aId === null && bId === null) return 0;
+          if (aId === null) return 1;
+          if (bId === null) return -1;
+          // Same homeroom → keep relative order
+          if (aId === bId) return 0;
+          // Different homerooms → sort by scheduled date
+          const aD = a.scheduledForDate ? new Date(a.scheduledForDate).getTime() : 0;
+          const bD = b.scheduledForDate ? new Date(b.scheduledForDate).getTime() : 0;
           return sortDir === "asc" ? aD - bD : bD - aD;
         }
       });
