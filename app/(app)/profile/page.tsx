@@ -757,7 +757,7 @@ export default function ProfilePage() {
           </button>
           {squadsExpanded && <div className="space-y-2">
             {allSquads.filter((s) => joinedSquads.includes(s.id)).map((squad) => (
-              <div key={squad.id} className="relative rounded-2xl overflow-hidden">
+              <div key={squad.id} className="relative rounded-2xl overflow-hidden bg-white">
                 <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_W_SQUAD, borderRadius: "16px 0 0 16px", overflow: "hidden" }}>
                   <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#7C3AED" }}
                     onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); setSwipedId(null); }}>
@@ -882,7 +882,7 @@ export default function ProfilePage() {
           <h2 className="text-sm font-semibold text-charcoal mb-3">Sent · {outgoingRequests.length}</h2>
           <div className="space-y-2">
             {outgoingRequests.map((f) => (
-              <div key={f.id} className="relative rounded-2xl overflow-hidden">
+              <div key={f.id} className="relative rounded-2xl overflow-hidden bg-white">
                 <div className="absolute inset-y-0 right-0 flex items-center justify-center"
                   style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
                   <button className="w-full h-full text-white text-sm font-semibold" onClick={() => cancelRequest(f.id)}>
@@ -929,7 +929,7 @@ export default function ProfilePage() {
         ) : (
           <div className="space-y-2">
             {friends.map((f) => (
-              <div key={f.id} className="relative rounded-2xl overflow-hidden">
+              <div key={f.id} className="relative rounded-2xl overflow-hidden bg-white">
                 <div className="absolute inset-y-0 right-0 flex items-center justify-center"
                   style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
                   <button className="w-full h-full text-white text-sm font-semibold" onClick={() => removeFriend(f.id)}>
@@ -983,7 +983,7 @@ export default function ProfilePage() {
             const visible = s.participants.slice(0, SHOW);
             const overflow = s.participants.length - SHOW;
             return (
-              <div key={s.id} className="relative rounded-2xl overflow-hidden">
+              <div key={s.id} className="relative rounded-2xl overflow-hidden bg-white">
                 <div className="absolute inset-y-0 right-0 flex items-center justify-center"
                   style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}>
                   <button className="w-full h-full text-white text-sm font-semibold" onClick={() => deleteSessionHistory(s.id)}>
