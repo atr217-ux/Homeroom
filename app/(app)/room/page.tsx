@@ -266,8 +266,10 @@ export default function RoomPage() {
           return [...prev, { userId: "", username: payload.username, avatar: payload.avatar ?? "" }];
         });
       })
-      .on("broadcast", { event: "user-left" }, () => {
-        // Card stays visible — presence sync handles the "Here now" dot
+      .on("broadcast", { event: "user-left" }, ({ payload }) => {
+        if (!payload.username) return;
+        setDbParticipants((prev) => prev.filter(p => p.username !== payload.username));
+        setParticipantData((prev) => { const n = { ...prev }; delete n[payload.username]; return n; });
       })
       .on("broadcast", { event: "request-session-info" }, () => {
         const me = myUsernameRef.current || myUsername;
