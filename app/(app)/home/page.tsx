@@ -706,8 +706,8 @@ export default function HomePage() {
         setPublicScheduled(pubSched.map(r => ({ ...r, profiles: schedProfileMap[r.created_by] ?? null })) as unknown as PublicScheduledSession[]);
       }
 
-      // Own active session
-      const activeId = localStorage.getItem("homeroom-active-id");
+      // Own active session — check localStorage first, fall back to DB for cross-device support
+      let activeId = localStorage.getItem("homeroom-active-id");
       if (activeId) {
         const { data: activeHomeroom } = await supabase
           .from("homerooms")
@@ -725,6 +725,26 @@ export default function HomePage() {
           });
         } else {
           localStorage.removeItem("homeroom-active-id");
+          activeId = null;
+        }
+      }
+      if (!activeId) {
+        // No localStorage entry — check DB for an active room this user is participating in
+        const { data: participantRow } = await supabase
+          .from("homeroom_participants")
+          .select("homeroom_id, homerooms!inner(id, title, duration, started_at, is_private, status)")
+          .eq("user_id", user.id)
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          .eq("homerooms.status" as any, "active")
+          .limit(1)
+          .maybeSingle();
+        if (participantRow) {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const h = (participantRow as any).homerooms;
+          if (h) {
+            localStorage.setItem("homeroom-active-id", h.id);
+            setActiveSession({ id: h.id, title: h.title, duration: h.duration, startedAt: h.started_at!, isPublic: !h.is_private });
+          }
         }
       }
 
