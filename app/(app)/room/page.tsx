@@ -222,6 +222,7 @@ export default function RoomPage() {
         .eq("homeroom_id", homeroomId)
         .order("created_at", { ascending: true });
       if (msgData) {
+        const me = myUsernameRef.current || (await supabase.from("profiles").select("username").eq("id", (await supabase.auth.getUser()).data.user?.id ?? "").single()).data?.username;
         setChatMessages(
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           msgData.map((m: any) => ({
@@ -233,6 +234,9 @@ export default function RoomPage() {
             reactions: [],
           }))
         );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const alreadyHighfived = new Set((msgData as any[]).filter(m => m.type === "highfive" && m.sender === me).map(m => m.text as string));
+        if (alreadyHighfived.size > 0) setHighfivedUsers(alreadyHighfived);
       }
       setLoading(false);
     })();
