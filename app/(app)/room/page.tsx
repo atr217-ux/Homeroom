@@ -510,11 +510,13 @@ export default function RoomPage() {
 
   async function addTask() {
     const text = taskInput.trim();
-    if (!text || !session?.homeroomId || !myUserId) return;
+    if (!text || !session?.homeroomId) return;
     setTaskInput("");
     const supabase = createClient();
+    const userId = myUserId ?? (await supabase.auth.getUser()).data.user?.id;
+    if (!userId) return;
     const { data } = await supabase.from("tasks").insert({
-      user_id: myUserId,
+      user_id: userId,
       text,
       done: false,
       time_spent: 0,
