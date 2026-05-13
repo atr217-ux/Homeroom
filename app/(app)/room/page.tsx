@@ -647,6 +647,8 @@ export default function RoomPage() {
       const supabase = createClient();
       supabase.from("homeroom_participants").delete()
         .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId).then(() => {});
+      supabase.from("tasks").update({ homeroom_id: null })
+        .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId).eq("done", false).then(() => {});
       realtimeChannelRef.current?.send({
         type: "broadcast", event: "user-left",
         payload: { username: myUsernameRef.current || myUsername },
