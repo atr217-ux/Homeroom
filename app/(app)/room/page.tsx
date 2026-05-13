@@ -640,21 +640,31 @@ export default function RoomPage() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainingSec, duration]);
 
-  function leaveRoom() {
+  async function leaveRoom() {
     setTasks((prev) => prev.map((t) =>
       t.startedAt !== null ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
     // Remove from persistent participant list and notify others
     if (session?.homeroomId && myUserId) {
       const supabase = createClient();
-      supabase.from("homeroom_participants").delete()
-        .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId).then(() => {});
+      await supabase.from("homeroom_participants").delete()
+        .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId);
       supabase.from("tasks").update({ homeroom_id: null })
         .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId).eq("done", false).then(() => {});
       realtimeChannelRef.current?.send({
         type: "broadcast", event: "user-left",
         payload: { username: myUsernameRef.current || myUsername },
       });
+      // If no participants remain, mark the homeroom as completed
+      const { count } = await supabase.from("homeroom_participants")
+        .select("*", { count: "exact", head: true })
+        .eq("homeroom_id", session.homeroomId);
+      if (count === 0) {
+        await supabase.from("homerooms")
+          .update({ status: "completed", ended_at: new Date().toISOString() })
+          .eq("id", session.homeroomId);
+        realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
+      }
     }
     setShowSummary(true);
   }
