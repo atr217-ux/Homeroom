@@ -45,7 +45,8 @@ export default function RoomPage() {
   const [tasks, setTasks] = useState<Task[]>([]);
   const [taskInput, setTaskInput] = useState("");
   const [tick, setTick] = useState(0);
-  const [chatMessages, setChatMessages] = useState<{ id: string; type: "chat" | "activity"; text: string; sender: string; time: Date; reactions: string[] }[]>([]);
+  const [chatMessages, setChatMessages] = useState<{ id: string; type: "chat" | "activity" | "highfive"; text: string; sender: string; time: Date; reactions: string[] }[]>([]);
+  const [highfivedUsers, setHighfivedUsers] = useState<Set<string>>(new Set());
   const [chatInput, setChatInput] = useState("");
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [draggingId, setDraggingId]     = useState<string | null>(null);
@@ -225,7 +226,7 @@ export default function RoomPage() {
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           msgData.map((m: any) => ({
             id: m.id,
-            type: m.type as "chat" | "activity",
+            type: m.type as "chat" | "activity" | "highfive",
             text: m.text,
             sender: m.sender,
             time: new Date(m.created_at),
@@ -387,6 +388,17 @@ export default function RoomPage() {
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, done: nowDone, timeSpent, startedAt: null } : t
     ));
+  }
+
+  function sendHighFive(targetUsername: string) {
+    setHighfivedUsers((prev) => new Set([...prev, targetUsername]));
+    const msg = { id: crypto.randomUUID(), type: "highfive" as const, text: targetUsername, sender: myUsernameRef.current || myUsername, time: new Date(), reactions: [] };
+    setChatMessages((prev) => [...prev, msg]);
+    realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
+    if (session?.homeroomId) {
+      const supabase = createClient();
+      supabase.from("homeroom_messages").insert({ id: msg.id, homeroom_id: session.homeroomId, sender: msg.sender, text: msg.text, type: "highfive", created_at: msg.time.toISOString() }).then(() => {});
+    }
   }
 
   function toggleFilter(key: string) {
@@ -1069,10 +1081,12 @@ export default function RoomPage() {
 
           {session?.isPublic && (
             <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
-              {chatMessages.filter((m) => m.type === "activity").length === 0 ? (
+              {chatMessages.filter((m) => m.type === "activity" || m.type === "highfive").length === 0 ? (
                 <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
-              ) : [...chatMessages].filter((m) => m.type === "activity").reverse().map((msg) => {
-                const label = showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
+              ) : [...chatMessages].filter((m) => m.type === "activity" || m.type === "highfive").reverse().map((msg) => {
+                const label = msg.type === "highfive"
+                  ? `✋ ${msg.sender} high-fived ${msg.text}!`
+                  : showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
                 return (
                   <div key={msg.id} className="flex flex-col items-center gap-1 py-0.5" onMouseEnter={() => setHoveredMsgId(msg.id)} onMouseLeave={() => setHoveredMsgId(null)}>
                     <div className="flex items-center gap-2 w-full">
@@ -1190,6 +1204,16 @@ export default function RoomPage() {
                               Here now
                             </span>
                           )}
+                          <button
+                            onClick={(e) => { e.stopPropagation(); if (!highfivedUsers.has(p.username)) sendHighFive(p.username); }}
+                            disabled={highfivedUsers.has(p.username)}
+                            className="mt-1.5 w-full text-xs font-semibold py-1 rounded-lg transition-colors"
+                            style={highfivedUsers.has(p.username)
+                              ? { background: "#F3F4F6", color: "#9CA3AF", cursor: "default" }
+                              : { background: "#EDE9FE", color: "#7C3AED" }}
+                          >
+                            {highfivedUsers.has(p.username) ? "✋ Sent!" : "✋ High Five"}
+                          </button>
                           {isExpanded && (
                             <div className="mt-2 pt-2 border-t border-gray-100">
                               {pData?.sharing ? (
