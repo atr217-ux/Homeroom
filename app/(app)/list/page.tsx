@@ -170,13 +170,21 @@ export default function ListPage() {
             : { data: [] };
           const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
 
-          // Clear homeroom_id from undone tasks whose homeroom has ended, no longer exists, or user is no longer a participant
-          const { data: participantRows } = homeroomIds.length
-            ? await supabase.from("homeroom_participants").select("homeroom_id").eq("user_id", user.id).in("homeroom_id", homeroomIds)
+          // For active homerooms, also check participation so leaving a room removes the badge
+          const activeHomeroomIds = homeroomIds.filter(id => hrMap[id]?.status === "active");
+          const { data: participantRows } = activeHomeroomIds.length
+            ? await supabase.from("homeroom_participants").select("homeroom_id").eq("user_id", user.id).in("homeroom_id", activeHomeroomIds)
             : { data: [] };
           const participatingIds = new Set((participantRows ?? []).map(r => r.homeroom_id as string));
           const staleIds = (allTasks ?? [])
-            .filter(t => !t.done && t.homeroom_id && (!hrMap[t.homeroom_id] || hrMap[t.homeroom_id].status === "completed" || !participatingIds.has(t.homeroom_id)))
+            .filter(t => {
+              if (!t.homeroom_id || t.done) return false;
+              const hr = hrMap[t.homeroom_id];
+              if (!hr) return true; // homeroom deleted
+              if (hr.status === "completed") return true; // session ended
+              if (hr.status === "active" && !participatingIds.has(t.homeroom_id)) return true; // left active room
+              return false;
+            })
             .map(t => t.id);
           if (staleIds.length > 0) {
             await supabase.from("tasks").update({ homeroom_id: null }).in("id", staleIds);
