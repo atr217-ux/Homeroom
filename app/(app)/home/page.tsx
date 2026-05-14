@@ -618,7 +618,9 @@ export default function HomePage() {
         }
       }
 
-      // Build scheduled sessions list
+      // Build scheduled sessions list — exclude sessions scheduled for a past date
+      const todayStart = new Date();
+      todayStart.setHours(0, 0, 0, 0);
       const myScheduled: ScheduledSession[] = [
         ...(ownSched ?? []).map(h => ({
           id: h.id,
@@ -642,7 +644,7 @@ export default function HomePage() {
           ownedByMe: false,
           inviteId: i.id,
         })),
-      ];
+      ].filter(s => new Date(s.scheduledFor) >= todayStart);
       setScheduled(myScheduled);
 
       // Build pending invites — resolve from_user profiles
