@@ -282,18 +282,22 @@ function StartPageInner() {
 
       {/* When */}
       <div className="mb-6">
-        <label className="block text-sm font-semibold text-charcoal mb-2">When?</label>
-        <div className="flex gap-2">
-          {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).filter(opt => !(scheduleOnly && opt.value === "now")).map(opt => (
-            <button key={opt.value} onClick={() => setScheduleMode(opt.value)}
-              className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-              style={scheduleMode === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
-              {opt.label}
-            </button>
-          ))}
-        </div>
-        {scheduleMode === "later" && (
-          <div className="mt-3 space-y-3">
+        {!scheduleOnly && (
+          <>
+            <label className="block text-sm font-semibold text-charcoal mb-2">When?</label>
+            <div className="flex gap-2 mb-3">
+              {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).map(opt => (
+                <button key={opt.value} onClick={() => setScheduleMode(opt.value)}
+                  className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
+                  style={scheduleMode === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          </>
+        )}
+        {(scheduleOnly || scheduleMode === "later") && (
+          <div className="space-y-3">
             <div>
               <label className="text-xs text-warm-gray mb-2 block">Date</label>
               <div className="relative flex items-center gap-3 border-2 rounded-xl px-3 py-2.5"
