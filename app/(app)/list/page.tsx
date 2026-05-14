@@ -362,11 +362,11 @@ export default function ListPage() {
           </div>
           <div className="flex gap-2">
             <Link href="/home" className="flex-1 font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 border-2 transition-colors"
-              style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "white" }}>
+              style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--surface)" }}>
               Find a Room
             </Link>
             <Link href="/start" className="flex-1 font-semibold text-sm py-2.5 rounded-xl flex items-center justify-center gap-1.5 transition-colors"
-              style={{ background: "#7C3AED", color: "white" }}>
+              style={{ background: "var(--purple)", color: "white" }}>
               Host a Room
             </Link>
           </div>
@@ -390,7 +390,7 @@ export default function ListPage() {
             />
             <button
               onClick={() => addTask()}
-              style={{ color: "#7C3AED" }}
+              style={{ color: "var(--purple)" }}
               className="flex-shrink-0 hover:opacity-70 transition-opacity"
             >
               <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -428,8 +428,8 @@ export default function ListPage() {
                   onClick={() => handleSort(field)}
                   className="text-xs px-2.5 py-1 rounded-full border transition-colors"
                   style={isActive
-                    ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
-                    : { background: "white", color: "#78716C", borderColor: "#E5E7EB" }}
+                    ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
                 >
                   {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
                 </button>
@@ -461,7 +461,7 @@ export default function ListPage() {
                     {isTouch && (
                       <div
                         className="absolute inset-y-0 right-0 flex items-center justify-center"
-                        style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}
+                        style={{ width: SWIPE_W, background: "var(--red)", borderRadius: "16px 0 0 16px" }}
                       >
                         <button
                           className="w-full h-full text-white text-sm font-semibold"
@@ -503,18 +503,18 @@ export default function ListPage() {
                         {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle)) && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {t.lastSessionTime !== undefined && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#F5F3FF", color: "#7C3AED" }}>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
                                 {formatSeconds(t.lastSessionTime)}
                               </span>
                             )}
                             {t.homeroomStatus === "active" && t.scheduledForTitle && (
-                              <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0" }}>
+                              <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)", border: "1px solid var(--green-border)" }}>
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block animate-pulse" />
                                 {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
                               </span>
                             )}
                             {t.scheduledForDate && t.scheduledForTitle && t.homeroomStatus !== "active" && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
                                 {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                               </span>
                             )}
@@ -556,7 +556,7 @@ export default function ListPage() {
                   >
                     <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide">Done · {done.length}</p>
                     <svg
-                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
                       style={{ transform: doneExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
                     >
                       <polyline points="6 9 12 15 18 9" />
@@ -568,7 +568,7 @@ export default function ListPage() {
                       {isTouch && (
                         <div
                           className="absolute inset-y-0 right-0 flex items-center justify-center"
-                          style={{ width: SWIPE_W, background: "#EF4444", borderRadius: "16px 0 0 16px" }}
+                          style={{ width: SWIPE_W, background: "var(--red)", borderRadius: "16px 0 0 16px" }}
                         >
                           <button
                             className="w-full h-full text-white text-sm font-semibold"
@@ -593,7 +593,7 @@ export default function ListPage() {
                       <button
                         onClick={() => toggleTask(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
-                        style={{ background: "#7C3AED", border: "2px solid #7C3AED" }}
+                        style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}
                       >
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
                           <polyline points="20 6 9 17 4 12" />

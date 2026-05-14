@@ -1,23 +1,87 @@
 @import "tailwindcss";
 
 @theme inline {
-  --color-cream: #FAFAF9;
-  --color-cream-dark: #EDE9FE;
-  --color-sage: #7C3AED;
-  --color-sage-light: #A78BFA;
-  --color-sage-dark: #5B21B6;
+  --color-cream: var(--bg);
+  --color-cream-dark: var(--purple-bg-2);
+  --color-sage: var(--purple);
+  --color-sage-light: var(--purple-light);
+  --color-sage-dark: var(--purple-dark);
   --color-clay: #F97316;
   --color-clay-light: #FB923C;
-  --color-charcoal: #1C1917;
-  --color-warm-gray: #78716C;
+  --color-charcoal: var(--text);
+  --color-warm-gray: var(--text-2);
 
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
 }
 
+:root {
+  --bg: #FAFAF9;
+  --surface: #FFFFFF;
+  --surface-2: #F9FAFB;
+  --input-bg: #FAFAF9;
+
+  --text: #1C1917;
+  --text-2: #78716C;
+  --text-3: #9CA3AF;
+
+  --border: #F3F4F6;
+  --border-2: #E5E7EB;
+  --border-3: #D1D5DB;
+
+  --purple: #7C3AED;
+  --purple-dark: #6D28D9;
+  --purple-light: #A855F7;
+  --purple-bg: #F3E8FF;
+  --purple-bg-2: #EDE9FE;
+  --purple-border: #DDD6FE;
+  --purple-muted: #C4B5FD;
+
+  --green-bg: #ECFDF5;
+  --green-text: #065F46;
+  --green-border: #A7F3D0;
+
+  --yellow-bg: #FEF9C3;
+  --yellow-text: #92400E;
+
+  --red: #DC2626;
+}
+
+html.dark {
+  --bg: #0C0A09;
+  --surface: #1C1917;
+  --surface-2: #292524;
+  --input-bg: #1C1917;
+
+  --text: #F5F5F4;
+  --text-2: #A8A29E;
+  --text-3: #57534E;
+
+  --border: #292524;
+  --border-2: #3F3936;
+  --border-3: #57534E;
+
+  --purple: #8B5CF6;
+  --purple-dark: #7C3AED;
+  --purple-light: #A78BFA;
+  --purple-bg: #2D1B69;
+  --purple-bg-2: #1E1347;
+  --purple-border: #4C1D95;
+  --purple-muted: #C4B5FD;
+
+  --green-bg: #022C22;
+  --green-text: #6EE7B7;
+  --green-border: #065F46;
+
+  --yellow-bg: #1C1500;
+  --yellow-text: #FCD34D;
+
+  --red: #EF4444;
+}
+
 body {
-  background: #FAFAF9;
-  color: #1C1917;
+  background: var(--bg);
+  color: var(--text);
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 

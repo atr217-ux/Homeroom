@@ -194,7 +194,7 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
       </div>
 
       <div className="flex items-center gap-2 flex-wrap">
-        <span className="text-xs font-medium" style={{ color: active ? "#059669" : "#7C3AED" }}>
+        <span className="text-xs font-medium" style={{ color: active ? "#059669" : "var(--purple)" }}>
           {showTime ? isoTimeLabel(session.scheduledFor) : formatScheduledFor(session.scheduledFor)}
         </span>
         {session.duration > 0 && (
@@ -240,7 +240,7 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
           <button
             onClick={() => onPrepop(session)}
             className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-colors hover:border-sage hover:text-sage flex-1 justify-center"
-            style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+            style={{ borderColor: "var(--border-2)", color: "var(--text-2)" }}
           >
             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M9 11l3 3L22 4" /><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11" />
@@ -251,7 +251,7 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
             <button
               onClick={() => onEdit(session)}
               className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-xl border transition-colors hover:border-sage hover:text-sage flex-1 justify-center"
-              style={{ borderColor: "#E5E7EB", color: "#78716C" }}
+              style={{ borderColor: "var(--border-2)", color: "var(--text-2)" }}
             >
               <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
@@ -266,8 +266,8 @@ function SessionCard({ session, now, onLaunch, onRemove, onPrepop, onEdit, showT
             className="text-xs font-semibold px-4 py-1.5 rounded-xl border transition-colors flex-1 justify-center flex items-center"
             style={
               active
-                ? { borderColor: "#7C3AED", color: "#7C3AED" }
-                : { borderColor: "#E5E7EB", color: "#D1D5DB", cursor: "default" }
+                ? { borderColor: "var(--purple)", color: "var(--purple)" }
+                : { borderColor: "var(--border-2)", color: "var(--border-3)", cursor: "default" }
             }
             title={active ? undefined : `Available ${formatScheduledFor(session.scheduledFor)}`}
           >
@@ -383,22 +383,22 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
               disabled={disabled}
               onClick={() => setSelectedKey(selected ? null : key)}
               className="flex flex-col items-center justify-center py-1.5 rounded-xl transition-colors"
-              style={selected ? { background: "#7C3AED" } : todayDay ? { background: "#EDE9FE" } : {}}
+              style={selected ? { background: "var(--purple)" } : todayDay ? { background: "var(--purple-bg-2)" } : {}}
             >
               <span
                 className="text-sm font-medium leading-none"
                 style={
-                  disabled ? { color: "#D1D5DB" }
+                  disabled ? { color: "var(--border-3)" }
                   : selected ? { color: "white" }
-                  : todayDay ? { color: "#7C3AED", fontWeight: 700 }
-                  : { color: "#1C1917" }
+                  : todayDay ? { color: "var(--purple)", fontWeight: 700 }
+                  : { color: "var(--text)" }
                 }
               >
                 {d.getDate()}
               </span>
               <span
                 className="mt-1 w-1.5 h-1.5 rounded-full"
-                style={{ background: hasSessions ? (selected ? "rgba(255,255,255,0.7)" : "#7C3AED") : "transparent" }}
+                style={{ background: hasSessions ? (selected ? "rgba(255,255,255,0.7)" : "var(--purple)") : "transparent" }}
               />
             </button>
           );
@@ -1207,7 +1207,7 @@ export default function HomePage() {
       <div className="pt-8 pb-6">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
-          <Link href="/profile" className="w-8 h-8 rounded-full flex items-center justify-center text-lg overflow-hidden" style={{ background: avatar ? "#F3F4F6" : "#7C9E87" }}>
+          <Link href="/profile" className="w-8 h-8 rounded-full flex items-center justify-center text-lg overflow-hidden" style={{ background: avatar ? "var(--border)" : "#7C9E87" }}>
             {avatar ?? <span className="text-white text-xs font-semibold">?</span>}
           </Link>
         </div>
@@ -1216,11 +1216,11 @@ export default function HomePage() {
         <button
           onClick={() => withJoinConfirm(() => router.push("/start"))}
           className="mt-4 flex items-center gap-2 text-sm font-semibold transition-colors"
-          style={{ color: "#7C3AED" }}
+          style={{ color: "var(--purple)" }}
         >
           <span
             className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "#EDE9FE" }}
+            style={{ background: "var(--purple-bg-2)" }}
           >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
@@ -1235,7 +1235,7 @@ export default function HomePage() {
         <div className="mb-6">
           <h2 className="text-sm font-semibold text-charcoal mb-3">
             Invites
-            <span className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-xs font-bold" style={{ background: "#7C3AED", fontSize: "10px" }}>
+            <span className="ml-2 inline-flex items-center justify-center w-4 h-4 rounded-full text-white text-xs font-bold" style={{ background: "var(--purple)", fontSize: "10px" }}>
               {visibleInvites.length}
             </span>
           </h2>
@@ -1256,7 +1256,7 @@ export default function HomePage() {
                   </p>
                   <div className="flex items-center gap-2 mt-0.5">
                     {invite.isLive ? (
-                      <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "#DC2626" }}>
+                      <span className="flex items-center gap-1 text-xs font-semibold" style={{ color: "var(--red)" }}>
                         <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
                         Live now
                       </span>
@@ -1272,7 +1272,7 @@ export default function HomePage() {
                   <button
                     onClick={() => acceptInvite(invite)}
                     className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                    style={{ background: "#7C3AED" }}
+                    style={{ background: "var(--purple)" }}
                   >
                     {invite.isLive ? "Join" : "Accept"}
                   </button>
@@ -1330,7 +1330,7 @@ export default function HomePage() {
                   <button
                     onClick={() => acceptTimeChange(tc)}
                     className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                    style={{ background: "#7C3AED" }}
+                    style={{ background: "var(--purple)" }}
                   >
                     Accept time change
                   </button>
@@ -1366,12 +1366,12 @@ export default function HomePage() {
                   {remainingSec !== null && remainingSec > 0 ? (
                     <p className="text-xs text-warm-gray mt-0.5">{remMin}:{String(remSec).padStart(2, "0")} remaining</p>
                   ) : remainingSec === 0 ? (
-                    <p className="text-xs font-semibold mt-0.5" style={{ color: "#DC2626" }}>Time&apos;s up</p>
+                    <p className="text-xs font-semibold mt-0.5" style={{ color: "var(--red)" }}>Time&apos;s up</p>
                   ) : (
                     <p className="text-xs text-warm-gray mt-0.5">No time limit</p>
                   )}
                 </div>
-                <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
+                <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "var(--purple)" }}>
                   Rejoin
                 </Link>
               </div>
@@ -1446,7 +1446,7 @@ export default function HomePage() {
           <button
             onClick={() => { setSquadFilter(null); setFriendsFilter(false); }}
             className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-            style={squadFilter === null && !friendsFilter ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+            style={squadFilter === null && !friendsFilter ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}
           >
             All
           </button>
@@ -1454,7 +1454,7 @@ export default function HomePage() {
             <button
               onClick={() => setFriendsFilter(f => !f)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-              style={friendsFilter ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+              style={friendsFilter ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}
             >
               <span>👥</span>
               <span>Friends</span>
@@ -1465,7 +1465,7 @@ export default function HomePage() {
               key={sq.id}
               onClick={() => setSquadFilter(squadFilter === sq.id ? null : sq.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-              style={squadFilter === sq.id ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}
+              style={squadFilter === sq.id ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}
             >
               <span>{sq.emoji}</span>
               <span>{sq.name}</span>
@@ -1533,7 +1533,7 @@ export default function HomePage() {
                           <span className="text-xs text-warm-gray">{participants.length} in room</span>
                         )}
                         {friendsInRoom.length > 0 && (
-                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
                             {friendsInRoom.length} friend{friendsInRoom.length !== 1 ? "s" : ""}
                           </span>
                         )}
@@ -1544,7 +1544,7 @@ export default function HomePage() {
                         href={`/room?id=${activeSession.id}`}
                         onClick={(e) => e.stopPropagation()}
                         className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                        style={{ background: "#7C3AED" }}
+                        style={{ background: "var(--purple)" }}
                       >
                         Rejoin
                       </Link>
@@ -1651,12 +1651,12 @@ export default function HomePage() {
                             <span className="text-xs text-warm-gray">{participants.length} in room</span>
                           )}
                           {friendsInRoom.length > 0 && (
-                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                            <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
                               {friendsInRoom.length} friend{friendsInRoom.length !== 1 ? "s" : ""}
                             </span>
                           )}
                           {room.squad_tags.length > 0 && userSquads.filter(s => room.squad_tags.includes(s.id)).map(s => (
-                            <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>{s.emoji} {s.name}</span>
+                            <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>{s.emoji} {s.name}</span>
                           ))}
                         </div>
                       </div>
@@ -1664,7 +1664,7 @@ export default function HomePage() {
                         <button
                           onClick={(e) => { e.stopPropagation(); joinPublicRoom(room); }}
                           className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                          style={{ background: "#7C3AED" }}
+                          style={{ background: "var(--purple)" }}
                         >
                           Join
                         </button>
@@ -1743,10 +1743,10 @@ export default function HomePage() {
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-charcoal truncate">{hostUsername} is {session.title || "hosting a homeroom"}</p>
                       <div className="flex items-center gap-2 mt-0.5 flex-wrap">
-                        <span className="text-xs font-medium" style={{ color: "#7C3AED" }}>{formatScheduledFor(session.scheduled_for)}</span>
+                        <span className="text-xs font-medium" style={{ color: "var(--purple)" }}>{formatScheduledFor(session.scheduled_for)}</span>
                         {session.duration > 0 && <span className="text-xs text-warm-gray">· {formatDuration(session.duration)}</span>}
                         {session.squad_tags.length > 0 && userSquads.filter(s => session.squad_tags.includes(s.id)).map(s => (
-                          <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>{s.emoji} {s.name}</span>
+                          <span key={s.id} className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>{s.emoji} {s.name}</span>
                         ))}
                       </div>
                     </div>
@@ -1754,7 +1754,7 @@ export default function HomePage() {
                       onClick={() => savePublicScheduled(session)}
                       disabled={saved}
                       className="flex-shrink-0 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
-                      style={saved ? { borderColor: "#D1D5DB", color: "#78716C" } : { borderColor: "#7C3AED", color: "#7C3AED" }}
+                      style={saved ? { borderColor: "var(--border-3)", color: "var(--text-2)" } : { borderColor: "var(--purple)", color: "var(--purple)" }}
                     >
                       {saved ? "Saved" : "Save"}
                     </button>
@@ -1847,7 +1847,7 @@ export default function HomePage() {
                             return next;
                           })}
                           className="w-full flex items-center gap-3 rounded-xl px-3 py-2 border transition-all text-left"
-                          style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}
+                          style={{ borderColor: invited ? "var(--purple)" : "var(--border-2)", background: invited ? "var(--purple-bg-2)" : "var(--surface)" }}
                         >
                           <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>
                             {f.initials}
@@ -1875,7 +1875,7 @@ export default function HomePage() {
               onClick={saveEdit}
               disabled={!editDate || !editTime}
               className="mt-4 w-full font-semibold text-sm py-3 rounded-xl text-white transition-opacity"
-              style={{ background: "#7C3AED", opacity: editDate && editTime ? 1 : 0.4 }}
+              style={{ background: "var(--purple)", opacity: editDate && editTime ? 1 : 0.4 }}
             >
               Save changes
             </button>
@@ -1935,11 +1935,11 @@ export default function HomePage() {
                       return next;
                     })}
                     className="w-full flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors text-left"
-                    style={{ background: checked ? "#F5F3FF" : "transparent" }}
+                    style={{ background: checked ? "var(--purple-bg-2)" : "transparent" }}
                   >
                     <span
                       className="w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors"
-                      style={checked ? { background: "#7C3AED", borderColor: "#7C3AED" } : { borderColor: "#D1D5DB" }}
+                      style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "var(--border-3)" }}
                     >
                       {checked && (
                         <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
@@ -1949,7 +1949,7 @@ export default function HomePage() {
                     </span>
                     <span className="text-sm text-charcoal flex-1">{task.text}</span>
                     {otherSession && (
-                      <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                      <span className="text-xs flex-shrink-0 px-1.5 py-0.5 rounded-full whitespace-nowrap" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
                         Scheduled
                       </span>
                     )}
@@ -1984,7 +1984,7 @@ export default function HomePage() {
               <button
                 onClick={savePrepop}
                 className="w-full font-semibold text-sm py-3 rounded-xl text-white transition-opacity"
-                style={{ background: "#7C3AED", opacity: prepopSelected.size > 0 ? 1 : 0.5 }}
+                style={{ background: "var(--purple)", opacity: prepopSelected.size > 0 ? 1 : 0.5 }}
               >
                 {prepopSelected.size === 0
                   ? "Save (no tasks)"
@@ -2007,7 +2007,7 @@ export default function HomePage() {
               <button
                 onClick={() => { pendingJoin.action(); setPendingJoin(null); }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
-                style={{ background: "#7C3AED" }}
+                style={{ background: "var(--purple)" }}
               >
                 Yes, leave
               </button>
@@ -2089,7 +2089,7 @@ export default function HomePage() {
                         router.push("/start");
                       }}
                       className="w-full font-semibold text-sm py-3 rounded-xl text-white transition-opacity hover:opacity-80"
-                      style={{ background: "#7C3AED" }}
+                      style={{ background: "var(--purple)" }}
                     >
                       Schedule a homeroom for remaining tasks
                     </button>

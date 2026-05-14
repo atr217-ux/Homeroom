@@ -133,6 +133,23 @@ export default function ProfilePage() {
   const [newSquadDesc, setNewSquadDesc]       = useState("");
   const [newSquadEmoji, setNewSquadEmoji]     = useState("🏆");
   const [newSquadPrivate, setNewSquadPrivate] = useState(false);
+  const [darkMode, setDarkMode] = useState(false);
+
+  useEffect(() => {
+    setDarkMode(document.documentElement.classList.contains("dark"));
+  }, []);
+
+  function toggleDarkMode() {
+    const next = !darkMode;
+    setDarkMode(next);
+    if (next) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("homeroom-theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("homeroom-theme", "light");
+    }
+  }
 
   const SWIPE_W = 80;
   const SWIPE_W_SQUAD = 160;
@@ -998,6 +1015,27 @@ export default function ProfilePage() {
             ))}
           </div>
         ))}
+      </div>
+
+      {/* Preferences */}
+      <div className="flex items-center justify-between px-4 py-3 rounded-2xl border mb-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+        <div className="flex items-center gap-3">
+          <span className="text-lg">🌙</span>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: "var(--text)" }}>Dark mode</p>
+            <p className="text-xs" style={{ color: "var(--text-2)" }}>Easier on the eyes</p>
+          </div>
+        </div>
+        <button
+          onClick={toggleDarkMode}
+          className="inline-flex items-center w-11 h-6 rounded-full p-0.5 transition-colors duration-200 flex-shrink-0"
+          style={{ background: darkMode ? "var(--purple)" : "var(--border-3)" }}
+        >
+          <span
+            className="w-5 h-5 rounded-full shadow transition-transform duration-200"
+            style={{ background: "var(--surface)", transform: darkMode ? "translateX(20px)" : "translateX(0px)" }}
+          />
+        </button>
       </div>
 
       {/* Session history */}

@@ -162,7 +162,7 @@ export default function BottomNav() {
   ];
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white border-t border-gray-100 flex items-end">
+    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t flex items-end" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
       {leftTabs.map((tab) => {
         const active = pathname.startsWith(tab.href);
         return (
@@ -170,12 +170,12 @@ export default function BottomNav() {
             key={tab.href}
             href={tab.href}
             className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors relative"
-            style={{ color: active ? "#7C3AED" : "#78716C" }}
+            style={{ color: active ? "var(--purple)" : "var(--text-2)" }}
           >
             <div className="relative">
               {tab.icon}
               {tab.notif && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white" style={{ background: "#DC2626" }} />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg)]" style={{ background: "var(--red)" }} />
               )}
             </div>
             {tab.label}
@@ -189,7 +189,7 @@ export default function BottomNav() {
           <div
             className="w-14 h-14 rounded-full flex items-center justify-center transition-all"
             style={{
-              background: roomActive ? "#6D28D9" : "#7C3AED",
+              background: roomActive ? "var(--purple-dark)" : "var(--purple)",
               boxShadow: "0 4px 14px rgba(124,58,237,0.45)",
             }}
           >
@@ -198,7 +198,7 @@ export default function BottomNav() {
               <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
             </svg>
           </div>
-          <span className="text-xs font-medium" style={{ color: roomActive ? "#7C3AED" : "#78716C" }}>
+          <span className="text-xs font-medium" style={{ color: roomActive ? "var(--purple)" : "var(--text-2)" }}>
             Room
           </span>
         </Link>
@@ -211,12 +211,12 @@ export default function BottomNav() {
             key={tab.href}
             href={tab.href}
             className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors"
-            style={{ color: active ? "#7C3AED" : "#78716C" }}
+            style={{ color: active ? "var(--purple)" : "var(--text-2)" }}
           >
             <div className="relative">
               {tab.icon}
               {tab.notif && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-white" style={{ background: "#DC2626" }} />
+                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg)]" style={{ background: "var(--red)" }} />
               )}
             </div>
             {tab.label}

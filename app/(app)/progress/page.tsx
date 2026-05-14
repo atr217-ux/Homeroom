@@ -117,9 +117,9 @@ function Speedometer({ score }: { score: number }) {
 
 function circleStyle(n: number): { size: number; fill: string; border: boolean } {
   if (n === 0) return { size: 8,  fill: "transparent", border: true  };
-  if (n === 1) return { size: 18, fill: "#C4B5FD",     border: false };
+  if (n === 1) return { size: 18, fill: "var(--purple-muted)",     border: false };
   if (n === 2) return { size: 26, fill: "#8B5CF6",     border: false };
-  return               { size: 36, fill: "#7C3AED",     border: false };
+  return               { size: 36, fill: "var(--purple)",     border: false };
 }
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
@@ -153,7 +153,7 @@ export default function ProgressPage() {
       <div className="max-w-2xl mx-auto px-4 pt-10 pb-28 flex items-center justify-center" style={{ minHeight: 300 }}>
         <div
           className="w-6 h-6 rounded-full border-2 animate-spin"
-          style={{ borderColor: "#7C3AED", borderTopColor: "transparent" }}
+          style={{ borderColor: "var(--purple)", borderTopColor: "transparent" }}
         />
       </div>
     );
@@ -170,16 +170,16 @@ export default function ProgressPage() {
 
         <div
           className="bg-white rounded-3xl border p-5"
-          style={{ borderColor: "#EDEDE8", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
+          style={{ borderColor: "var(--border-2)", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}
         >
           <Speedometer score={0} />
           <div className="text-center mt-1">
-            <div className="text-4xl font-bold" style={{ color: "#C0BDB5", letterSpacing: "-2px" }}>—</div>
-            <div className="text-sm font-semibold mt-1" style={{ color: "#9CA3AF" }}>Just getting started</div>
+            <div className="text-4xl font-bold" style={{ color: "var(--text-3)", letterSpacing: "-2px" }}>—</div>
+            <div className="text-sm font-semibold mt-1" style={{ color: "var(--text-3)" }}>Just getting started</div>
           </div>
         </div>
 
-        <div className="bg-white rounded-2xl border p-5" style={{ borderColor: "#EDEDE8" }}>
+        <div className="bg-white rounded-2xl border p-5" style={{ borderColor: "var(--border-2)" }}>
           <div className="text-2xl mb-3">✨</div>
           <p className="text-sm font-semibold text-charcoal mb-1.5">
             Your insights will appear here as you complete sessions.
@@ -189,7 +189,7 @@ export default function ProgressPage() {
           </p>
         </div>
 
-        <div className="bg-white rounded-2xl border p-5 space-y-4" style={{ borderColor: "#EDEDE8" }}>
+        <div className="bg-white rounded-2xl border p-5 space-y-4" style={{ borderColor: "var(--border-2)" }}>
           <div>
             <p className="text-sm font-bold text-charcoal">Tips to get started</p>
             <p className="text-xs text-warm-gray mt-0.5">A few things worth trying</p>
@@ -215,7 +215,7 @@ export default function ProgressPage() {
           <Link
             href="/start"
             className="inline-block mt-3 text-xs font-semibold px-5 py-2.5 rounded-xl text-white transition-opacity hover:opacity-85"
-            style={{ background: "#7C3AED" }}
+            style={{ background: "var(--purple)" }}
           >
             Start a Homeroom
           </Link>
@@ -239,17 +239,17 @@ export default function ProgressPage() {
       {/* ── Momentum card ─────────────────────────────────────────────────── */}
       <div
         className="bg-white rounded-3xl border"
-        style={{ borderColor: "#EDEDE8", boxShadow: "0 2px 14px rgba(0,0,0,0.07)", padding: "20px 20px 24px" }}
+        style={{ borderColor: "var(--border-2)", boxShadow: "0 2px 14px rgba(0,0,0,0.07)", padding: "20px 20px 24px" }}
       >
         <Speedometer score={MOMENTUM_SCORE} />
         <div className="text-center mt-2">
           <div
             className="font-bold"
-            style={{ fontSize: 52, letterSpacing: "-3px", lineHeight: 1, color: "#111827" }}
+            style={{ fontSize: 52, letterSpacing: "-3px", lineHeight: 1, color: "var(--text)" }}
           >
             {MOMENTUM_SCORE > 0 ? "+" : ""}{MOMENTUM_SCORE}
           </div>
-          <div className="text-sm font-semibold mt-1.5" style={{ color: "#6B7280" }}>
+          <div className="text-sm font-semibold mt-1.5" style={{ color: "var(--text-2)" }}>
             {MOMENTUM_ZONE}
           </div>
           <div
@@ -271,10 +271,10 @@ export default function ProgressPage() {
         {/* Tasks Closed */}
         <div
           className="bg-white rounded-2xl border p-4"
-          style={{ borderColor: "#EDEDE8", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+          style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
         >
           <div className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Tasks Closed</div>
-          <div className="text-3xl font-bold" style={{ color: "#111827", letterSpacing: "-1px" }}>12</div>
+          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>12</div>
           <div className="text-xs text-warm-gray mt-0.5">this week</div>
           <div className="text-xs font-semibold mt-2.5" style={{ color: "#0D9488" }}>↑ 3 from last week</div>
         </div>
@@ -284,10 +284,10 @@ export default function ProgressPage() {
           className="rounded-2xl border p-4"
           style={{ background: "#FFFBEB", borderColor: "#FDE68A", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
         >
-          <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "#92400E" }}>
+          <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--yellow-text)" }}>
             Stuck Tasks
           </div>
-          <div className="text-3xl font-bold" style={{ color: "#111827", letterSpacing: "-1px" }}>5</div>
+          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>5</div>
           <div className="text-xs font-medium mt-0.5" style={{ color: "#D97706" }}>Oldest: 23 days</div>
           <button
             onClick={() => { window.location.href = "/start"; }}
@@ -301,30 +301,30 @@ export default function ProgressPage() {
         {/* Sessions */}
         <div
           className="bg-white rounded-2xl border p-4"
-          style={{ borderColor: "#EDEDE8", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+          style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
         >
           <div className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Sessions</div>
-          <div className="text-3xl font-bold" style={{ color: "#111827", letterSpacing: "-1px" }}>3</div>
+          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>3</div>
           <div className="text-xs text-warm-gray mt-0.5">this week</div>
-          <div className="text-xs font-medium mt-2.5" style={{ color: "#6B7280" }}>2h 15m focused</div>
+          <div className="text-xs font-medium mt-2.5" style={{ color: "var(--text-2)" }}>2h 15m focused</div>
         </div>
 
         {/* Active Days */}
         <div
           className="bg-white rounded-2xl border p-4"
-          style={{ borderColor: "#EDEDE8", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+          style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
         >
           <div className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Active Days</div>
-          <div className="text-3xl font-bold" style={{ color: "#111827", letterSpacing: "-1px" }}>5</div>
+          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>5</div>
           <div className="text-xs text-warm-gray mt-0.5">this month</div>
-          <div className="text-xs font-medium mt-2.5" style={{ color: "#6B7280" }}>Last month: 18 days</div>
+          <div className="text-xs font-medium mt-2.5" style={{ color: "var(--text-2)" }}>Last month: 18 days</div>
         </div>
       </div>
 
       {/* ── Weekly activity ───────────────────────────────────────────────── */}
       <div
         className="bg-white rounded-2xl border p-4"
-        style={{ borderColor: "#EDEDE8", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+        style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
       >
         <div className="flex items-baseline justify-between mb-5">
           <p className="text-sm font-bold text-charcoal">This week</p>
@@ -348,7 +348,7 @@ export default function ProgressPage() {
                       height: size,
                       borderRadius: "50%",
                       background: fill,
-                      border: border ? "1.5px solid #D1D5DB" : "none",
+                      border: border ? "1.5px solid var(--border-3)" : "none",
                       boxShadow: isToday
                         ? "0 0 0 3px rgba(124,58,237,0.15), 0 0 0 6px rgba(124,58,237,0.07)"
                         : "none",
@@ -358,7 +358,7 @@ export default function ProgressPage() {
                 </div>
                 <span
                   className="text-xs font-semibold"
-                  style={{ color: isToday ? "#7C3AED" : "#9CA3AF" }}
+                  style={{ color: isToday ? "var(--purple)" : "var(--text-3)" }}
                 >
                   {label}
                 </span>
@@ -371,7 +371,7 @@ export default function ProgressPage() {
       {/* ── Insights card ─────────────────────────────────────────────────── */}
       <div
         className="bg-white rounded-2xl border p-4"
-        style={{ borderColor: "#EDEDE8", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
+        style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
       >
         <div className="flex items-baseline justify-between mb-4">
           <p className="text-sm font-bold text-charcoal">Insights for you</p>
@@ -381,12 +381,12 @@ export default function ProgressPage() {
         <div className="space-y-4">
           {/* Tip 1 */}
           <div className="flex items-start gap-3">
-            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#F3E8FF", fontSize: 16 }}>⚡</div>
+            <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "var(--purple-bg)", fontSize: 16 }}>⚡</div>
             <div>
-              <p className="text-sm leading-snug" style={{ color: "#374151" }}>
+              <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>
                 You&apos;re in your <strong>highest Momentum range in 3 weeks</strong>. Lock it in by joining a session today.
               </p>
-              <Link href="/home" className="text-xs font-semibold mt-1 inline-block hover:opacity-70 transition-opacity" style={{ color: "#7C3AED" }}>
+              <Link href="/home" className="text-xs font-semibold mt-1 inline-block hover:opacity-70 transition-opacity" style={{ color: "var(--purple)" }}>
                 Find a Homeroom →
               </Link>
             </div>
@@ -396,7 +396,7 @@ export default function ProgressPage() {
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#CCFBF1", fontSize: 16 }}>🌅</div>
             <div>
-              <p className="text-sm leading-snug" style={{ color: "#374151" }}>
+              <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>
                 You complete admin tasks <strong>30% faster in morning sessions</strong>. Try a Sunday Reset tomorrow morning.
               </p>
               <Link href="/start" className="text-xs font-semibold mt-1 inline-block hover:opacity-70 transition-opacity" style={{ color: "#0D9488" }}>
@@ -409,7 +409,7 @@ export default function ProgressPage() {
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#E0F2FE", fontSize: 16 }}>📥</div>
             <div>
-              <p className="text-sm leading-snug" style={{ color: "#374151" }}>
+              <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>
                 Tasks you bring from My List get completed <strong>2× more often</strong>. Browse your list before your next Homeroom.
               </p>
               <Link href="/list" className="text-xs font-semibold mt-1 inline-block hover:opacity-70 transition-opacity" style={{ color: "#0369A1" }}>
@@ -422,7 +422,7 @@ export default function ProgressPage() {
           <div className="flex items-start gap-3">
             <div className="w-8 h-8 rounded-xl flex items-center justify-center flex-shrink-0" style={{ background: "#FEF3C7", fontSize: 16 }}>👋</div>
             <div>
-              <p className="text-sm leading-snug" style={{ color: "#374151" }}>
+              <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>
                 <strong>Sarah and Dan</strong> both have positive Momentum this week. Want to schedule a session together?
               </p>
               <Link href="/home" className="text-xs font-semibold mt-1 inline-block hover:opacity-70 transition-opacity" style={{ color: "#B45309" }}>
@@ -438,7 +438,7 @@ export default function ProgressPage() {
         className="rounded-2xl border p-4"
         style={{
           background: "linear-gradient(140deg, #F0FDF8 0%, #ECFDF5 100%)",
-          borderColor: "#A7F3D0",
+          borderColor: "var(--green-border)",
           boxShadow: "0 1px 2px rgba(0,0,0,0.04)",
         }}
       >

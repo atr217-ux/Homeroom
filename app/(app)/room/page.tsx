@@ -754,7 +754,7 @@ export default function RoomPage() {
       onTouchEnd={() => { swipeChatRef.current.active = false; }}
     >
       {/* Sticky header */}
-      <div className="sticky top-0 z-30 border-b border-gray-100" style={{ background: "#FAFAF9" }}>
+      <div className="sticky top-0 z-30 border-b border-gray-100" style={{ background: "var(--bg)" }}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
             <Link href="/home" className="text-warm-gray hover:text-charcoal mr-1">
@@ -792,8 +792,8 @@ export default function RoomPage() {
           <div
             className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold select-none"
             style={groupDone > 0
-              ? { background: "#F3E8FF", color: "#6D28D9", border: "1.5px solid #DDD6FE" }
-              : { background: "#F3F4F6", color: "#9CA3AF", border: "1.5px solid #E5E7EB" }}
+              ? { background: "var(--purple-bg)", color: "var(--purple-dark)", border: "1.5px solid var(--purple-border)" }
+              : { background: "var(--border)", color: "var(--text-3)", border: "1.5px solid var(--border-2)" }}
           >
             <span>{groupDone > 0 ? "🔥" : "🎯"}</span>
             <span>{groupDone} task{groupDone !== 1 ? "s" : ""} done together</span>
@@ -835,7 +835,7 @@ export default function RoomPage() {
             <button
               onClick={() => setShowTodos((v) => !v)}
               className="inline-flex items-center w-9 h-5 rounded-full p-0.5 transition-colors duration-200 flex-shrink-0"
-              style={{ background: showTodos ? "#7C3AED" : "#D1D5DB" }}
+              style={{ background: showTodos ? "var(--purple)" : "var(--border-3)" }}
             >
               <span
                 className="w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
@@ -869,7 +869,7 @@ export default function RoomPage() {
                         className="flex items-center gap-2 px-1 py-0.5 rounded-lg transition-colors"
                         style={{
                           opacity: draggingId === t.id ? 0.4 : 1,
-                          background: dragOverId === t.id && draggingId !== t.id ? "#F5F3FF" : "transparent",
+                          background: dragOverId === t.id && draggingId !== t.id ? "var(--purple-bg-2)" : "transparent",
                           cursor: t.done ? "default" : "grab",
                         }}
                       >
@@ -893,8 +893,8 @@ export default function RoomPage() {
                           onClick={() => toggleTask(t.id)}
                           className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
                           style={t.done
-                            ? { background: "#7C3AED", border: "2px solid #7C3AED" }
-                            : { border: "2px solid #D1D5DB" }}
+                            ? { background: "var(--purple)", border: "2px solid var(--purple)" }
+                            : { border: "2px solid var(--border-3)" }}
                         >
                           {t.done && (
                             <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
@@ -924,13 +924,13 @@ export default function RoomPage() {
                           <span className="text-xs text-warm-gray flex-shrink-0">{formatTime(elapsed)}</span>
                         ) : (
                           <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className="text-xs font-mono w-10 text-right" style={{ color: running ? "#7C3AED" : "#A8A29E" }}>
+                            <span className="text-xs font-mono w-10 text-right" style={{ color: running ? "var(--purple)" : "#A8A29E" }}>
                               {elapsed > 0 || running ? formatTime(elapsed) : ""}
                             </span>
                             <button
                               onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
                               className="flex items-center justify-center w-6 h-6 rounded-full transition-colors flex-shrink-0"
-                              style={running ? { background: "#7C3AED" } : { background: "#F3F4F6" }}
+                              style={running ? { background: "var(--purple)" } : { background: "var(--border)" }}
                             >
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "#78716C"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="12" cy="12" r="10" />
@@ -949,7 +949,7 @@ export default function RoomPage() {
                 <button
                   onClick={() => setTasksExpanded(v => !v)}
                   className="text-xs font-medium mb-2"
-                  style={{ color: "#7C3AED" }}
+                  style={{ color: "var(--purple)" }}
                 >
                   {tasksExpanded ? "Show less" : `+ ${tasks.length - TASK_VISIBLE_LIMIT} more task${tasks.length - TASK_VISIBLE_LIMIT !== 1 ? "s" : ""}`}
                 </button>
@@ -959,7 +959,7 @@ export default function RoomPage() {
                 <button
                   onClick={() => setTasksCollapsed(false)}
                   className="text-xs text-warm-gray mt-1 mb-2"
-                  style={{ color: "#7C3AED" }}
+                  style={{ color: "var(--purple)" }}
                 >
                   + {tasks.filter(t => !t.done).length - 1} more task{tasks.filter(t => !t.done).length - 1 !== 1 ? "s" : ""}
                 </button>
@@ -974,7 +974,7 @@ export default function RoomPage() {
                   placeholder="Add a task…"
                   className="flex-1 text-sm border border-gray-200 rounded-lg px-3 py-2 bg-cream text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage"
                 />
-                <button onClick={addTask} style={{ color: "#7C3AED" }} className="hover:opacity-70 transition-opacity">
+                <button onClick={addTask} style={{ color: "var(--purple)" }} className="hover:opacity-70 transition-opacity">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                     <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
                   </svg>
@@ -1073,7 +1073,7 @@ export default function RoomPage() {
                     <button
                       onClick={() => { setShowInviteModal(true); setInviteSearch(""); }}
                       className="flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors"
-                      style={{ color: "#7C3AED", borderColor: "#DDD6FE" }}
+                      style={{ color: "var(--purple)", borderColor: "var(--purple-border)" }}
                     >
                       <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" /><circle cx="9" cy="7" r="4" />
@@ -1090,7 +1090,7 @@ export default function RoomPage() {
                   <button
                     onClick={() => toggleFilter("friends")}
                     className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-                    style={activeFilters.has("friends") ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
+                    style={activeFilters.has("friends") ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
                   >
                     👤 Friends
                   </button>
@@ -1099,7 +1099,7 @@ export default function RoomPage() {
                       key={s.id}
                       onClick={() => toggleFilter(s.id)}
                       className="flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors"
-                      style={activeFilters.has(s.id) ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E7E5E4" }}
+                      style={activeFilters.has(s.id) ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
                     >
                       {s.emoji} {s.name}
                     </button>
@@ -1122,7 +1122,7 @@ export default function RoomPage() {
                       return (
                         <div key={p.username} className="bg-white rounded-2xl border border-gray-100 p-2.5 flex flex-col">
                           <div className="flex items-start justify-between mb-1.5">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}>
+                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: p.avatar ? "var(--border)" : colorFromUsername(p.username) }}>
                               {p.avatar || <span className="text-white text-xs font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
                             </div>
                             <button onClick={() => toggleCard(p.username)} className="text-warm-gray p-0.5 transition-transform duration-200 flex-shrink-0" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
@@ -1132,7 +1132,7 @@ export default function RoomPage() {
                           <p className="text-xs font-semibold text-charcoal truncate leading-tight">{p.username}</p>
                           <p className="text-xs text-warm-gray mt-0.5">{pData ? `${doneCount}/${totalCount} tasks` : "joining…"}</p>
                           {presentSet.has(p.username) && (
-                            <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                            <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
                               <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
                               Here now
                             </span>
@@ -1142,8 +1142,8 @@ export default function RoomPage() {
                             disabled={highfivedUsers.has(p.username)}
                             className="mt-1.5 w-full text-xs font-semibold py-1 rounded-lg transition-colors"
                             style={highfivedUsers.has(p.username)
-                              ? { background: "#F3F4F6", color: "#9CA3AF", cursor: "default" }
-                              : { background: "#EDE9FE", color: "#7C3AED" }}
+                              ? { background: "var(--border)", color: "var(--text-3)", cursor: "default" }
+                              : { background: "var(--purple-bg-2)", color: "var(--purple)" }}
                           >
                             {highfivedUsers.has(p.username) ? "✋ Sent!" : "✋ High Five"}
                           </button>
@@ -1156,7 +1156,7 @@ export default function RoomPage() {
                                   <div className="space-y-1">
                                     {pData.tasks.map((t) => (
                                       <div key={t.id} className="flex items-center gap-1">
-                                        <div className="w-2.5 h-2.5 rounded flex-shrink-0 flex items-center justify-center" style={t.done ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                                        <div className="w-2.5 h-2.5 rounded flex-shrink-0 flex items-center justify-center" style={t.done ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                                           {t.done && <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                                         </div>
                                         <span className={`text-xs truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
@@ -1174,12 +1174,12 @@ export default function RoomPage() {
                     })}
                   </div>
                   {!participantsExpanded && hiddenCount > 0 && (
-                    <button onClick={() => setParticipantsExpanded(true)} className="mt-2 text-xs font-medium" style={{ color: "#7C3AED" }}>
+                    <button onClick={() => setParticipantsExpanded(true)} className="mt-2 text-xs font-medium" style={{ color: "var(--purple)" }}>
                       + {hiddenCount} more {hiddenCount === 1 ? "person" : "people"}
                     </button>
                   )}
                   {participantsExpanded && filteredOthers.length > PARTICIPANTS_VISIBLE && (
-                    <button onClick={() => setParticipantsExpanded(false)} className="mt-2 text-xs font-medium" style={{ color: "#7C3AED" }}>Show less</button>
+                    <button onClick={() => setParticipantsExpanded(false)} className="mt-2 text-xs font-medium" style={{ color: "var(--purple)" }}>Show less</button>
                   )}
                 </>
               )}
@@ -1216,14 +1216,14 @@ export default function RoomPage() {
         <button
           onClick={() => setShowChat(true)}
           className="fixed z-30 flex items-center gap-2 rounded-full shadow-xl transition-transform active:scale-95"
-          style={{ bottom: "96px", right: "16px", background: "#7C3AED", color: "white", padding: "12px 20px" }}
+          style={{ bottom: "96px", right: "16px", background: "var(--purple)", color: "white", padding: "12px 20px" }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
           </svg>
           <span className="text-sm font-semibold">Chat</span>
           {chatUnread > 0 && (
-            <span className="w-5 h-5 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ background: "#DC2626", fontSize: "10px", marginLeft: "-2px" }}>
+            <span className="w-5 h-5 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ background: "var(--red)", fontSize: "10px", marginLeft: "-2px" }}>
               {chatUnread > 9 ? "9+" : chatUnread}
             </span>
           )}
@@ -1267,7 +1267,7 @@ export default function RoomPage() {
                       <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
                         {av ? <span className="text-sm leading-none">{av}</span> : <span className="text-xs font-bold text-gray-500">{msg.sender.slice(0, 1).toUpperCase()}</span>}
                       </div>
-                      <div className="max-w-[75%] px-3 py-2 rounded-2xl text-sm" style={isMe ? { background: "#7C3AED", color: "white" } : { background: "#F3F4F6", color: "#1C1917" }}>
+                      <div className="max-w-[75%] px-3 py-2 rounded-2xl text-sm" style={isMe ? { background: "var(--purple)", color: "white" } : { background: "var(--border)", color: "var(--text)" }}>
                         {msg.text}
                       </div>
                     </div>
@@ -1303,7 +1303,7 @@ export default function RoomPage() {
                 placeholder="Message the room…"
                 className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
               />
-              <button onClick={sendChatMessage} style={{ color: "#7C3AED" }} className="hover:opacity-70 transition-opacity flex-shrink-0">
+              <button onClick={sendChatMessage} style={{ color: "var(--purple)" }} className="hover:opacity-70 transition-opacity flex-shrink-0">
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
                 </svg>
@@ -1372,8 +1372,8 @@ export default function RoomPage() {
                 ) : available.map((t) => {
                   const checked = selectedListIds.includes(t.id);
                   return (
-                    <button key={t.id} onClick={() => setSelectedListIds(prev => prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id])} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-gray-50" style={checked ? { background: "#F5F3FF" } : {}}>
-                      <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center" style={checked ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                    <button key={t.id} onClick={() => setSelectedListIds(prev => prev.includes(t.id) ? prev.filter(x => x !== t.id) : [...prev, t.id])} className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors hover:bg-gray-50" style={checked ? { background: "var(--purple-bg-2)" } : {}}>
+                      <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center" style={checked ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                         {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                       </div>
                       <span className="text-sm text-charcoal flex-1 truncate">{t.text}</span>
@@ -1382,7 +1382,7 @@ export default function RoomPage() {
                 })}
               </div>
               <div className="px-5 py-4 border-t border-gray-100 flex-shrink-0">
-                <button onClick={addSelected} disabled={selectedListIds.length === 0} className="w-full py-2.5 rounded-xl text-sm font-semibold transition-opacity" style={{ background: "#7C3AED", color: "white", opacity: selectedListIds.length > 0 ? 1 : 0.4 }}>
+                <button onClick={addSelected} disabled={selectedListIds.length === 0} className="w-full py-2.5 rounded-xl text-sm font-semibold transition-opacity" style={{ background: "var(--purple)", color: "white", opacity: selectedListIds.length > 0 ? 1 : 0.4 }}>
                   {selectedListIds.length === 0 ? "Select tasks to add" : `Add ${selectedListIds.length} task${selectedListIds.length !== 1 ? "s" : ""}`}
                 </button>
               </div>
@@ -1401,7 +1401,7 @@ export default function RoomPage() {
               <button
                 onClick={() => { setConfirmLeave(false); leaveRoom(); }}
                 className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity hover:opacity-80"
-                style={{ background: "#DC2626" }}
+                style={{ background: "var(--red)" }}
               >
                 Yes, leave
               </button>
@@ -1464,7 +1464,7 @@ export default function RoomPage() {
                     {timedDone.map((t) => (
                       <div key={t.id} className="flex items-center justify-between rounded-xl bg-purple-50 px-3 py-2">
                         <span className="text-sm text-charcoal truncate flex-1 mr-3">{t.text}</span>
-                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: "#7C3AED" }}>{formatTime(t.timeSpent)}</span>
+                        <span className="text-xs font-semibold flex-shrink-0" style={{ color: "var(--purple)" }}>{formatTime(t.timeSpent)}</span>
                       </div>
                     ))}
                   </div>
@@ -1472,7 +1472,7 @@ export default function RoomPage() {
               )}
               <div className="flex flex-col gap-2">
                 {remaining.length > 0 && (
-                  <button onClick={() => scheduleRemaining(remaining)} className="w-full font-semibold text-sm py-3 rounded-xl text-white" style={{ background: "#7C3AED" }}>
+                  <button onClick={() => scheduleRemaining(remaining)} className="w-full font-semibold text-sm py-3 rounded-xl text-white" style={{ background: "var(--purple)" }}>
                     Schedule a homeroom to finish ({remaining.length} task{remaining.length !== 1 ? "s" : ""})
                   </button>
                 )}
@@ -1546,7 +1546,7 @@ export default function RoomPage() {
                             return (
                               <div key={p.userId} className="flex items-center justify-between py-2.5">
                                 <div className="flex items-center gap-3">
-                                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: p.avatar ? "#F3F4F6" : colorFromUsername(p.username) }}>
+                                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: p.avatar ? "var(--border)" : colorFromUsername(p.username) }}>
                                     {p.avatar || <span className="text-white text-xs font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
                                   </div>
                                   <span className="text-sm font-medium text-charcoal">{p.username}</span>
@@ -1555,7 +1555,7 @@ export default function RoomPage() {
                                   onClick={() => sendInvite({ username: p.username, userId: p.userId })}
                                   disabled={sent}
                                   className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
-                                  style={sent ? { background: "#F3F4F6", color: "#9CA3AF" } : { background: "#7C3AED", color: "white" }}
+                                  style={sent ? { background: "var(--border)", color: "var(--text-3)" } : { background: "var(--purple)", color: "white" }}
                                 >{sent ? "Invited" : "Invite back"}</button>
                               </div>
                             );
@@ -1578,8 +1578,8 @@ export default function RoomPage() {
                           disabled={sent}
                           className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
                           style={sent
-                            ? { background: "#F3F4F6", color: "#9CA3AF" }
-                            : { background: "#7C3AED", color: "white" }}
+                            ? { background: "var(--border)", color: "var(--text-3)" }
+                            : { background: "var(--purple)", color: "white" }}
                         >
                           {sent ? "Invited" : "Invite"}
                         </button>

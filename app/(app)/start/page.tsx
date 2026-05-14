@@ -285,7 +285,7 @@ export default function StartPage() {
           {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).map(opt => (
             <button key={opt.value} onClick={() => setScheduleMode(opt.value)}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-              style={scheduleMode === opt.value ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}>
+              style={scheduleMode === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
               {opt.label}
             </button>
           ))}
@@ -295,14 +295,14 @@ export default function StartPage() {
             <div>
               <label className="text-xs text-warm-gray mb-2 block">Date</label>
               <div className="relative flex items-center gap-3 border-2 rounded-xl px-3 py-2.5"
-                style={{ borderColor: "#7C3AED", background: "#EDE9FE" }}>
+                style={{ borderColor: "var(--purple)", background: "var(--purple-bg-2)" }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
                   <line x1="8" y1="2" x2="8" y2="6" />
                   <line x1="3" y1="10" x2="21" y2="10" />
                 </svg>
-                <span className="text-base font-semibold flex-1" style={{ color: scheduleDate ? "#7C3AED" : "#A78BFA" }}>
+                <span className="text-base font-semibold flex-1" style={{ color: scheduleDate ? "var(--purple)" : "var(--purple-light)" }}>
                   {scheduleDate ? new Date(scheduleDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "Pick a date"}
                 </span>
                 <input type="date" min={todayStr} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
@@ -314,14 +314,14 @@ export default function StartPage() {
               <div className="flex items-center gap-2">
                 <input type="number" min="1" max="12" value={scheduleHour} onChange={e => setScheduleHour(e.target.value)} placeholder="12"
                   className="w-16 text-center text-base font-semibold border-2 rounded-xl px-1 py-2.5 focus:outline-none"
-                  style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }} />
+                  style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }} />
                 <span className="text-base font-semibold text-charcoal">:</span>
                 <input type="number" min="0" max="55" step="5" value={scheduleMinute} onChange={e => setScheduleMinute(e.target.value)} placeholder="00"
                   className="w-16 text-center text-base font-semibold border-2 rounded-xl px-1 py-2.5 focus:outline-none"
-                  style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }} />
+                  style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }} />
                 <button onClick={() => setSchedulePeriod(p => p === "AM" ? "PM" : "AM")}
                   className="text-sm font-semibold px-4 py-2.5 rounded-xl border-2 transition-colors"
-                  style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>
+                  style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }}>
                   {schedulePeriod}
                 </button>
               </div>
@@ -339,11 +339,11 @@ export default function StartPage() {
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setDurationHours(h => Math.min(23, h + 1))}
                 className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>+</button>
-              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{durationHours}</span>
+                style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }}>+</button>
+              <span className="w-8 text-center text-xl font-semibold" style={{ color: "var(--purple)" }}>{durationHours}</span>
               <button type="button" onClick={() => setDurationHours(h => Math.max(0, h - 1))}
                 className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
+                style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }}>−</button>
             </div>
             <span className="text-xs text-warm-gray">hours</span>
           </div>
@@ -353,11 +353,11 @@ export default function StartPage() {
             <div className="flex items-center gap-2">
               <button type="button" onClick={() => setDurationMinutes(m => m === 45 ? 0 : m + 15)}
                 className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>+</button>
-              <span className="w-8 text-center text-xl font-semibold" style={{ color: "#7C3AED" }}>{String(durationMinutes).padStart(2, "0")}</span>
+                style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }}>+</button>
+              <span className="w-8 text-center text-xl font-semibold" style={{ color: "var(--purple)" }}>{String(durationMinutes).padStart(2, "0")}</span>
               <button type="button" onClick={() => setDurationMinutes(m => m === 0 ? 45 : m - 15)}
                 className="w-9 h-9 rounded-xl text-lg font-bold flex items-center justify-center border-2 transition-colors"
-                style={{ borderColor: "#7C3AED", color: "#7C3AED", background: "#EDE9FE" }}>−</button>
+                style={{ borderColor: "var(--purple)", color: "var(--purple)", background: "var(--purple-bg-2)" }}>−</button>
             </div>
             <span className="text-xs text-warm-gray">minutes</span>
           </div>
@@ -371,7 +371,7 @@ export default function StartPage() {
           {[{ label: "Public", value: false }, { label: "Friends only", value: true }].map(opt => (
             <button key={opt.label} onClick={() => setIsPrivate(opt.value)}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-              style={isPrivate === opt.value ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}>
+              style={isPrivate === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
               {opt.label}
             </button>
           ))}
@@ -389,7 +389,7 @@ export default function StartPage() {
                 <button key={s.id}
                   onClick={() => setSelectedSquads(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n; })}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                  style={active ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" } : { background: "white", color: "#78716C", borderColor: "#E5E2DC" }}>
+                  style={active ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
                   <span>{s.emoji}</span><span>{s.name}</span>
                 </button>
               );
@@ -403,7 +403,7 @@ export default function StartPage() {
         <div className="flex items-center justify-between mb-3">
           <label className="text-sm font-semibold text-charcoal">Invite friends</label>
           {friends.length > 5 && (
-            <button onClick={() => setShowFriendsModal(true)} className="text-xs font-medium" style={{ color: "#7C3AED" }}>
+            <button onClick={() => setShowFriendsModal(true)} className="text-xs font-medium" style={{ color: "var(--purple)" }}>
               See all
             </button>
           )}
@@ -418,7 +418,7 @@ export default function StartPage() {
               return (
                 <button key={f.id} onClick={() => toggleInvite(f.id)}
                   className="flex items-center gap-2 rounded-xl border px-3 py-2 transition-all"
-                  style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}>
+                  style={{ borderColor: invited ? "var(--purple)" : "var(--border-2)", background: invited ? "var(--purple-bg-2)" : "var(--surface)" }}>
                   <div className="relative w-7 h-7 flex-shrink-0">
                     <div className="w-7 h-7 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ background: f.color }}>
                       {f.initials}
@@ -458,7 +458,7 @@ export default function StartPage() {
                 return (
                   <button key={f.id} onClick={() => toggleInvite(f.id)}
                     className="w-full flex items-center gap-3 rounded-xl border px-3 py-2.5 transition-all text-left"
-                    style={{ borderColor: invited ? "#7C3AED" : "#E5E7EB", background: invited ? "#F5F3FF" : "white" }}>
+                    style={{ borderColor: invited ? "var(--purple)" : "var(--border-2)", background: invited ? "var(--purple-bg-2)" : "var(--surface)" }}>
                     <div className="relative w-8 h-8 flex-shrink-0">
                       <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold" style={{ background: f.color }}>{f.initials}</div>
                       {online && <span className="absolute bottom-0 right-0 w-2 h-2 rounded-full border border-white" style={{ background: "#22C55E" }} />}
@@ -469,7 +469,7 @@ export default function StartPage() {
                 );
               })}
             </div>
-            <button onClick={() => setShowFriendsModal(false)} className="mt-4 w-full font-semibold text-sm py-3 rounded-xl text-white" style={{ background: "#1C1917" }}>Done</button>
+            <button onClick={() => setShowFriendsModal(false)} className="mt-4 w-full font-semibold text-sm py-3 rounded-xl text-white" style={{ background: "var(--text)" }}>Done</button>
           </div>
         </div>
       )}
@@ -484,7 +484,7 @@ export default function StartPage() {
         <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addExtra()}
           placeholder="Add a task just for this session…"
           className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors" />
-        <button onClick={addExtra} style={{ color: "#7C3AED" }} className="flex-shrink-0 hover:opacity-70 transition-opacity">
+        <button onClick={addExtra} style={{ color: "var(--purple)" }} className="flex-shrink-0 hover:opacity-70 transition-opacity">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
           </svg>
@@ -497,7 +497,7 @@ export default function StartPage() {
           <div className="space-y-2">
             {extraTasks.map(t => (
               <div key={t.id} className="bg-white rounded-xl border border-gray-200 px-3 py-2.5 flex items-center gap-2">
-                <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center" style={{ background: "#7C3AED", border: "2px solid #7C3AED" }}>
+                <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center" style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}>
                   <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                 </div>
                 <span className="text-sm text-charcoal flex-1">{t.text}</span>
@@ -510,7 +510,7 @@ export default function StartPage() {
 
       {carryForward.length > 0 && (
         <div className="mb-4">
-          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "#7C3AED" }}>Tasks from previous homeroom</p>
+          <p className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--purple)" }}>Tasks from previous homeroom</p>
           <div className="space-y-2">
             {carryForward.map(t => {
               const checked = selectedIds.has(t.id);
@@ -518,9 +518,9 @@ export default function StartPage() {
                 <button key={t.id}
                   onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
                   className="w-full rounded-xl border px-3 py-2.5 flex items-center gap-2 hover:shadow-sm transition-all text-left"
-                  style={{ borderColor: checked ? "#7C3AED" : "#E5E7EB", background: checked ? "#F5F3FF" : "white" }}>
+                  style={{ borderColor: checked ? "var(--purple)" : "var(--border-2)", background: checked ? "var(--purple-bg-2)" : "var(--surface)" }}>
                   <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                    style={checked ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                    style={checked ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                     {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
                   <span className="text-sm text-charcoal flex-1">{t.text}</span>
@@ -541,9 +541,9 @@ export default function StartPage() {
                 <button key={t.id}
                   onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
                   className="w-full bg-white rounded-xl border px-3 py-2.5 flex items-start gap-2 hover:shadow-sm transition-all text-left"
-                  style={{ borderColor: checked ? "#7C3AED" : "#E5E7EB" }}>
+                  style={{ borderColor: checked ? "var(--purple)" : "var(--border-2)" }}>
                   <div className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
-                    style={checked ? { background: "#7C3AED", border: "2px solid #7C3AED" } : { border: "2px solid #D1D5DB" }}>
+                    style={checked ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                     {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
                   <div className="flex-1 min-w-0">
@@ -551,13 +551,13 @@ export default function StartPage() {
                     {(t.homeroomStatus === "active" && t.homeroomTitle) || (t.scheduledForDate && t.homeroomTitle) ? (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {t.homeroomStatus === "active" && t.homeroomTitle && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
                             <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block" />
                             {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle}
                           </span>
                         )}
                         {t.scheduledForDate && t.homeroomTitle && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "#FEF9C3", color: "#92400E" }}>
+                          <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
                             {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                           </span>
                         )}
@@ -569,7 +569,7 @@ export default function StartPage() {
             })}
           </div>
           {allSelectableTasks.length > TASK_LIMIT && (
-            <button onClick={() => setShowAllTasks(v => !v)} className="mt-2 text-xs font-medium underline" style={{ color: "#7C3AED" }}>
+            <button onClick={() => setShowAllTasks(v => !v)} className="mt-2 text-xs font-medium underline" style={{ color: "var(--purple)" }}>
               {showAllTasks ? "Show less" : `Show all ${allSelectableTasks.length} tasks`}
             </button>
           )}
@@ -582,7 +582,7 @@ export default function StartPage() {
 
       <button onClick={launch} disabled={launching}
         className="w-full font-bold text-base py-4 rounded-2xl text-white shadow-md transition-colors disabled:opacity-50"
-        style={{ background: "#1C1917" }}>
+        style={{ background: "var(--text)" }}>
         {launching ? "Creating…" : scheduleMode === "now" ? "Start Homeroom" : "Schedule Homeroom"}
       </button>
     </div>
