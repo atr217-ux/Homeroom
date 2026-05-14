@@ -1247,8 +1247,8 @@ export default function RoomPage() {
             onClick={() => setShowChat(false)}
           />
           <div
-            className="fixed top-0 right-0 bottom-0 z-50 bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-in-out w-full md:w-96"
-            style={{ transform: showChat ? "translateX(0)" : "translateX(100%)" }}
+            className="fixed z-50 bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-in-out rounded-l-3xl w-full md:w-96"
+            style={{ top: "10%", bottom: "10%", right: 0, transform: showChat ? "translateX(0)" : "translateX(100%)" }}
           >
             <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
               <h2 className="font-semibold text-charcoal">Chat</h2>
