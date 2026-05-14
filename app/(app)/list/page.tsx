@@ -170,19 +170,16 @@ export default function ListPage() {
             : { data: [] };
           const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
 
-          // For active homerooms, also check participation so leaving a room removes the badge
-          const activeHomeroomIds = homeroomIds.filter(id => hrMap[id]?.status === "active");
-          const { data: participantRows } = activeHomeroomIds.length
-            ? await supabase.from("homeroom_participants").select("homeroom_id").eq("user_id", user.id).in("homeroom_id", activeHomeroomIds)
-            : { data: [] };
-          const participatingIds = new Set((participantRows ?? []).map(r => r.homeroom_id as string));
+          // Only clear homeroom_id for completed/deleted rooms.
+          // leaveRoom() in the room page already handles the active-but-left case,
+          // so checking participant records here creates a race condition that wipes
+          // tasks mid-session when a new deployment loads or queries are slow.
           const staleIds = (allTasks ?? [])
             .filter(t => {
               if (!t.homeroom_id || t.done) return false;
               const hr = hrMap[t.homeroom_id];
               if (!hr) return true; // homeroom deleted
               if (hr.status === "completed") return true; // session ended
-              if (hr.status === "active" && !participatingIds.has(t.homeroom_id)) return true; // left active room
               return false;
             })
             .map(t => t.id);
