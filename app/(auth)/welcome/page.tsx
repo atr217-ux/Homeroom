@@ -29,7 +29,7 @@ export default function WelcomePage() {
   const router = useRouter();
   const supabase = createClient();
 
-  const [step, setStep] = useState<"login" | "register-name" | "register-avatar" | "check-email">("login");
+  const [step, setStep] = useState<"login" | "register-name" | "register-avatar" | "check-email" | "forgot-password">("login");
   const [pendingEmail, setPendingEmail] = useState("");
 
   const [loginInput, setLoginInput] = useState("");
@@ -46,6 +46,11 @@ export default function WelcomePage() {
   const [regAvatar, setRegAvatar] = useState("");
   const [regLoading, setRegLoading] = useState(false);
   const [regError, setRegError] = useState("");
+
+  const [forgotEmail, setForgotEmail] = useState("");
+  const [forgotLoading, setForgotLoading] = useState(false);
+  const [forgotError, setForgotError] = useState("");
+  const [forgotSent, setForgotSent] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
@@ -227,6 +232,21 @@ export default function WelcomePage() {
     }
   }
 
+  // ── Forgot password ────────────────────────────────────────────────────────
+
+  async function handleForgotPassword() {
+    const email = forgotEmail.trim();
+    if (!email) return;
+    setForgotLoading(true);
+    setForgotError("");
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/update-password`,
+    });
+    setForgotLoading(false);
+    if (error) { setForgotError(error.message); return; }
+    setForgotSent(true);
+  }
+
   // ── Render ─────────────────────────────────────────────────────────────────
 
   if (step === "check-email") {
@@ -369,6 +389,56 @@ export default function WelcomePage() {
     );
   }
 
+  if (step === "forgot-password") {
+    return (
+      <div>
+        <div className="mb-8 text-center">
+          <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
+          <h1 className="text-2xl font-bold text-charcoal mt-2 leading-snug">Reset password</h1>
+          <p className="text-sm text-warm-gray mt-1">We&apos;ll send a reset link to your email.</p>
+        </div>
+
+        {forgotSent ? (
+          <div className="text-center">
+            <div className="text-4xl mb-4">📬</div>
+            <p className="text-sm text-charcoal font-semibold">Check your inbox</p>
+            <p className="text-sm text-warm-gray mt-1">A reset link was sent to <span className="font-semibold text-charcoal">{forgotEmail}</span>.</p>
+            <button onClick={() => setStep("login")} className="mt-6 w-full text-sm text-warm-gray hover:text-charcoal transition-colors">
+              ← Back to login
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-semibold text-charcoal mb-1.5">Email</label>
+              <input
+                type="email"
+                value={forgotEmail}
+                onChange={(e) => { setForgotEmail(e.target.value); setForgotError(""); }}
+                onKeyDown={(e) => e.key === "Enter" && handleForgotPassword()}
+                placeholder="you@example.com"
+                autoFocus
+                className="w-full text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-white text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
+              />
+              {forgotError && <p className="text-xs text-red-400 mt-1">{forgotError}</p>}
+            </div>
+            <button
+              onClick={handleForgotPassword}
+              disabled={!forgotEmail.trim() || forgotLoading}
+              className="w-full font-semibold text-sm py-3 rounded-xl transition-opacity disabled:opacity-40"
+              style={{ background: "var(--purple)", color: "white" }}
+            >
+              {forgotLoading ? "Sending…" : "Send reset link"}
+            </button>
+            <button onClick={() => setStep("login")} className="w-full text-sm text-warm-gray hover:text-charcoal transition-colors">
+              ← Back to login
+            </button>
+          </div>
+        )}
+      </div>
+    );
+  }
+
   // Default: login
   return (
     <div>
@@ -408,6 +478,11 @@ export default function WelcomePage() {
             style={loginError ? { borderColor: "#F87171" } : {}}
           />
           {loginError && <p className="text-xs text-red-400 mt-1">{loginError}</p>}
+          <div className="flex justify-end mt-1">
+            <button onClick={() => { setStep("forgot-password"); setForgotEmail(""); setForgotSent(false); }} className="text-xs text-warm-gray hover:text-charcoal transition-colors">
+              Forgot password?
+            </button>
+          </div>
         </div>
 
         <button

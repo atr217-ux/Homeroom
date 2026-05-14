@@ -23,29 +23,32 @@ export default function ConfirmPage() {
     const refresh_token = hash.get("refresh_token");
 
     async function verify() {
+      const isRecovery = type === "recovery" || hash.get("type") === "recovery";
+      const dest = isRecovery ? "/auth/update-password" : "/welcome";
+
       if (token_hash && type) {
         const { error } = await supabase.auth.verifyOtp({
           token_hash,
           type: type as "signup",
         });
-        if (!error) { setStatus("success"); setTimeout(() => router.replace("/welcome"), 800); return; }
+        if (!error) { setStatus("success"); setTimeout(() => router.replace(dest), 800); return; }
       }
 
       if (code) {
         const { error } = await supabase.auth.exchangeCodeForSession(code);
-        if (!error) { setStatus("success"); setTimeout(() => router.replace("/welcome"), 800); return; }
+        if (!error) { setStatus("success"); setTimeout(() => router.replace(dest), 800); return; }
       }
 
       if (access_token && refresh_token) {
         const { error } = await supabase.auth.setSession({ access_token, refresh_token });
-        if (!error) { setStatus("success"); setTimeout(() => router.replace("/welcome"), 800); return; }
+        if (!error) { setStatus("success"); setTimeout(() => router.replace(dest), 800); return; }
       }
 
       // Check if the client already handled the session from the URL
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
         setStatus("success");
-        setTimeout(() => router.replace("/welcome"), 800);
+        setTimeout(() => router.replace(dest), 800);
         return;
       }
 
