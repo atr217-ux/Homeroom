@@ -157,6 +157,18 @@ export default function RoomPage() {
       if (cachedP) setDbParticipants(JSON.parse(cachedP));
     } catch { /* ignore */ }
 
+    // Restore participant task data so cards don't flash "joining…"
+    try {
+      const cachedPD = sessionStorage.getItem(`homeroom-participantdata-${homeroomId}`);
+      if (cachedPD) setParticipantData(JSON.parse(cachedPD));
+    } catch { /* ignore */ }
+
+    // Restore share-tasks toggle preference per room
+    try {
+      const cachedST = sessionStorage.getItem(`homeroom-show-todos-${homeroomId}`);
+      if (cachedST !== null) { const val = cachedST === "true"; showTodosRef.current = val; setShowTodos(val); }
+    } catch { /* ignore */ }
+
     const local = localStorage.getItem("homeroom-username");
     if (local) { myUsernameRef.current = local; setMyUsername(local); }
     const localAvatar = localStorage.getItem("homeroom-avatar");
@@ -292,9 +304,13 @@ export default function RoomPage() {
           text: m.text,
           sender: m.sender,
           time: new Date(m.created_at),
-          reactions: [],
+          reactions: [] as string[],
         }));
-        setChatMessages(loaded);
+        // Merge with cached messages — preserve reactions from cache, add new DB messages
+        setChatMessages(prev => {
+          const cachedById = new Map(prev.map(m => [m.id, m]));
+          return loaded.map(m => cachedById.has(m.id) ? { ...m, reactions: cachedById.get(m.id)!.reactions } : m);
+        });
         try {
           sessionStorage.setItem(`homeroom-msgs-${homeroomId}`, JSON.stringify(loaded.map(m => ({ ...m, time: m.time.toISOString() }))));
         } catch { /* ignore */ }
@@ -704,12 +720,24 @@ export default function RoomPage() {
       sessionStorage.setItem(`homeroom-participants-${homeroomIdRef.current}`, JSON.stringify(dbParticipants));
     } catch { /* ignore */ }
   }, [dbParticipants]);
+  useEffect(() => {
+    if (!homeroomIdRef.current || Object.keys(participantData).length === 0) return;
+    try {
+      sessionStorage.setItem(`homeroom-participantdata-${homeroomIdRef.current}`, JSON.stringify(participantData));
+    } catch { /* ignore */ }
+  }, [participantData]);
   useEffect(() => { showChatRef.current = showChat; if (showChat) setChatUnread(0); }, [showChat]);
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
 
   useEffect(() => { showTodosRef.current = showTodos; }, [showTodos]);
+  useEffect(() => {
+    if (!homeroomIdRef.current) return;
+    try {
+      sessionStorage.setItem(`homeroom-show-todos-${homeroomIdRef.current}`, String(showTodos));
+    } catch { /* ignore */ }
+  }, [showTodos]);
 
   useEffect(() => {
     if (!realtimeChannelRef.current) return;
