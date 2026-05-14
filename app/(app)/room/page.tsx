@@ -213,14 +213,14 @@ export default function RoomPage() {
       // If room already ended, load tasks then show end popup immediately
       if (homeroom.status === "completed") {
         const { data: taskData } = await supabase
-          .from("tasks").select("id, text, done, time_spent, completed_at")
+          .from("tasks").select("id, text, done, time_spent, completed_at, timer_started_at")
           .eq("homeroom_id", homeroomId).order("sort_order", { ascending: true });
         setSession({
           homeroomId: homeroom.id, title: homeroom.title, duration: homeroom.duration,
           isPublic: !homeroom.is_private, startedAt: homeroom.started_at ?? new Date().toISOString(),
           squadTags: homeroom.squad_tags ?? [], invitedFriends: [],
         });
-        if (taskData) setTasks(taskData.map(t => ({ id: t.id, text: t.text, done: t.done, timeSpent: t.time_spent ?? 0, startedAt: null, completedAt: t.completed_at ? new Date(t.completed_at).getTime() : null })));
+        if (taskData) setTasks(taskData.map(t => ({ id: t.id, text: t.text, done: t.done, timeSpent: t.time_spent ?? 0, startedAt: t.timer_started_at ? new Date(t.timer_started_at).getTime() : null, completedAt: t.completed_at ? new Date(t.completed_at).getTime() : null })));
         timerEndedRef.current = true;
         setShowSummary(true);
         setLoading(false);
@@ -285,23 +285,16 @@ export default function RoomPage() {
       // Load tasks
       const { data: taskData } = await supabase
         .from("tasks")
-        .select("id, text, done, time_spent, completed_at")
+        .select("id, text, done, time_spent, completed_at, timer_started_at")
         .eq("homeroom_id", homeroomId)
         .order("sort_order", { ascending: true });
       if (taskData) {
-        // Restore any running timer that survived navigation
-        let runningTimer: { taskId: string; startedAt: number } | null = null;
-        try {
-          const raw = localStorage.getItem("homeroom-running-timer");
-          if (raw) runningTimer = JSON.parse(raw);
-        } catch { /* ignore */ }
-
         setTasks(taskData.map(t => ({
           id: t.id,
           text: t.text,
           done: t.done,
           timeSpent: t.time_spent ?? 0,
-          startedAt: runningTimer && runningTimer.taskId === t.id ? runningTimer.startedAt : null,
+          startedAt: t.timer_started_at ? new Date(t.timer_started_at).getTime() : null,
           completedAt: t.completed_at ? new Date(t.completed_at).getTime() : null,
         })));
         tasksInitializedRef.current = true;
@@ -442,8 +435,14 @@ export default function RoomPage() {
 
   function startTimer(id: string) {
     const now = Date.now();
-    try { localStorage.setItem("homeroom-running-timer", JSON.stringify({ taskId: id, startedAt: now })); } catch { /* ignore */ }
-    setTasks((prev) => prev.map((t) => {
+    const supabase = createClient();
+    // Stop any previously running timer
+    const prev = tasks.find(t => t.startedAt !== null && t.id !== id);
+    if (prev) {
+      supabase.from("tasks").update({ timer_started_at: null, time_spent: getElapsed(prev) }).eq("id", prev.id).then(() => {});
+    }
+    supabase.from("tasks").update({ timer_started_at: new Date(now).toISOString() }).eq("id", id).then(() => {});
+    setTasks((prevTasks) => prevTasks.map((t) => {
       if (t.id === id) return { ...t, startedAt: now };
       if (t.startedAt !== null) return { ...t, timeSpent: getElapsed(t), startedAt: null };
       return t;
@@ -451,7 +450,10 @@ export default function RoomPage() {
   }
 
   function stopTimer(id: string) {
-    try { localStorage.removeItem("homeroom-running-timer"); } catch { /* ignore */ }
+    const task = tasks.find(t => t.id === id);
+    const timeSpent = task ? getElapsed(task) : 0;
+    const supabase = createClient();
+    supabase.from("tasks").update({ timer_started_at: null, time_spent: timeSpent }).eq("id", id).then(() => {});
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
@@ -463,7 +465,7 @@ export default function RoomPage() {
     const timeSpent = getElapsed(task);
     const nowDone = !task.done;
     if (task.startedAt !== null) {
-      try { localStorage.removeItem("homeroom-running-timer"); } catch { /* ignore */ }
+      // Timer was running — will be cleared via timer_started_at: null in the DB update below
     }
     const supabase = createClient();
 
@@ -493,6 +495,7 @@ export default function RoomPage() {
     await supabase.from("tasks").update({
       done: nowDone,
       time_spent: timeSpent,
+      timer_started_at: null,
       completed_at: nowDone ? new Date().toISOString() : null,
     }).eq("id", id);
 
@@ -809,12 +812,17 @@ export default function RoomPage() {
   }, [remainingSec, duration]);
 
   async function leaveRoom() {
+    // Stop any running timer and accumulate time
+    const runningTask = tasks.find(t => t.startedAt !== null);
     setTasks((prev) => prev.map((t) =>
       t.startedAt !== null ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
-    // Remove from persistent participant list and notify others
     if (session?.homeroomId && myUserId) {
       const supabase = createClient();
+      // Flush running timer to DB before leaving
+      if (runningTask) {
+        await supabase.from("tasks").update({ timer_started_at: null, time_spent: getElapsed(runningTask) }).eq("id", runningTask.id);
+      }
       await supabase.from("homeroom_participants").delete()
         .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId);
       supabase.from("tasks").update({ homeroom_id: null })
@@ -823,7 +831,7 @@ export default function RoomPage() {
         type: "broadcast", event: "user-left",
         payload: { username: myUsernameRef.current || myUsername },
       });
-      // If no participants remain, mark the homeroom as completed
+      // If no participants remain, mark completed and clean up
       const { count } = await supabase.from("homeroom_participants")
         .select("*", { count: "exact", head: true })
         .eq("homeroom_id", session.homeroomId);
@@ -832,6 +840,11 @@ export default function RoomPage() {
           .update({ status: "completed", ended_at: new Date().toISOString() })
           .eq("id", session.homeroomId);
         realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
+        // Delete ephemeral homeroom data
+        supabase.from("homeroom_messages").delete().eq("homeroom_id", session.homeroomId).then(() => {});
+        if (session.isPublic) {
+          supabase.from("homeroom_participants").delete().eq("homeroom_id", session.homeroomId).then(() => {});
+        }
       }
     }
     setShowSummary(true);
