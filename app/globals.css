@@ -85,6 +85,37 @@ body {
   font-family: var(--font-geist-sans), system-ui, sans-serif;
 }
 
+/* Dark mode overrides for Tailwind utility classes */
+html.dark {
+  /* Backgrounds */
+  & .bg-white     { background-color: var(--surface); }
+  & .bg-gray-50   { background-color: var(--surface-2); }
+  & .bg-gray-100  { background-color: var(--border); }
+  & .bg-gray-200  { background-color: var(--border-2); }
+
+  /* Borders */
+  & .border-gray-100 { border-color: var(--border); }
+  & .border-gray-200 { border-color: var(--border-2); }
+  & .border-gray-300 { border-color: var(--border-3); }
+
+  /* Text */
+  & .text-gray-400 { color: var(--text-3); }
+  & .text-gray-500 { color: var(--text-2); }
+  & .text-gray-600 { color: var(--text-2); }
+  & .text-gray-700 { color: var(--text); }
+  & .text-gray-900 { color: var(--text); }
+  & .text-black    { color: var(--text); }
+
+  /* Inputs / surfaces that use bg-cream */
+  & input, & textarea, & select {
+    background-color: var(--input-bg);
+    color: var(--text);
+  }
+  & input::placeholder, & textarea::placeholder {
+    color: var(--text-3);
+  }
+}
+
 /* Prevent iOS from zooming on input focus (requires font-size >= 16px on mobile) */
 @media (max-width: 640px) {
   input, textarea, select {
