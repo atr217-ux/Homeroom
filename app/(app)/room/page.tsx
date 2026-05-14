@@ -541,6 +541,11 @@ export default function RoomPage() {
       const toIdx   = arr.findIndex((t) => t.id === toId);
       const [item]  = arr.splice(fromIdx, 1);
       arr.splice(toIdx, 0, item);
+      // Persist new order to DB
+      const supabase = createClient();
+      arr.forEach((t, i) => {
+        supabase.from("tasks").update({ sort_order: i }).eq("id", t.id).then(() => {});
+      });
       return arr;
     });
   }
