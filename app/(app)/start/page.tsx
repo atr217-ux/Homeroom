@@ -33,7 +33,7 @@ function StartPageInner() {
   const [title, setTitle] = useState("");
   const [durationHours, setDurationHours] = useState(1);
   const [durationMinutes, setDurationMinutes] = useState(0);
-  const [isPrivate, setIsPrivate] = useState(false);
+  const [isPrivate, setIsPrivate] = useState(true);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">(scheduleOnly ? "later" : "now");
   const dateInputRef = useRef<HTMLInputElement>(null);
   const [scheduleDate, setScheduleDate] = useState("");
@@ -376,7 +376,7 @@ function StartPageInner() {
       <div className="mb-6">
         <label className="block text-sm font-semibold text-charcoal mb-2">Who can join?</label>
         <div className="flex gap-2">
-          {[{ label: "Public", value: false }, { label: "Friends only", value: true }].map(opt => (
+          {[{ label: "Friends only", value: true }, { label: "Public", value: false }].map(opt => (
             <button key={opt.label} onClick={() => setIsPrivate(opt.value)}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
               style={isPrivate === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
