@@ -38,6 +38,16 @@ function formatTime(seconds: number): string {
   return `${m}:${String(s).padStart(2, "0")}`;
 }
 
+function formatRelativeTime(date: Date): string {
+  const sec = Math.floor((Date.now() - date.getTime()) / 1000);
+  if (sec < 60) return "just now";
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  return `${Math.floor(hr / 24)}d ago`;
+}
+
 function formatDuration(minutes: number): string {
   const h = Math.floor(minutes / 60);
   const m = minutes % 60;
@@ -1265,39 +1275,63 @@ export default function RoomPage() {
               <polyline points="6 9 12 15 18 9" />
             </svg>
           </button>
-          {!activityCollapsed && <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
-            {chatMessages.filter((m) => m.type === "activity" || m.type === "highfive").length === 0 ? (
-              <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
-            ) : [...chatMessages].filter((m) => m.type === "activity" || m.type === "highfive").reverse().map((msg) => {
-              const label = msg.type === "highfive"
-                ? `✋ ${msg.sender} high-fived ${msg.text}!`
-                : showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
-              return (
-                <div key={msg.id} className="flex flex-col items-center gap-1 py-0.5" onMouseEnter={() => setHoveredMsgId(msg.id)} onMouseLeave={() => setHoveredMsgId(null)}>
-                  <div className="flex items-center gap-2 w-full">
-                    <div className="h-px flex-1 bg-gray-100" />
-                    <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
-                    <div className="h-px flex-1 bg-gray-100" />
+          {!activityCollapsed && (
+            <div className="space-y-2 max-h-72 overflow-y-auto">
+              {chatMessages.filter((m) => m.type === "activity" || m.type === "highfive").length === 0 ? (
+                <p className="text-sm text-warm-gray italic text-center py-6">No activity yet. Complete a task to get things going.</p>
+              ) : [...chatMessages].filter((m) => m.type === "activity" || m.type === "highfive").reverse().map((msg) => {
+                const isHighfive = msg.type === "highfive";
+                return (
+                  <div
+                    key={msg.id}
+                    className="rounded-2xl px-4 py-3 transition-colors"
+                    style={{ background: isHighfive ? "#FFF7ED" : "var(--surface-2, #F9FAFB)" }}
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId(null)}
+                  >
+                    <div className="flex items-start gap-3">
+                      <div
+                        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-base mt-0.5"
+                        style={{ background: isHighfive ? "#FED7AA" : "#DCFCE7" }}
+                      >
+                        {isHighfive ? "✋" : "✅"}
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-baseline justify-between gap-2">
+                          <p className="text-xs text-warm-gray leading-snug">
+                            {isHighfive ? (
+                              <><span className="font-semibold text-charcoal">{msg.sender}</span> high-fived <span className="font-semibold text-charcoal">{msg.text}</span></>
+                            ) : (
+                              <><span className="font-semibold text-charcoal">{msg.sender}</span> finished a task</>
+                            )}
+                          </p>
+                          <span className="text-xs text-warm-gray flex-shrink-0">{formatRelativeTime(msg.time)}</span>
+                        </div>
+                        {!isHighfive && showTodos && (
+                          <p className="text-sm font-semibold text-charcoal mt-1 leading-snug">{msg.text}</p>
+                        )}
+                        {msg.reactions.length > 0 && (
+                          <div className="flex gap-1 flex-wrap mt-2">
+                            {msg.reactions.map((emoji) => (
+                              <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-white border border-gray-200 rounded-full px-1.5 py-0.5 hover:bg-gray-50 transition-colors shadow-sm">{emoji}</button>
+                            ))}
+                          </div>
+                        )}
+                        {hoveredMsgId === msg.id && (
+                          <div className="flex gap-1 mt-2">
+                            {REACTION_EMOJIS.map((emoji) => {
+                              const reacted = msg.reactions.includes(emoji);
+                              return <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.4 }}>{emoji}</button>;
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                  {hoveredMsgId === msg.id && (
-                    <div className="flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm">
-                      {REACTION_EMOJIS.map((emoji) => {
-                        const reacted = msg.reactions.includes(emoji);
-                        return <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>;
-                      })}
-                    </div>
-                  )}
-                  {msg.reactions.length > 0 && (
-                    <div className="flex gap-1 flex-wrap justify-center">
-                      {msg.reactions.map((emoji) => (
-                        <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>}
+                );
+              })}
+            </div>
+          )}
         </div>
 
         {/* Participants */}
