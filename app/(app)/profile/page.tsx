@@ -130,6 +130,7 @@ export default function ProfilePage() {
 
   const [showSquads, setShowSquads]         = useState(false);
   const [squadSearch, setSquadSearch]       = useState("");
+  const [squadFriendsFilter, setSquadFriendsFilter] = useState(false);
   const [showCreateSquad, setShowCreateSquad] = useState(false);
   const [newSquadName, setNewSquadName]       = useState("");
   const [newSquadNameError, setNewSquadNameError] = useState("");
@@ -392,7 +393,25 @@ export default function ProfilePage() {
       .select("id, name, emoji, description, is_public, member_count")
       .eq("is_public", true)
       .order("member_count", { ascending: false });
-    if (data) setPublicSquads(data.map((s) => ({ id: s.id, name: s.name, members: s.member_count ?? 0, description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public, memberUsernames: [] })));
+    if (data) {
+      const squadIds = data.map(s => s.id);
+      let memberMap: Record<string, string[]> = {};
+      if (squadIds.length > 0) {
+        const { data: members } = await supabase
+          .from("squad_members")
+          .select("squad_id, username")
+          .in("squad_id", squadIds);
+        (members ?? []).forEach(m => {
+          if (!memberMap[m.squad_id]) memberMap[m.squad_id] = [];
+          memberMap[m.squad_id].push(m.username);
+        });
+      }
+      setPublicSquads(data.map(s => ({
+        id: s.id, name: s.name, members: s.member_count ?? 0,
+        description: s.description ?? "", emoji: s.emoji, isPublic: s.is_public,
+        memberUsernames: memberMap[s.id] ?? [],
+      })));
+    }
     setPublicSquadsLoading(false);
   }
 
@@ -1388,7 +1407,7 @@ export default function ProfilePage() {
 
       {/* Explore squads modal */}
       {showSquads && (
-        <Modal title="Explore squads" onClose={() => { setShowSquads(false); setSquadSearch(""); setShowCreateSquad(false); }}>
+        <Modal title="Explore squads" onClose={() => { setShowSquads(false); setSquadSearch(""); setShowCreateSquad(false); setSquadFriendsFilter(false); }}>
           <div className="px-5 pb-2 flex-shrink-0">
             <div className="flex items-center gap-2 bg-gray-50 border border-gray-200 rounded-xl px-3 py-2 mb-3">
               <span className="text-warm-gray"><SearchIcon /></span>
@@ -1401,6 +1420,19 @@ export default function ProfilePage() {
                 autoFocus
               />
             </div>
+            {friends.length > 0 && (
+              <div className="mb-3">
+                <button
+                  onClick={() => setSquadFriendsFilter(v => !v)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
+                  style={squadFriendsFilter
+                    ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                >
+                  👥 Friends' squads
+                </button>
+              </div>
+            )}
             <div className="mb-1">
               <button
                 onClick={() => setShowCreateSquad((v) => !v)}
@@ -1487,11 +1519,13 @@ export default function ProfilePage() {
             {publicSquadsLoading ? (
               <p className="text-sm text-warm-gray text-center py-6">Loading…</p>
             ) : (() => {
-              const filtered = publicSquads.filter((s) =>
-                !squadSearch ||
-                s.name.toLowerCase().includes(squadSearch.toLowerCase()) ||
-                s.description.toLowerCase().includes(squadSearch.toLowerCase())
-              );
+              const friendUsernames = new Set(friends.map(f => f.username));
+              const filtered = publicSquads.filter((s) => {
+                if (squadFriendsFilter && !s.memberUsernames.some(u => friendUsernames.has(u))) return false;
+                if (!squadSearch) return true;
+                return s.name.toLowerCase().includes(squadSearch.toLowerCase()) ||
+                  s.description.toLowerCase().includes(squadSearch.toLowerCase());
+              });
               if (filtered.length === 0) return <p className="text-sm text-warm-gray text-center py-6">No public squads yet.</p>;
               return filtered.map((squad) => {
                 const joined = joinedSquads.includes(squad.id);
