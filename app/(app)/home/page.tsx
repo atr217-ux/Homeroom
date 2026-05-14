@@ -656,6 +656,17 @@ export default function HomePage() {
           .select("id, username, avatar")
           .in("id", fromUserIds);
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const staleInviteIds = (pendingInvites as any[])
+          .filter(row => {
+            const h = Array.isArray(row.homerooms) ? row.homerooms[0] : row.homerooms;
+            return !h || h.status === "completed";
+          })
+          .map(row => row.id as string);
+        if (staleInviteIds.length > 0) {
+          supabase.from("homeroom_invites").update({ status: "expired" }).in("id", staleInviteIds).then(() => {});
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const inv: Invite[] = (pendingInvites as any[]).flatMap((row: any) => {
           const h = Array.isArray(row.homerooms) ? row.homerooms[0] : row.homerooms;
           const profile = fromProfiles?.find(p => p.id === row.from_user);

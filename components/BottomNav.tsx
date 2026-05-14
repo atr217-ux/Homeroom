@@ -46,12 +46,18 @@ export default function BottomNav() {
     const supabase = createClient();
 
     async function fetchCounts(userId: string, username: string) {
-      const { count: inviteCount } = await supabase
+      // Fetch pending invites with homeroom status so we can exclude completed rooms
+      const { data: inviteRows } = await supabase
         .from("homeroom_invites")
-        .select("id", { count: "exact", head: true })
+        .select("id, homerooms(status)")
         .eq("to_user", userId)
         .eq("status", "pending");
-      setHomeNotif((inviteCount ?? 0) > 0);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const validInviteCount = (inviteRows ?? []).filter(r => {
+        const h = Array.isArray((r as any).homerooms) ? (r as any).homerooms[0] : (r as any).homerooms;
+        return h && h.status !== "completed";
+      }).length;
+      setHomeNotif(validInviteCount > 0);
 
       if (username) {
         const [{ count: frCount }, { count: sqCount }] = await Promise.all([
