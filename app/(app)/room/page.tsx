@@ -129,7 +129,7 @@ export default function RoomPage() {
   const [myListTasks, setMyListTasks] = useState<{ id: string; text: string; done: boolean }[]>([]);
   const [selectedListIds, setSelectedListIds] = useState<string[]>([]);
 
-  const REACTION_EMOJIS = ["🎉", "🙌", "🔥", "💪", "👏", "✨", "🚀", "🎯"];
+  const REACTION_EMOJIS = ["🎉", "🙌", "🔥", "💪", "👏", "🚀", "🎯"];
 
   function toggleReaction(msgId: string, emoji: string) {
     setChatMessages((prev) => prev.map((m) => {
