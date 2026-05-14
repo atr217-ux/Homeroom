@@ -279,7 +279,7 @@ export default function WelcomePage() {
         <button
           onClick={() => finishRegister(regAvatar)}
           disabled={regLoading}
-          className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
+          className="w-full font-semibold text-sm py-3 rounded-xl transition-opacity disabled:opacity-40" style={{ background: "var(--purple)", color: "white" }}
         >
           {regLoading ? "Creating account…" : (regAvatar ? "Let's go" : "Skip for now")}
         </button>
@@ -353,7 +353,7 @@ export default function WelcomePage() {
           <button
             onClick={submitRegName}
             disabled={!regUsername.trim() || !!regUsernameError || !regEmail.trim() || !!regEmailError || !regPassword || !!regPasswordError}
-            className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
+            className="w-full font-semibold text-sm py-3 rounded-xl transition-opacity disabled:opacity-40" style={{ background: "var(--purple)", color: "white" }}
           >
             Continue
           </button>
@@ -413,7 +413,7 @@ export default function WelcomePage() {
         <button
           onClick={handleLogin}
           disabled={!loginInput.trim() || !loginPassword.trim() || loginLoading}
-          className="w-full bg-charcoal text-white font-semibold text-sm py-3 rounded-xl hover:bg-black transition-colors disabled:opacity-40"
+          className="w-full font-semibold text-sm py-3 rounded-xl transition-opacity disabled:opacity-40" style={{ background: "var(--purple)", color: "white" }}
         >
           {loginLoading ? "Logging in…" : "Log in"}
         </button>
