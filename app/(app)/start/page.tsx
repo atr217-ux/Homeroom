@@ -590,7 +590,7 @@ function StartPageInner() {
 
       <button onClick={launch} disabled={launching}
         className="w-full font-bold text-base py-4 rounded-2xl text-white shadow-md transition-colors disabled:opacity-50"
-        style={{ background: "var(--text)" }}>
+        style={{ background: "var(--purple)" }}>
         {launching ? "Creating…" : scheduleMode === "now" ? "Start Homeroom" : "Schedule Homeroom"}
       </button>
     </div>
