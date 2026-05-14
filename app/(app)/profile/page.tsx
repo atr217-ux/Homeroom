@@ -694,7 +694,7 @@ export default function ProfilePage() {
           <div
             className="absolute bottom-0 right-0 w-6 h-6 rounded-full bg-white border border-gray-200 shadow-sm flex items-center justify-center"
           >
-            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="#6B7280" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
               <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
             </svg>
@@ -1106,7 +1106,7 @@ export default function ProfilePage() {
                       ✓ {s.tasksCompleted} done
                     </span>
                     {s.tasksNotCompleted > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#F3F4F6", color: "#6B7280" }}>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--border)", color: "var(--text-2)" }}>
                         {s.tasksNotCompleted} left
                       </span>
                     )}
@@ -1123,7 +1123,7 @@ export default function ProfilePage() {
                         <button
                           onClick={() => { setHistoryPopup({ title: s.title, participants: s.participants }); setHistoryPopupSearch(""); }}
                           className="w-6 h-6 rounded-full flex items-center justify-center text-xs font-semibold border"
-                          style={{ background: "#F3F4F6", color: "#6B7280", borderColor: "#E5E7EB" }}
+                          style={{ background: "var(--border)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
                         >+{overflow}</button>
                       )}
                     </div>
