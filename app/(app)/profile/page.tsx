@@ -1530,7 +1530,7 @@ export default function ProfilePage() {
               return filtered.map((squad) => {
                 const joined = joinedSquads.includes(squad.id);
                 return (
-                  <div key={squad.id} className="flex items-center gap-3 py-2.5 border-b border-gray-50 last:border-0">
+                  <div key={squad.id} className="flex items-center gap-3 py-2.5">
                     <span className="text-2xl flex-shrink-0">{squad.emoji}</span>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-semibold text-charcoal">{squad.name}</p>
