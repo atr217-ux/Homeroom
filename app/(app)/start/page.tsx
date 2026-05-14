@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, Suspense } from "react";
+import { useState, useEffect, useRef, Suspense } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
@@ -35,6 +35,7 @@ function StartPageInner() {
   const [durationMinutes, setDurationMinutes] = useState(0);
   const [isPrivate, setIsPrivate] = useState(false);
   const [scheduleMode, setScheduleMode] = useState<"now" | "later">(scheduleOnly ? "later" : "now");
+  const dateInputRef = useRef<HTMLInputElement>(null);
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleHour, setScheduleHour] = useState("");
   const [scheduleMinute, setScheduleMinute] = useState("");
@@ -300,8 +301,9 @@ function StartPageInner() {
           <div className="space-y-3">
             <div>
               <label className="text-xs text-warm-gray mb-2 block">Date</label>
-              <div className="relative flex items-center gap-3 border-2 rounded-xl px-3 py-2.5"
-                style={{ borderColor: "var(--purple)", background: "var(--purple-bg-2)" }}>
+              <div className="relative flex items-center gap-3 border-2 rounded-xl px-3 py-2.5 cursor-pointer"
+                style={{ borderColor: "var(--purple)", background: "var(--purple-bg-2)" }}
+                onClick={() => dateInputRef.current?.showPicker?.()}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
                   <rect x="3" y="4" width="18" height="18" rx="2" />
                   <line x1="16" y1="2" x2="16" y2="6" />
@@ -311,7 +313,7 @@ function StartPageInner() {
                 <span className="text-base font-semibold flex-1" style={{ color: scheduleDate ? "var(--purple)" : "var(--purple-light)" }}>
                   {scheduleDate ? new Date(scheduleDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "Pick a date"}
                 </span>
-                <input type="date" min={todayStr} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                <input ref={dateInputRef} type="date" min={todayStr} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               </div>
             </div>
