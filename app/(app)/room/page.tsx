@@ -145,6 +145,12 @@ export default function RoomPage() {
       }
     } catch { /* ignore */ }
 
+    // Restore high-fived users so the button stays disabled on re-entry
+    try {
+      const cachedHf = sessionStorage.getItem(`homeroom-highfived-${homeroomId}`);
+      if (cachedHf) setHighfivedUsers(new Set(JSON.parse(cachedHf)));
+    } catch { /* ignore */ }
+
     const local = localStorage.getItem("homeroom-username");
     if (local) { myUsernameRef.current = local; setMyUsername(local); }
     const localAvatar = localStorage.getItem("homeroom-avatar");
@@ -675,6 +681,12 @@ export default function RoomPage() {
       sessionStorage.setItem(`homeroom-msgs-${homeroomIdRef.current}`, JSON.stringify(chatMessages.map(m => ({ ...m, time: m.time.toISOString() }))));
     } catch { /* ignore */ }
   }, [chatMessages]);
+  useEffect(() => {
+    if (!homeroomIdRef.current || highfivedUsers.size === 0) return;
+    try {
+      sessionStorage.setItem(`homeroom-highfived-${homeroomIdRef.current}`, JSON.stringify([...highfivedUsers]));
+    } catch { /* ignore */ }
+  }, [highfivedUsers]);
   useEffect(() => { showChatRef.current = showChat; if (showChat) setChatUnread(0); }, [showChat]);
 
   const [showTodos, setShowTodos] = useState(true);
