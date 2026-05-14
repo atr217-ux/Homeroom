@@ -185,17 +185,24 @@ export default function RoomPage() {
       // Load all participants who have joined this session
       const { data: participantRows } = await supabase
         .from("homeroom_participants")
-        .select("user_id, profiles(username, avatar)")
+        .select("user_id")
         .eq("homeroom_id", homeroomId);
-      if (participantRows) {
+      if (participantRows && participantRows.length > 0) {
         const myId = (await supabase.auth.getUser()).data.user?.id;
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const others = (participantRows as any[]).filter(r => r.user_id !== myId).map(r => ({
-          userId: r.user_id as string,
-          username: (Array.isArray(r.profiles) ? r.profiles[0]?.username : r.profiles?.username) as string ?? "",
-          avatar: (Array.isArray(r.profiles) ? r.profiles[0]?.avatar : r.profiles?.avatar) as string ?? "",
-        })).filter(p => p.username);
-        setDbParticipants(others);
+        const otherIds = participantRows.map(r => r.user_id as string).filter(id => id !== myId);
+        if (otherIds.length > 0) {
+          const { data: profileRows } = await supabase
+            .from("profiles")
+            .select("id, username, avatar")
+            .in("id", otherIds);
+          if (profileRows) {
+            setDbParticipants(profileRows.map(p => ({
+              userId: p.id as string,
+              username: p.username as string ?? "",
+              avatar: p.avatar as string ?? "",
+            })).filter(p => p.username));
+          }
+        }
       }
 
       // Load tasks

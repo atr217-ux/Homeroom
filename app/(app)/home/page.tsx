@@ -731,13 +731,15 @@ export default function HomePage() {
       }
       if (!activeId) {
         // No localStorage entry — check DB for an active room this user is participating in
-        const { data: participantRows } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: participantRows } = await (supabase as any)
           .from("homeroom_participants")
           .select("homeroom_id")
           .eq("user_id", user.id);
-        const participantHomeroomIds = (participantRows ?? []).map(r => r.homeroom_id as string);
+        const participantHomeroomIds = (participantRows ?? []).map((r: any) => r.homeroom_id as string);
         if (participantHomeroomIds.length > 0) {
-          const { data: activeHomeroom } = await supabase
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const { data: activeHomeroom } = await (supabase as any)
             .from("homerooms")
             .select("id, title, duration, started_at, is_private")
             .in("id", participantHomeroomIds)
