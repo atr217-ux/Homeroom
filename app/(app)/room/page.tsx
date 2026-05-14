@@ -72,7 +72,9 @@ export default function RoomPage() {
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [doneCollapsed, setDoneCollapsed]         = useState(() => { try { return localStorage.getItem("homeroom-done-collapsed") === "true"; } catch { return false; } });
-  const [activityCollapsed, setActivityCollapsed] = useState(() => { try { return localStorage.getItem("homeroom-activity-collapsed") === "true"; } catch { return false; } });
+  const [activityCollapsed, setActivityCollapsed]       = useState(() => { try { return localStorage.getItem("homeroom-activity-collapsed") === "true"; } catch { return false; } });
+  const [participantsCollapsed, setParticipantsCollapsed] = useState(() => { try { return localStorage.getItem("homeroom-participants-collapsed") === "true"; } catch { return false; } });
+  const [invitedCollapsed, setInvitedCollapsed]           = useState(() => { try { return localStorage.getItem("homeroom-invited-collapsed") === "true"; } catch { return false; } });
 
   function toggleDoneCollapsed() {
     const next = !doneCollapsed;
@@ -83,6 +85,16 @@ export default function RoomPage() {
     const next = !activityCollapsed;
     setActivityCollapsed(next);
     try { localStorage.setItem("homeroom-activity-collapsed", String(next)); } catch { /* ignore */ }
+  }
+  function toggleParticipantsCollapsed() {
+    const next = !participantsCollapsed;
+    setParticipantsCollapsed(next);
+    try { localStorage.setItem("homeroom-participants-collapsed", String(next)); } catch { /* ignore */ }
+  }
+  function toggleInvitedCollapsed() {
+    const next = !invitedCollapsed;
+    setInvitedCollapsed(next);
+    try { localStorage.setItem("homeroom-invited-collapsed", String(next)); } catch { /* ignore */ }
   }
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
   const [dbParticipants, setDbParticipants]       = useState<{ userId: string; username: string; avatar: string }[]>([]);
@@ -1293,7 +1305,13 @@ export default function RoomPage() {
           return (
             <div className="mt-5">
               <div className="flex items-center justify-between mb-3">
-                <h2 className="text-sm font-semibold text-charcoal">In this room</h2>
+                <button onClick={toggleParticipantsCollapsed} className="flex items-center gap-2">
+                  <h2 className="text-sm font-semibold text-charcoal">In this room</h2>
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                    style={{ color: "var(--text-2)", transform: participantsCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
                 <div className="flex items-center gap-3">
                   <span className="text-xs text-warm-gray">{others.length} {others.length === 1 ? "other" : "others"}</span>
                   {friendsWithIds.length > 0 && (
@@ -1312,7 +1330,7 @@ export default function RoomPage() {
                 </div>
               </div>
 
-              {others.length > 0 && (
+              {!participantsCollapsed && others.length > 0 && (
                 <div className="flex flex-wrap gap-2 mb-3">
                   <button
                     onClick={() => toggleFilter("friends")}
@@ -1334,7 +1352,7 @@ export default function RoomPage() {
                 </div>
               )}
 
-              {others.length === 0 ? (
+              {!participantsCollapsed && (others.length === 0 ? (
                 <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">No one else here yet.</div>
               ) : filteredOthers.length === 0 ? (
                 <div className="text-center py-5 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">No one here matches this filter.</div>
@@ -1416,7 +1434,7 @@ export default function RoomPage() {
                     <button onClick={() => setParticipantsExpanded(false)} className="mt-2 text-xs font-medium" style={{ color: "var(--purple)" }}>Show less</button>
                   )}
                 </>
-              )}
+              ))}
             </div>
           );
         })()}
@@ -1431,15 +1449,21 @@ export default function RoomPage() {
           if (pending.length === 0) return null;
           return (
             <div className="mt-5">
-              <h2 className="text-sm font-semibold text-charcoal mb-2">Invited · waiting to join</h2>
-              <div className="flex flex-wrap gap-2">
+              <button onClick={toggleInvitedCollapsed} className="flex items-center gap-2 mb-2">
+                <h2 className="text-sm font-semibold text-charcoal">Invited · waiting to join</h2>
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                  style={{ color: "var(--text-2)", transform: invitedCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+              {!invitedCollapsed && <div className="flex flex-wrap gap-2">
                 {pending.map((f) => (
                   <div key={f.id} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full px-2.5 py-1">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>{f.initials}</div>
                     <span className="text-xs text-warm-gray">{f.name}</span>
                   </div>
                 ))}
-              </div>
+              </div>}
             </div>
           );
         })()}
