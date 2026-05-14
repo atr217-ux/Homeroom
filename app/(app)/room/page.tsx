@@ -1376,7 +1376,7 @@ export default function RoomPage() {
                                   <p className="text-xs text-warm-gray italic">No tasks</p>
                                 ) : (
                                   <div className="space-y-1.5">
-                                    {pData.tasks.map((t) => (
+                                    {[...pData.tasks].sort((a, b) => Number(a.done) - Number(b.done)).map((t) => (
                                       <div key={t.id} className="flex items-start gap-2">
                                         <div className="w-3 h-3 rounded flex-shrink-0 flex items-center justify-center mt-0.5" style={t.done ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                                           {t.done && <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
