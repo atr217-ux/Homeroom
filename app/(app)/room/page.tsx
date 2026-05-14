@@ -109,10 +109,22 @@ export default function RoomPage() {
   const tasksRef        = useRef<Task[]>([]);
   const chatMessagesRef = useRef<typeof chatMessages>([]);
   const showTodosRef = useRef(true);
+  const homeroomIdRef = useRef<string | null>(null);
 
   useEffect(() => {
     const homeroomId = new URLSearchParams(window.location.search).get("id");
     if (!homeroomId) { setLoading(false); return; }
+    homeroomIdRef.current = homeroomId;
+
+    // Restore cached messages immediately so activity feed isn't blank on re-entry
+    try {
+      const cached = sessionStorage.getItem(`homeroom-msgs-${homeroomId}`);
+      if (cached) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const msgs = (JSON.parse(cached) as any[]).map(m => ({ ...m, time: new Date(m.time) }));
+        setChatMessages(msgs);
+      }
+    } catch { /* ignore */ }
 
     const local = localStorage.getItem("homeroom-username");
     if (local) { myUsernameRef.current = local; setMyUsername(local); }
@@ -241,17 +253,19 @@ export default function RoomPage() {
         .order("created_at", { ascending: true });
       if (msgData) {
         const me = myUsernameRef.current || (await supabase.from("profiles").select("username").eq("id", (await supabase.auth.getUser()).data.user?.id ?? "").single()).data?.username;
-        setChatMessages(
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          msgData.map((m: any) => ({
-            id: m.id,
-            type: m.type as "chat" | "activity" | "highfive",
-            text: m.text,
-            sender: m.sender,
-            time: new Date(m.created_at),
-            reactions: [],
-          }))
-        );
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const loaded = (msgData as any[]).map(m => ({
+          id: m.id,
+          type: m.type as "chat" | "activity" | "highfive",
+          text: m.text,
+          sender: m.sender,
+          time: new Date(m.created_at),
+          reactions: [],
+        }));
+        setChatMessages(loaded);
+        try {
+          sessionStorage.setItem(`homeroom-msgs-${homeroomId}`, JSON.stringify(loaded.map(m => ({ ...m, time: m.time.toISOString() }))));
+        } catch { /* ignore */ }
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const alreadyHighfived = new Set((msgData as any[]).filter(m => m.type === "highfive" && m.sender === me).map(m => m.text as string));
         if (alreadyHighfived.size > 0) setHighfivedUsers(alreadyHighfived);
@@ -395,7 +409,7 @@ export default function RoomPage() {
         supabase.from("homeroom_messages").insert({
           id: activityMsg.id, homeroom_id: session.homeroomId, sender: activityMsg.sender,
           text: activityMsg.text, type: "activity", created_at: activityMsg.time.toISOString(),
-        }).then(() => {});
+        }).then(({ error }) => { if (error) console.error("homeroom_messages insert failed:", error.message); });
       }
 
       // Save to task history for autocomplete
@@ -621,7 +635,13 @@ export default function RoomPage() {
   }, [myUsername]);
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
-  useEffect(() => { chatMessagesRef.current = chatMessages; }, [chatMessages]);
+  useEffect(() => {
+    chatMessagesRef.current = chatMessages;
+    if (!homeroomIdRef.current || chatMessages.length === 0) return;
+    try {
+      sessionStorage.setItem(`homeroom-msgs-${homeroomIdRef.current}`, JSON.stringify(chatMessages.map(m => ({ ...m, time: m.time.toISOString() }))));
+    } catch { /* ignore */ }
+  }, [chatMessages]);
   useEffect(() => { showChatRef.current = showChat; if (showChat) setChatUnread(0); }, [showChat]);
 
   const [showTodos, setShowTodos] = useState(true);
