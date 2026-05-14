@@ -730,7 +730,8 @@ export default function HomePage() {
       }
       if (!activeId) {
         // No localStorage entry — check DB for an active room this user is participating in
-        const { data: participantRow } = await supabase
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: participantRow } = await (supabase as any)
           .from("homeroom_participants")
           .select("homeroom_id, homerooms!inner(id, title, duration, started_at, is_private, status)")
           .eq("user_id", user.id)
@@ -1353,15 +1354,9 @@ export default function HomePage() {
                     <p className="text-xs text-warm-gray mt-0.5">No time limit</p>
                   )}
                 </div>
-                {remainingSec === 0 ? (
-                  <button onClick={handleEndActiveSession} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#DC2626" }}>
-                    End Session
-                  </button>
-                ) : (
-                  <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
-                    Rejoin
-                  </Link>
-                )}
+                <Link href={`/room?id=${activeSession.id}`} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80" style={{ background: "#7C3AED" }}>
+                  Rejoin
+                </Link>
               </div>
               {activeSession.duration > 0 && (
                 <div className="bg-gray-100 rounded-full h-1.5">
@@ -1403,27 +1398,17 @@ export default function HomePage() {
                       </p>
                     </div>
                     <div className="flex items-center gap-2">
-                      {remainingSec === 0 ? (
-                        <button
-                          onClick={() => handleEndBgSession(session)}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                          style={{ background: "#DC2626" }}
-                        >
-                          End Session
-                        </button>
-                      ) : (
-                        <button
-                          onClick={() => withJoinConfirm(() => {
-                            localStorage.setItem("homeroom-active-id", session.id);
-                            dismissBg(session.id);
-                            router.push(`/room?id=${session.id}`);
-                          })}
-                          className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
-                          style={{ background: "#D97706" }}
-                        >
-                          Rejoin
-                        </button>
-                      )}
+                      <button
+                        onClick={() => withJoinConfirm(() => {
+                          localStorage.setItem("homeroom-active-id", session.id);
+                          dismissBg(session.id);
+                          router.push(`/room?id=${session.id}`);
+                        })}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white transition-opacity hover:opacity-80"
+                        style={{ background: "#D97706" }}
+                      >
+                        Rejoin
+                      </button>
                       <button onClick={() => dismissBg(session.id)} className="text-warm-gray hover:text-charcoal p-1 transition-colors">
                         <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                           <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
