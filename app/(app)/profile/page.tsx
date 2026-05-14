@@ -670,7 +670,13 @@ export default function ProfilePage() {
           <span className="text-sm">Home</span>
         </Link>
         <span className="text-xs font-semibold tracking-widest text-sage uppercase">Profile</span>
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col items-end gap-1.5">
+          <button
+            onClick={logout}
+            className="text-xs font-medium text-warm-gray hover:text-red-400 transition-colors"
+          >
+            Log out
+          </button>
           <button
             onClick={toggleDarkMode}
             aria-label="Toggle dark mode"
@@ -698,12 +704,6 @@ export default function ProfilePage() {
                 </svg>
               )}
             </span>
-          </button>
-          <button
-            onClick={logout}
-            className="text-xs font-medium text-warm-gray hover:text-red-400 transition-colors"
-          >
-            Log out
           </button>
         </div>
       </div>
