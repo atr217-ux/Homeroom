@@ -121,6 +121,17 @@ html.dark {
   }
 }
 
+/* Universal button hover feedback */
+button:not([disabled]) {
+  cursor: pointer;
+}
+button:not([disabled]):hover {
+  opacity: 0.8;
+}
+button[disabled] {
+  cursor: not-allowed;
+}
+
 /* Prevent iOS from zooming on input focus (requires font-size >= 16px on mobile) */
 @media (max-width: 640px) {
   input, textarea, select {
