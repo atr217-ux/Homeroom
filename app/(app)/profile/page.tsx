@@ -124,6 +124,9 @@ export default function ProfilePage() {
   const [squadsExpanded, setSquadsExpanded] = useState(true);
   const [friendsExpanded, setFriendsExpanded] = useState(true);
   const [historyExpanded, setHistoryExpanded] = useState(false);
+  const [squadsShowAll, setSquadsShowAll] = useState(false);
+  const [friendsShowAll, setFriendsShowAll] = useState(false);
+  const [requestsShowAll, setRequestsShowAll] = useState(false);
 
   const [showSquads, setShowSquads]         = useState(false);
   const [squadSearch, setSquadSearch]       = useState("");
@@ -805,7 +808,7 @@ export default function ProfilePage() {
             </svg>
           </button>
           {squadsExpanded && <div className="space-y-2">
-            {allSquads.filter((s) => joinedSquads.includes(s.id)).map((squad) => (
+            {allSquads.filter((s) => joinedSquads.includes(s.id)).slice(0, squadsShowAll ? undefined : 3).map((squad) => (
               <div key={squad.id} className="relative rounded-2xl overflow-hidden">
                 {isTouch && (
                   <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_W_SQUAD, borderRadius: "16px 0 0 16px", overflow: "hidden" }}>
@@ -870,6 +873,11 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
+            {!squadsShowAll && allSquads.filter(s => joinedSquads.includes(s.id)).length > 3 && (
+              <button onClick={() => setSquadsShowAll(true)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
+                Show {allSquads.filter(s => joinedSquads.includes(s.id)).length - 3} more
+              </button>
+            )}
           </div>}
         </div>
       )}
@@ -910,7 +918,7 @@ export default function ProfilePage() {
         <div className="mb-4">
           <h2 className="text-sm font-semibold text-charcoal mb-3">Friend Requests · {incomingRequests.length}</h2>
           <div className="space-y-2">
-            {incomingRequests.map((f) => (
+            {incomingRequests.slice(0, requestsShowAll ? undefined : 3).map((f) => (
               <div key={f.id} className="flex items-center gap-3 bg-white rounded-2xl border border-gray-100 px-4 py-3">
                 <div
                   className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0"
@@ -937,6 +945,11 @@ export default function ProfilePage() {
                 </button>
               </div>
             ))}
+            {!requestsShowAll && incomingRequests.length > 3 && (
+              <button onClick={() => setRequestsShowAll(true)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
+                Show {incomingRequests.length - 3} more
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -1002,7 +1015,7 @@ export default function ProfilePage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {friends.map((f) => (
+            {friends.slice(0, friendsShowAll ? undefined : 3).map((f) => (
               <div key={f.id} className="relative rounded-2xl overflow-hidden">
                 {isTouch && (
                   <div className="absolute inset-y-0 right-0 flex items-center justify-center"
@@ -1043,6 +1056,11 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
+            {!friendsShowAll && friends.length > 3 && (
+              <button onClick={() => setFriendsShowAll(true)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
+                Show {friends.length - 3} more
+              </button>
+            )}
           </div>
         ))}
       </div>
