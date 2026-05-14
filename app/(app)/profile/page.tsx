@@ -873,9 +873,9 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
-            {!squadsShowAll && allSquads.filter(s => joinedSquads.includes(s.id)).length > 3 && (
-              <button onClick={() => setSquadsShowAll(true)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
-                Show {allSquads.filter(s => joinedSquads.includes(s.id)).length - 3} more
+            {allSquads.filter(s => joinedSquads.includes(s.id)).length > 3 && (
+              <button onClick={() => setSquadsShowAll(v => !v)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
+                {squadsShowAll ? "Show less" : `Show ${allSquads.filter(s => joinedSquads.includes(s.id)).length - 3} more`}
               </button>
             )}
           </div>}
@@ -945,9 +945,9 @@ export default function ProfilePage() {
                 </button>
               </div>
             ))}
-            {!requestsShowAll && incomingRequests.length > 3 && (
-              <button onClick={() => setRequestsShowAll(true)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
-                Show {incomingRequests.length - 3} more
+            {incomingRequests.length > 3 && (
+              <button onClick={() => setRequestsShowAll(v => !v)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
+                {requestsShowAll ? "Show less" : `Show ${incomingRequests.length - 3} more`}
               </button>
             )}
           </div>
@@ -1056,9 +1056,9 @@ export default function ProfilePage() {
                 </div>
               </div>
             ))}
-            {!friendsShowAll && friends.length > 3 && (
-              <button onClick={() => setFriendsShowAll(true)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
-                Show {friends.length - 3} more
+            {friends.length > 3 && (
+              <button onClick={() => setFriendsShowAll(v => !v)} className="w-full text-xs font-medium py-2 text-center transition-colors" style={{ color: "var(--text-2)" }}>
+                {friendsShowAll ? "Show less" : `Show ${friends.length - 3} more`}
               </button>
             )}
           </div>
