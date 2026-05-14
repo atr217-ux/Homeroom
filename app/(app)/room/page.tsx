@@ -73,6 +73,10 @@ export default function RoomPage() {
   const [activeFilters, setActiveFilters]         = useState<Set<string>>(new Set());
   const [participantsExpanded, setParticipantsExpanded] = useState(false);
   const [confirmLeave, setConfirmLeave] = useState(false);
+  const [showChat, setShowChat] = useState(false);
+  const [chatUnread, setChatUnread] = useState(0);
+  const showChatRef = useRef(false);
+  const swipeChatRef = useRef({ startX: 0, startY: 0, active: false });
   const PARTICIPANTS_VISIBLE = 6;
   const TASK_VISIBLE_LIMIT = 6;
   const [myListTasks, setMyListTasks] = useState<{ id: string; text: string; done: boolean }[]>([]);
@@ -259,6 +263,7 @@ export default function RoomPage() {
       .on("broadcast", { event: "message" }, ({ payload }) => {
         if (payload.sender !== myUsername) {
           setChatMessages((prev) => [...prev, { ...payload, time: new Date(payload.time) }]);
+          if (payload.type === "chat" && !showChatRef.current) setChatUnread((prev) => prev + 1);
         }
       })
       .on("broadcast", { event: "task-share" }, ({ payload }) => {
@@ -401,6 +406,19 @@ export default function RoomPage() {
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, done: nowDone, timeSpent, startedAt: null } : t
     ));
+  }
+
+  function sendChatMessage() {
+    const text = chatInput.trim();
+    if (!text) return;
+    const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
+    setChatMessages((prev) => [...prev, msg]);
+    realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
+    if (session?.homeroomId) {
+      const supabase = createClient();
+      supabase.from("homeroom_messages").insert({ id: msg.id, homeroom_id: session.homeroomId, sender: msg.sender, text: msg.text, type: "chat", created_at: msg.time.toISOString() }).then(() => {});
+    }
+    setChatInput("");
   }
 
   function sendHighFive(targetUsername: string) {
@@ -591,6 +609,7 @@ export default function RoomPage() {
 
   useEffect(() => { tasksRef.current = tasks; }, [tasks]);
   useEffect(() => { chatMessagesRef.current = chatMessages; }, [chatMessages]);
+  useEffect(() => { showChatRef.current = showChat; if (showChat) setChatUnread(0); }, [showChat]);
 
   const [showTodos, setShowTodos] = useState(true);
   const [showSummary, setShowSummary] = useState(false);
@@ -713,7 +732,27 @@ export default function RoomPage() {
   }
 
   return (
-    <div id="screen-room" className="pb-20">
+    <div
+      id="screen-room"
+      className="pb-20"
+      onTouchStart={(e) => {
+        const t = e.touches[0];
+        if (t.clientX > window.innerWidth - 28) {
+          swipeChatRef.current = { startX: t.clientX, startY: t.clientY, active: true };
+        }
+      }}
+      onTouchMove={(e) => {
+        if (!swipeChatRef.current.active || showChat || session?.isPublic) return;
+        const t = e.touches[0];
+        const dx = swipeChatRef.current.startX - t.clientX;
+        const dy = Math.abs(swipeChatRef.current.startY - t.clientY);
+        if (dx > 50 && dy < 80) {
+          swipeChatRef.current.active = false;
+          setShowChat(true);
+        }
+      }}
+      onTouchEnd={() => { swipeChatRef.current.active = false; }}
+    >
       {/* Sticky header */}
       <div className="sticky top-0 z-30 border-b border-gray-100" style={{ background: "#FAFAF9" }}>
         <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
@@ -743,6 +782,22 @@ export default function RoomPage() {
               <span>{groupDone > 0 ? "🔥" : "🎯"}</span>
               <span>{groupDone} task{groupDone !== 1 ? "s" : ""} done together</span>
             </div>
+            {!session.isPublic && (
+              <button
+                onClick={() => setShowChat(true)}
+                className="relative text-warm-gray hover:text-charcoal p-1.5 transition-colors"
+                title="Open chat"
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+                </svg>
+                {chatUnread > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white font-bold flex items-center justify-center" style={{ background: "#DC2626", fontSize: "9px" }}>
+                    {chatUnread > 9 ? "9+" : chatUnread}
+                  </span>
+                )}
+              </button>
+            )}
             <button
               onClick={() => setConfirmLeave(true)}
               className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors"
@@ -965,182 +1020,42 @@ export default function RoomPage() {
         </div>
 
 
-        {/* Activity + Chat */}
+        {/* Activity feed */}
         <div className="mt-4 mb-4">
           <h2 className="text-sm font-semibold text-charcoal mb-3">Activity</h2>
-
-          {session && !session.isPublic && (
-            <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden mb-4">
-              <div className="px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
-                {chatMessages.length === 0 ? (
-                  <p className="text-sm text-warm-gray italic text-center py-4">No messages yet. Say hi!</p>
-                ) : (
-                  [...chatMessages].reverse().map((msg) => {
-                    if (msg.type === "activity") {
-                      const label = showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
-                      return (
-                        <div
-                          key={msg.id}
-                          className="flex flex-col items-center gap-1 py-0.5"
-                          onMouseEnter={() => setHoveredMsgId(msg.id)}
-                          onMouseLeave={() => setHoveredMsgId(null)}
-                        >
-                          <div className="flex items-center gap-2 w-full">
-                            <div className="h-px flex-1 bg-gray-100" />
-                            <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
-                            <div className="h-px flex-1 bg-gray-100" />
-                          </div>
-                          {hoveredMsgId === msg.id && (
-                            <div className="flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm">
-                              {REACTION_EMOJIS.map((emoji) => {
-                                const reacted = msg.reactions.includes(emoji);
-                                return (
-                                  <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {msg.reactions.length > 0 && (
-                            <div className="flex gap-1 flex-wrap justify-center">
-                              {msg.reactions.map((emoji) => (
-                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    }
-                    {
-                      const isMe = msg.sender === myUsername;
-                      const av = isMe ? myAvatar : (dbParticipants.find(p => p.username === msg.sender)?.avatar ?? "");
-                      return (
-                        <div
-                          key={msg.id}
-                          className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
-                          onMouseEnter={() => setHoveredMsgId(msg.id)}
-                          onMouseLeave={() => setHoveredMsgId(null)}
-                        >
-                          <div className={`flex items-end gap-1.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
-                            <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
-                              {av
-                                ? <span className="text-sm leading-none">{av}</span>
-                                : <span className="text-xs font-bold text-gray-500">{msg.sender.slice(0, 1).toUpperCase()}</span>}
-                            </div>
-                            <div
-                              className="max-w-[75%] px-3 py-2 rounded-2xl text-sm"
-                              style={isMe ? { background: "#7C3AED", color: "white" } : { background: "#F3F4F6", color: "#1C1917" }}
-                            >
-                              {msg.text}
-                            </div>
-                          </div>
-                          {hoveredMsgId === msg.id && (
-                            <div className={`flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm mt-1 ${isMe ? "self-end" : "self-start"}`}>
-                              {REACTION_EMOJIS.map((emoji) => {
-                                const reacted = msg.reactions.includes(emoji);
-                                return (
-                                  <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>
-                                );
-                              })}
-                            </div>
-                          )}
-                          {msg.reactions.length > 0 && (
-                            <div className={`flex gap-1 flex-wrap mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
-                              {msg.reactions.map((emoji) => (
-                                <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
-                              ))}
-                            </div>
-                          )}
-                          <span className="text-xs text-warm-gray mt-0.5 px-1">
-                            {!isMe && <span className="font-medium mr-1">{msg.sender}</span>}
-                            {msg.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
-                          </span>
-                        </div>
-                      );
-                    }
-                  })
-                )}
-              </div>
-              <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2">
-                <input
-                  type="text"
-                  value={chatInput}
-                  onChange={(e) => setChatInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") {
-                      const text = chatInput.trim();
-                      if (!text) return;
-                      const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
-                      setChatMessages((prev) => [...prev, msg]);
-                      realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
-                      if (session?.homeroomId) {
-                        const supabase = createClient();
-                        supabase.from("homeroom_messages").insert({ id: msg.id, homeroom_id: session.homeroomId, sender: msg.sender, text: msg.text, type: "chat", created_at: msg.time.toISOString() }).then(() => {});
-                      }
-                      setChatInput("");
-                    }
-                  }}
-                  placeholder="Message the room…"
-                  className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
-                />
-                <button
-                  onClick={() => {
-                    const text = chatInput.trim();
-                    if (!text) return;
-                    const msg = { id: crypto.randomUUID(), type: "chat" as const, text, sender: myUsername, time: new Date(), reactions: [] };
-                    setChatMessages((prev) => [...prev, msg]);
-                    realtimeChannelRef.current?.send({ type: "broadcast", event: "message", payload: { ...msg, time: msg.time.toISOString() } });
-                    if (session?.homeroomId) {
-                      const supabase = createClient();
-                      supabase.from("homeroom_messages").insert({ id: msg.id, homeroom_id: session.homeroomId, sender: msg.sender, text: msg.text, type: "chat", created_at: msg.time.toISOString() }).then(() => {});
-                    }
-                    setChatInput("");
-                  }}
-                  style={{ color: "#7C3AED" }}
-                  className="hover:opacity-70 transition-opacity flex-shrink-0"
-                >
-                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
-                  </svg>
-                </button>
-              </div>
-            </div>
-          )}
-
-          {session?.isPublic && (
-            <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
-              {chatMessages.filter((m) => m.type === "activity" || m.type === "highfive").length === 0 ? (
-                <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
-              ) : [...chatMessages].filter((m) => m.type === "activity" || m.type === "highfive").reverse().map((msg) => {
-                const label = msg.type === "highfive"
-                  ? `✋ ${msg.sender} high-fived ${msg.text}!`
-                  : showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
-                return (
-                  <div key={msg.id} className="flex flex-col items-center gap-1 py-0.5" onMouseEnter={() => setHoveredMsgId(msg.id)} onMouseLeave={() => setHoveredMsgId(null)}>
-                    <div className="flex items-center gap-2 w-full">
-                      <div className="h-px flex-1 bg-gray-100" />
-                      <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
-                      <div className="h-px flex-1 bg-gray-100" />
-                    </div>
-                    {hoveredMsgId === msg.id && (
-                      <div className="flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm">
-                        {REACTION_EMOJIS.map((emoji) => {
-                          const reacted = msg.reactions.includes(emoji);
-                          return <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>;
-                        })}
-                      </div>
-                    )}
-                    {msg.reactions.length > 0 && (
-                      <div className="flex gap-1 flex-wrap justify-center">
-                        {msg.reactions.map((emoji) => (
-                          <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
-                        ))}
-                      </div>
-                    )}
+          <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
+            {chatMessages.filter((m) => m.type === "activity" || m.type === "highfive").length === 0 ? (
+              <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
+            ) : [...chatMessages].filter((m) => m.type === "activity" || m.type === "highfive").reverse().map((msg) => {
+              const label = msg.type === "highfive"
+                ? `✋ ${msg.sender} high-fived ${msg.text}!`
+                : showTodos ? `${msg.sender} finished "${msg.text}"` : `${msg.sender} completed a task`;
+              return (
+                <div key={msg.id} className="flex flex-col items-center gap-1 py-0.5" onMouseEnter={() => setHoveredMsgId(msg.id)} onMouseLeave={() => setHoveredMsgId(null)}>
+                  <div className="flex items-center gap-2 w-full">
+                    <div className="h-px flex-1 bg-gray-100" />
+                    <span className="text-xs text-warm-gray px-2 whitespace-nowrap">{label}</span>
+                    <div className="h-px flex-1 bg-gray-100" />
                   </div>
-                );
-              })}
-            </div>
-          )}
+                  {hoveredMsgId === msg.id && (
+                    <div className="flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm">
+                      {REACTION_EMOJIS.map((emoji) => {
+                        const reacted = msg.reactions.includes(emoji);
+                        return <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>;
+                      })}
+                    </div>
+                  )}
+                  {msg.reactions.length > 0 && (
+                    <div className="flex gap-1 flex-wrap justify-center">
+                      {msg.reactions.map((emoji) => (
+                        <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
         </div>
 
         {/* Participants */}
@@ -1304,6 +1219,89 @@ export default function RoomPage() {
           );
         })()}
       </div>
+
+      {/* Chat drawer (private rooms only) */}
+      {session && !session.isPublic && (
+        <>
+          <div
+            className="fixed inset-0 z-40 transition-opacity duration-300"
+            style={{ background: "rgba(0,0,0,0.3)", opacity: showChat ? 1 : 0, pointerEvents: showChat ? "auto" : "none" }}
+            onClick={() => setShowChat(false)}
+          />
+          <div
+            className="fixed top-0 right-0 bottom-0 z-50 bg-white flex flex-col shadow-2xl transition-transform duration-300 ease-in-out w-full md:w-96"
+            style={{ transform: showChat ? "translateX(0)" : "translateX(100%)" }}
+          >
+            <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100 flex-shrink-0">
+              <h2 className="font-semibold text-charcoal">Chat</h2>
+              <button onClick={() => setShowChat(false)} className="text-warm-gray hover:text-charcoal p-1 transition-colors">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto px-4 py-3 flex flex-col-reverse gap-3">
+              {chatMessages.filter((m) => m.type === "chat").length === 0 ? (
+                <p className="text-sm text-warm-gray italic text-center py-4">No messages yet. Say hi!</p>
+              ) : [...chatMessages].filter((m) => m.type === "chat").reverse().map((msg) => {
+                const isMe = msg.sender === myUsername;
+                const av = isMe ? myAvatar : (dbParticipants.find((p) => p.username === msg.sender)?.avatar ?? "");
+                return (
+                  <div
+                    key={msg.id}
+                    className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
+                    onMouseEnter={() => setHoveredMsgId(msg.id)}
+                    onMouseLeave={() => setHoveredMsgId(null)}
+                  >
+                    <div className={`flex items-end gap-1.5 ${isMe ? "flex-row-reverse" : "flex-row"}`}>
+                      <div className="w-6 h-6 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0 overflow-hidden">
+                        {av ? <span className="text-sm leading-none">{av}</span> : <span className="text-xs font-bold text-gray-500">{msg.sender.slice(0, 1).toUpperCase()}</span>}
+                      </div>
+                      <div className="max-w-[75%] px-3 py-2 rounded-2xl text-sm" style={isMe ? { background: "#7C3AED", color: "white" } : { background: "#F3F4F6", color: "#1C1917" }}>
+                        {msg.text}
+                      </div>
+                    </div>
+                    {hoveredMsgId === msg.id && (
+                      <div className={`flex gap-1 bg-white border border-gray-100 rounded-full px-2 py-1 shadow-sm mt-1 ${isMe ? "self-end" : "self-start"}`}>
+                        {REACTION_EMOJIS.map((emoji) => {
+                          const reacted = msg.reactions.includes(emoji);
+                          return <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-base transition-transform hover:scale-125" style={{ opacity: reacted ? 1 : 0.5 }}>{emoji}</button>;
+                        })}
+                      </div>
+                    )}
+                    {msg.reactions.length > 0 && (
+                      <div className={`flex gap-1 flex-wrap mt-1 ${isMe ? "justify-end" : "justify-start"}`}>
+                        {msg.reactions.map((emoji) => (
+                          <button key={emoji} onClick={() => toggleReaction(msg.id, emoji)} className="text-sm bg-gray-50 border border-gray-100 rounded-full px-1.5 py-0.5 hover:bg-gray-100 transition-colors">{emoji}</button>
+                        ))}
+                      </div>
+                    )}
+                    <span className="text-xs text-warm-gray mt-0.5 px-1">
+                      {!isMe && <span className="font-medium mr-1">{msg.sender}</span>}
+                      {msg.time.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" })}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+            <div className="border-t border-gray-100 px-3 py-2 flex items-center gap-2 flex-shrink-0" style={{ paddingBottom: "max(0.5rem, env(safe-area-inset-bottom))" }}>
+              <input
+                type="text"
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") sendChatMessage(); }}
+                placeholder="Message the room…"
+                className="flex-1 text-sm bg-transparent text-charcoal placeholder:text-warm-gray focus:outline-none"
+              />
+              <button onClick={sendChatMessage} style={{ color: "#7C3AED" }} className="hover:opacity-70 transition-opacity flex-shrink-0">
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="22" y1="2" x2="11" y2="13" /><polygon points="22 2 15 22 11 13 2 9 22 2" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        </>
+      )}
 
       {/* Add from list modal */}
       {showListPicker && (() => {
