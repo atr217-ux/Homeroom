@@ -477,6 +477,8 @@ export default function ListPage() {
                       style={{
                         transform: `translateX(${rowOffset(t.id)}px)`,
                         transition: liveSwipe?.id === t.id ? "none" : "transform 0.22s cubic-bezier(0.4,0,0.2,1)",
+                        opacity: t.homeroomStatus === "active" ? 0.5 : 1,
+                        pointerEvents: t.homeroomStatus === "active" ? "none" : undefined,
                       }}
                       onTouchStart={(e) => onRowTouchStart(e, t.id)}
                       onTouchMove={onRowTouchMove}
@@ -484,6 +486,7 @@ export default function ListPage() {
                     >
                       <button
                         onClick={() => toggleTask(t.id)}
+                        disabled={t.homeroomStatus === "active"}
                         className="w-4 h-4 rounded border-2 border-gray-300 flex-shrink-0 mt-0.5 hover:border-sage transition-colors"
                       />
                       <div className="flex-1 min-w-0">

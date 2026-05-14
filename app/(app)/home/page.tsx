@@ -1771,10 +1771,15 @@ export default function HomePage() {
 
       {/* Scheduled homerooms */}
       <div className="mb-6">
-        <h2 className="text-sm font-semibold text-charcoal mb-3">
-          Scheduled
-          {scheduled.length > 0 && <span className="ml-1.5 text-warm-gray font-normal">· {scheduled.length}</span>}
-        </h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-charcoal">
+            Scheduled
+            {scheduled.length > 0 && <span className="ml-1.5 text-warm-gray font-normal">· {scheduled.length}</span>}
+          </h2>
+          <Link href="/start?scheduleOnly=true" className="text-xs font-semibold" style={{ color: "var(--purple)" }}>
+            + Schedule
+          </Link>
+        </div>
         <div className="bg-white rounded-2xl border border-gray-100 px-4 py-4">
           <CalendarView
             scheduled={scheduled}

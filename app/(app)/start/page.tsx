@@ -1,7 +1,7 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
+import { useState, useEffect, Suspense } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
@@ -15,8 +15,10 @@ function colorFromUsername(u: string): string {
   return USER_COLORS[Math.abs(h) % USER_COLORS.length];
 }
 
-export default function StartPage() {
+function StartPageInner() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const scheduleOnly = searchParams.get("scheduleOnly") === "true";
   const supabase = createClient();
 
   const [myUserId, setMyUserId] = useState("");
@@ -32,7 +34,7 @@ export default function StartPage() {
   const [durationHours, setDurationHours] = useState(1);
   const [durationMinutes, setDurationMinutes] = useState(0);
   const [isPrivate, setIsPrivate] = useState(false);
-  const [scheduleMode, setScheduleMode] = useState<"now" | "later">("now");
+  const [scheduleMode, setScheduleMode] = useState<"now" | "later">(scheduleOnly ? "later" : "now");
   const [scheduleDate, setScheduleDate] = useState("");
   const [scheduleHour, setScheduleHour] = useState("");
   const [scheduleMinute, setScheduleMinute] = useState("");
@@ -282,7 +284,7 @@ export default function StartPage() {
       <div className="mb-6">
         <label className="block text-sm font-semibold text-charcoal mb-2">When?</label>
         <div className="flex gap-2">
-          {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).map(opt => (
+          {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).filter(opt => !(scheduleOnly && opt.value === "now")).map(opt => (
             <button key={opt.value} onClick={() => setScheduleMode(opt.value)}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
               style={scheduleMode === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
@@ -586,5 +588,13 @@ export default function StartPage() {
         {launching ? "Creating…" : scheduleMode === "now" ? "Start Homeroom" : "Schedule Homeroom"}
       </button>
     </div>
+  );
+}
+
+export default function StartPage() {
+  return (
+    <Suspense>
+      <StartPageInner />
+    </Suspense>
   );
 }
