@@ -216,12 +216,19 @@ export default function RoomPage() {
         .eq("homeroom_id", homeroomId)
         .order("sort_order", { ascending: true });
       if (taskData) {
+        // Restore any running timer that survived navigation
+        let runningTimer: { taskId: string; startedAt: number } | null = null;
+        try {
+          const raw = localStorage.getItem("homeroom-running-timer");
+          if (raw) runningTimer = JSON.parse(raw);
+        } catch { /* ignore */ }
+
         setTasks(taskData.map(t => ({
           id: t.id,
           text: t.text,
           done: t.done,
           timeSpent: t.time_spent ?? 0,
-          startedAt: null,
+          startedAt: runningTimer && runningTimer.taskId === t.id ? runningTimer.startedAt : null,
         })));
         tasksInitializedRef.current = true;
       }
@@ -354,14 +361,17 @@ export default function RoomPage() {
   }
 
   function startTimer(id: string) {
+    const now = Date.now();
+    try { localStorage.setItem("homeroom-running-timer", JSON.stringify({ taskId: id, startedAt: now })); } catch { /* ignore */ }
     setTasks((prev) => prev.map((t) => {
-      if (t.id === id) return { ...t, startedAt: Date.now() };
+      if (t.id === id) return { ...t, startedAt: now };
       if (t.startedAt !== null) return { ...t, timeSpent: getElapsed(t), startedAt: null };
       return t;
     }));
   }
 
   function stopTimer(id: string) {
+    try { localStorage.removeItem("homeroom-running-timer"); } catch { /* ignore */ }
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
@@ -372,6 +382,9 @@ export default function RoomPage() {
     if (!task) return;
     const timeSpent = getElapsed(task);
     const nowDone = !task.done;
+    if (task.startedAt !== null) {
+      try { localStorage.removeItem("homeroom-running-timer"); } catch { /* ignore */ }
+    }
     const supabase = createClient();
 
     if (nowDone) {
