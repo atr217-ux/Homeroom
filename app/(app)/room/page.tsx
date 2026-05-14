@@ -72,11 +72,17 @@ export default function RoomPage() {
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
   const [doneCollapsed, setDoneCollapsed]         = useState(() => { try { return localStorage.getItem("homeroom-done-collapsed") === "true"; } catch { return false; } });
+  const [activityCollapsed, setActivityCollapsed] = useState(() => { try { return localStorage.getItem("homeroom-activity-collapsed") === "true"; } catch { return false; } });
 
   function toggleDoneCollapsed() {
     const next = !doneCollapsed;
     setDoneCollapsed(next);
     try { localStorage.setItem("homeroom-done-collapsed", String(next)); } catch { /* ignore */ }
+  }
+  function toggleActivityCollapsed() {
+    const next = !activityCollapsed;
+    setActivityCollapsed(next);
+    try { localStorage.setItem("homeroom-activity-collapsed", String(next)); } catch { /* ignore */ }
   }
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
   const [dbParticipants, setDbParticipants]       = useState<{ userId: string; username: string; avatar: string }[]>([]);
@@ -1227,8 +1233,14 @@ export default function RoomPage() {
 
         {/* Activity feed */}
         <div className="mt-4 mb-4">
-          <h2 className="text-sm font-semibold text-charcoal mb-3">Activity</h2>
-          <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
+          <button onClick={toggleActivityCollapsed} className="w-full flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold text-charcoal">Activity</h2>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+              style={{ color: "var(--text-2)", transform: activityCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+              <polyline points="6 9 12 15 18 9" />
+            </svg>
+          </button>
+          {!activityCollapsed && <div className="bg-white rounded-2xl border border-gray-100 px-4 py-3 space-y-3 max-h-64 overflow-y-auto flex flex-col-reverse">
             {chatMessages.filter((m) => m.type === "activity" || m.type === "highfive").length === 0 ? (
               <p className="text-sm text-warm-gray italic text-center py-4">No activity yet. Complete a task to start the feed.</p>
             ) : [...chatMessages].filter((m) => m.type === "activity" || m.type === "highfive").reverse().map((msg) => {
@@ -1260,7 +1272,7 @@ export default function RoomPage() {
                 </div>
               );
             })}
-          </div>
+          </div>}
         </div>
 
         {/* Participants */}
