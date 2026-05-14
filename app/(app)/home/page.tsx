@@ -1354,7 +1354,6 @@ export default function HomePage() {
         const elapsedSec = Math.floor((Date.now() - new Date(activeSession.startedAt).getTime()) / 1000);
         const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
         const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
-        const remSec = remainingSec !== null ? remainingSec % 60 : null;
         const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
         return (
           <div className="mb-6">
@@ -1364,7 +1363,7 @@ export default function HomePage() {
                 <div>
                   <p className="text-sm font-semibold text-charcoal">{displayTitle}</p>
                   {remainingSec !== null && remainingSec > 0 ? (
-                    <p className="text-xs text-warm-gray mt-0.5">{remMin}:{String(remSec).padStart(2, "0")} remaining</p>
+                    <p className="text-xs text-warm-gray mt-0.5">{formatDuration(remMin!)} remaining</p>
                   ) : remainingSec === 0 ? (
                     <p className="text-xs font-semibold mt-0.5" style={{ color: "var(--red)" }}>Time&apos;s up</p>
                   ) : (
@@ -1394,7 +1393,6 @@ export default function HomePage() {
               const elapsedSec = Math.floor((Date.now() - new Date(session.startedAt).getTime()) / 1000);
               const remainingSec = session.duration > 0 ? Math.max(0, session.duration * 60 - elapsedSec) : null;
               const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
-              const remSec = remainingSec !== null ? remainingSec % 60 : null;
               function dismissBg(id: string) {
                 try {
                   const prev: string[] = JSON.parse(localStorage.getItem("homeroom-bg-sessions") || "[]");
@@ -1409,7 +1407,7 @@ export default function HomePage() {
                       <p className="text-sm font-semibold text-charcoal">{session.title || "Homeroom"}</p>
                       <p className="text-xs text-warm-gray mt-0.5">
                         {remainingSec !== null && remainingSec > 0
-                          ? `${remMin}:${String(remSec).padStart(2, "0")} remaining`
+                          ? `${formatDuration(remMin!)} remaining`
                           : remainingSec === 0 ? "Time's up"
                           : "No time limit"}
                       </p>
@@ -1504,7 +1502,6 @@ export default function HomePage() {
             const elapsedSec = Math.floor((Date.now() - new Date(activeSession.startedAt).getTime()) / 1000);
             const remainingSec = activeSession.duration > 0 ? Math.max(0, activeSession.duration * 60 - elapsedSec) : null;
             const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
-            const remSec = remainingSec !== null ? remainingSec % 60 : null;
             const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
             const ownRoomId = activeSession.id;
             const participants = roomParticipants[ownRoomId] ?? [];
@@ -1526,7 +1523,7 @@ export default function HomePage() {
                       <p className="text-xs text-warm-gray mt-0.5">@{myUsername} · your room</p>
                       <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                         {remainingSec !== null && remainingSec > 0
-                          ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
+                          ? <span className="text-xs text-warm-gray">{formatDuration(remMin!)} left</span>
                           : activeSession.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
                           : <span className="text-xs text-warm-gray">No time limit</span>}
                         {participants.length > 0 && (
@@ -1623,7 +1620,6 @@ export default function HomePage() {
               const elapsedSec = Math.floor((Date.now() - new Date(room.started_at).getTime()) / 1000);
               const remainingSec = room.duration > 0 ? Math.max(0, room.duration * 60 - elapsedSec) : null;
               const remMin = remainingSec !== null ? Math.floor(remainingSec / 60) : null;
-              const remSec = remainingSec !== null ? remainingSec % 60 : null;
               const progressPct = room.duration > 0 ? Math.min(100, (elapsedSec / (room.duration * 60)) * 100) : 0;
               const participants = roomParticipants[room.id] ?? [];
               const friendSet = new Set(friends.map(f => f.name));
@@ -1644,7 +1640,7 @@ export default function HomePage() {
                         <p className="text-xs text-warm-gray mt-0.5">@{hostUsername}</p>
                         <div className="flex items-center gap-2 mt-1.5 flex-wrap">
                           {remainingSec !== null && remainingSec > 0
-                            ? <span className="text-xs text-warm-gray">{remMin}:{String(remSec).padStart(2,"0")} left</span>
+                            ? <span className="text-xs text-warm-gray">{formatDuration(remMin!)} left</span>
                             : room.duration > 0 ? <span className="text-xs font-semibold text-red-500">Time&apos;s up</span>
                             : <span className="text-xs text-warm-gray">No time limit</span>}
                           {participants.length > 0 && (
