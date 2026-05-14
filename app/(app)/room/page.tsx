@@ -1164,53 +1164,60 @@ export default function RoomPage() {
                 <div className="text-center py-5 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">No one here matches this filter.</div>
               ) : (
                 <>
-                  <div className="grid grid-cols-3 gap-2">
+                  <div className="space-y-2">
                     {visibleOthers.map((p) => {
                       const pData = participantData[p.username];
                       const isExpanded = expandedCards.has(p.username);
                       const doneCount = pData?.tasks.filter((t) => t.done).length ?? 0;
                       const totalCount = pData?.tasks.length ?? 0;
+                      const isPresent = presentSet.has(p.username);
                       return (
-                        <div key={p.username} className="bg-white rounded-2xl border border-gray-100 p-2.5 flex flex-col">
-                          <div className="flex items-start justify-between mb-1.5">
-                            <div className="w-8 h-8 rounded-full flex items-center justify-center text-base flex-shrink-0" style={{ background: p.avatar ? "var(--border)" : colorFromUsername(p.username) }}>
-                              {p.avatar || <span className="text-white text-xs font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
+                        <div key={p.username} className="bg-white rounded-2xl border border-gray-100 px-4 py-3">
+                          <div className="flex items-center gap-3">
+                            {/* Avatar with presence dot */}
+                            <div className="relative flex-shrink-0">
+                              <div className="w-9 h-9 rounded-full flex items-center justify-center text-base" style={{ background: p.avatar ? "var(--border)" : colorFromUsername(p.username) }}>
+                                {p.avatar || <span className="text-white text-xs font-bold">{p.username.slice(0, 2).toUpperCase()}</span>}
+                              </div>
+                              {isPresent && (
+                                <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2" style={{ background: "#22C55E", borderColor: "var(--surface)" }} />
+                              )}
                             </div>
-                            <button onClick={() => toggleCard(p.username)} className="text-warm-gray p-0.5 transition-transform duration-200 flex-shrink-0" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
-                            </button>
+                            {/* Name + task count */}
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm font-semibold text-charcoal break-words">{p.username}</p>
+                              <p className="text-xs text-warm-gray">{pData ? `${doneCount}/${totalCount} tasks` : "joining…"}</p>
+                            </div>
+                            {/* High five + expand */}
+                            <div className="flex items-center gap-2 flex-shrink-0">
+                              <button
+                                onClick={(e) => { e.stopPropagation(); if (!highfivedUsers.has(p.username)) sendHighFive(p.username); }}
+                                disabled={highfivedUsers.has(p.username)}
+                                className="text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
+                                style={highfivedUsers.has(p.username)
+                                  ? { background: "var(--border)", color: "var(--text-3)", cursor: "default" }
+                                  : { background: "var(--purple-bg-2)", color: "var(--purple)" }}
+                              >
+                                {highfivedUsers.has(p.username) ? "✋ Sent!" : "✋"}
+                              </button>
+                              <button onClick={() => toggleCard(p.username)} className="text-warm-gray p-0.5 transition-transform duration-200" style={{ transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)" }}>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="6 9 12 15 18 9" /></svg>
+                              </button>
+                            </div>
                           </div>
-                          <p className="text-xs font-semibold text-charcoal truncate leading-tight">{p.username}</p>
-                          <p className="text-xs text-warm-gray mt-0.5">{pData ? `${doneCount}/${totalCount} tasks` : "joining…"}</p>
-                          {presentSet.has(p.username) && (
-                            <span className="inline-flex items-center gap-0.5 mt-1 text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
-                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 inline-block" />
-                              Here now
-                            </span>
-                          )}
-                          <button
-                            onClick={(e) => { e.stopPropagation(); if (!highfivedUsers.has(p.username)) sendHighFive(p.username); }}
-                            disabled={highfivedUsers.has(p.username)}
-                            className="mt-1.5 w-full text-xs font-semibold py-1 rounded-lg transition-colors"
-                            style={highfivedUsers.has(p.username)
-                              ? { background: "var(--border)", color: "var(--text-3)", cursor: "default" }
-                              : { background: "var(--purple-bg-2)", color: "var(--purple)" }}
-                          >
-                            {highfivedUsers.has(p.username) ? "✋ Sent!" : "✋ High Five"}
-                          </button>
                           {isExpanded && (
-                            <div className="mt-2 pt-2 border-t border-gray-100">
+                            <div className="mt-3 pt-3 border-t border-gray-100">
                               {pData?.sharing ? (
                                 pData.tasks.length === 0 ? (
                                   <p className="text-xs text-warm-gray italic">No tasks</p>
                                 ) : (
-                                  <div className="space-y-1">
+                                  <div className="space-y-1.5">
                                     {pData.tasks.map((t) => (
-                                      <div key={t.id} className="flex items-center gap-1">
-                                        <div className="w-2.5 h-2.5 rounded flex-shrink-0 flex items-center justify-center" style={t.done ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
+                                      <div key={t.id} className="flex items-start gap-2">
+                                        <div className="w-3 h-3 rounded flex-shrink-0 flex items-center justify-center mt-0.5" style={t.done ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                                           {t.done && <svg width="5" height="5" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                                         </div>
-                                        <span className={`text-xs truncate ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
+                                        <span className={`text-xs leading-snug ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}>{t.text}</span>
                                       </div>
                                     ))}
                                   </div>
