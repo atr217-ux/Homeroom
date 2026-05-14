@@ -730,21 +730,22 @@ export default function HomePage() {
       }
       if (!activeId) {
         // No localStorage entry — check DB for an active room this user is participating in
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { data: participantRow } = await (supabase as any)
+        const { data: participantRows } = await supabase
           .from("homeroom_participants")
-          .select("homeroom_id, homerooms!inner(id, title, duration, started_at, is_private, status)")
-          .eq("user_id", user.id)
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          .eq("homerooms.status" as any, "active")
-          .limit(1)
-          .maybeSingle();
-        if (participantRow) {
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const h = (participantRow as any).homerooms;
-          if (h) {
-            localStorage.setItem("homeroom-active-id", h.id);
-            setActiveSession({ id: h.id, title: h.title, duration: h.duration, startedAt: h.started_at!, isPublic: !h.is_private });
+          .select("homeroom_id")
+          .eq("user_id", user.id);
+        const participantHomeroomIds = (participantRows ?? []).map(r => r.homeroom_id as string);
+        if (participantHomeroomIds.length > 0) {
+          const { data: activeHomeroom } = await supabase
+            .from("homerooms")
+            .select("id, title, duration, started_at, is_private")
+            .in("id", participantHomeroomIds)
+            .eq("status", "active")
+            .limit(1)
+            .maybeSingle();
+          if (activeHomeroom) {
+            localStorage.setItem("homeroom-active-id", activeHomeroom.id);
+            setActiveSession({ id: activeHomeroom.id, title: activeHomeroom.title, duration: activeHomeroom.duration, startedAt: activeHomeroom.started_at!, isPublic: !activeHomeroom.is_private });
           }
         }
       }
