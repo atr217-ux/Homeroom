@@ -137,12 +137,12 @@ export default function RoomPage() {
     setChatMessages((prev) => prev.map((m) => {
       if (m.id !== msgId) return m;
       const has = m.reactions.includes(emoji);
-      const added = !has;
+      const newReactions = has ? m.reactions.filter((e) => e !== emoji) : [...m.reactions, emoji];
       realtimeChannelRef.current?.send({
         type: "broadcast", event: "reaction",
-        payload: { msgId, emoji, reactor: myUsernameRef.current || myUsername, added, msgSender: m.sender, msgText: m.text },
+        payload: { msgId, emoji, added: !has, allReactions: newReactions, reactor: myUsernameRef.current || myUsername },
       });
-      return { ...m, reactions: has ? m.reactions.filter((e) => e !== emoji) : [...m.reactions, emoji] };
+      return { ...m, reactions: newReactions };
     }));
   }
 
@@ -410,6 +410,14 @@ export default function RoomPage() {
         if (payload.reactor === me) return;
         setChatMessages((prev) => prev.map((m) => {
           if (m.id !== payload.msgId) return m;
+          if (Array.isArray(payload.allReactions)) {
+            if (payload.added) {
+              // Union merge — even if earlier broadcasts were dropped, any received broadcast catches up
+              return { ...m, reactions: [...new Set([...m.reactions, ...payload.allReactions])] };
+            } else {
+              return { ...m, reactions: m.reactions.filter((e) => e !== payload.emoji) };
+            }
+          }
           const has = m.reactions.includes(payload.emoji);
           if (payload.added && !has) return { ...m, reactions: [...m.reactions, payload.emoji] };
           if (!payload.added && has) return { ...m, reactions: m.reactions.filter((e) => e !== payload.emoji) };
