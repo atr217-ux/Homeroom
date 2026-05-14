@@ -775,29 +775,6 @@ export default function RoomPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <div
-              className="flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-full select-none"
-              style={groupDone > 0 ? { background: "#F3E8FF", color: "#7C3AED" } : { background: "#F3F4F6", color: "#9CA3AF" }}
-            >
-              <span>{groupDone > 0 ? "🔥" : "🎯"}</span>
-              <span>{groupDone} task{groupDone !== 1 ? "s" : ""} done together</span>
-            </div>
-            {!session.isPublic && (
-              <button
-                onClick={() => setShowChat(true)}
-                className="relative text-warm-gray hover:text-charcoal p-1.5 transition-colors"
-                title="Open chat"
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
-                </svg>
-                {chatUnread > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 w-4 h-4 rounded-full text-white font-bold flex items-center justify-center" style={{ background: "#DC2626", fontSize: "9px" }}>
-                    {chatUnread > 9 ? "9+" : chatUnread}
-                  </span>
-                )}
-              </button>
-            )}
             <button
               onClick={() => setConfirmLeave(true)}
               className="text-xs font-medium text-warm-gray border border-gray-200 rounded-lg px-3 py-1.5 hover:border-clay hover:text-clay transition-colors"
@@ -809,6 +786,28 @@ export default function RoomPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
+
+        {/* Group accomplishments */}
+        {groupDone > 0 ? (
+          <div className="mt-4 rounded-2xl p-4 flex items-center gap-4" style={{ background: "linear-gradient(135deg, #6D28D9 0%, #A855F7 100%)" }}>
+            <span className="text-4xl select-none" style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))" }}>🔥</span>
+            <div className="min-w-0">
+              <div className="text-3xl font-extrabold text-white leading-none tracking-tight">{groupDone}</div>
+              <div className="text-sm font-medium mt-0.5" style={{ color: "#E9D5FF" }}>
+                task{groupDone !== 1 ? "s" : ""} done together
+              </div>
+            </div>
+            <div className="ml-auto text-right hidden sm:block">
+              <div className="text-xs font-medium" style={{ color: "#C4B5FD" }}>Keep the momentum going 🚀</div>
+            </div>
+          </div>
+        ) : (
+          <div className="mt-4 rounded-2xl px-4 py-3 flex items-center gap-2.5 bg-white border border-gray-100">
+            <span className="text-lg select-none">🎯</span>
+            <span className="text-sm text-warm-gray">No tasks done together yet — get going!</span>
+          </div>
+        )}
+
         {/* My card */}
         <div className="mt-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
           <div className="flex items-center justify-between mb-3">
@@ -1219,6 +1218,25 @@ export default function RoomPage() {
           );
         })()}
       </div>
+
+      {/* Chat FAB */}
+      {session && !session.isPublic && (
+        <button
+          onClick={() => setShowChat(true)}
+          className="fixed z-30 flex items-center gap-2 rounded-full shadow-xl transition-transform active:scale-95"
+          style={{ bottom: "96px", right: "16px", background: "#7C3AED", color: "white", padding: "12px 20px" }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+          </svg>
+          <span className="text-sm font-semibold">Chat</span>
+          {chatUnread > 0 && (
+            <span className="w-5 h-5 rounded-full text-white text-xs font-bold flex items-center justify-center" style={{ background: "#DC2626", fontSize: "10px", marginLeft: "-2px" }}>
+              {chatUnread > 9 ? "9+" : chatUnread}
+            </span>
+          )}
+        </button>
+      )}
 
       {/* Chat drawer (private rooms only) */}
       {session && !session.isPublic && (
