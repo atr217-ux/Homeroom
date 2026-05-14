@@ -55,6 +55,7 @@ export default function RoomPage() {
   const touchDragOverRef = useRef<string | null>(null);
   const [editingTaskId, setEditingTaskId]   = useState<string | null>(null);
   const [editingTaskText, setEditingTaskText] = useState("");
+  const [taskMenuId, setTaskMenuId] = useState<string | null>(null);
   const [showListPicker, setShowListPicker]       = useState(false);
   const [listPickerSearch, setListPickerSearch]   = useState("");
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
@@ -475,6 +476,18 @@ export default function RoomPage() {
       else next.add(username);
       return next;
     });
+  }
+
+  async function removeTaskFromRoom(id: string) {
+    const supabase = createClient();
+    await supabase.from("tasks").update({ homeroom_id: null }).eq("id", id);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+  }
+
+  async function deleteTask(id: string) {
+    const supabase = createClient();
+    await supabase.from("tasks").delete().eq("id", id);
+    setTasks((prev) => prev.filter((t) => t.id !== id));
   }
 
   function saveTaskEdit() {
@@ -955,6 +968,31 @@ export default function RoomPage() {
                         )}
                         {t.done ? (
                           <span className="text-xs text-warm-gray flex-shrink-0">{formatTime(elapsed)}</span>
+                        ) : taskMenuId === t.id ? (
+                          <div className="flex items-center gap-1 flex-shrink-0">
+                            <button
+                              onClick={() => { removeTaskFromRoom(t.id); setTaskMenuId(null); }}
+                              className="text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0"
+                              style={{ background: "var(--border)", color: "var(--text-2)" }}
+                            >
+                              Remove
+                            </button>
+                            <button
+                              onClick={() => { deleteTask(t.id); setTaskMenuId(null); }}
+                              className="text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0"
+                              style={{ background: "#FEE2E2", color: "#EF4444" }}
+                            >
+                              Delete
+                            </button>
+                            <button
+                              onClick={() => setTaskMenuId(null)}
+                              className="text-warm-gray p-1 flex-shrink-0"
+                            >
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                              </svg>
+                            </button>
+                          </div>
                         ) : (
                           <div className="flex items-center gap-1.5 flex-shrink-0">
                             <span className="text-xs font-mono w-10 text-right" style={{ color: running ? "var(--purple)" : "#A8A29E" }}>
@@ -968,6 +1006,15 @@ export default function RoomPage() {
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "#78716C"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <circle cx="12" cy="12" r="10" />
                                 <polyline points="12 6 12 12 16 14" />
+                              </svg>
+                            </button>
+                            <button
+                              onClick={() => setTaskMenuId(t.id)}
+                              className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0 transition-colors"
+                              style={{ color: "var(--text-3)" }}
+                            >
+                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                                <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
                               </svg>
                             </button>
                           </div>
