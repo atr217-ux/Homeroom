@@ -1245,7 +1245,7 @@ export default function RoomPage() {
 
         {/* Activity feed */}
         <div className="mt-4 mb-4">
-          <button onClick={toggleActivityCollapsed} className="w-full flex items-center justify-between mb-3">
+          <button onClick={toggleActivityCollapsed} className="flex items-center gap-2 mb-3">
             <h2 className="text-sm font-semibold text-charcoal">Activity</h2>
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
               style={{ color: "var(--text-2)", transform: activityCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
