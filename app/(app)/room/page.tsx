@@ -31,9 +31,19 @@ type Session = {
 };
 
 function formatTime(seconds: number): string {
-  const m = Math.floor(seconds / 60);
+  const h = Math.floor(seconds / 3600);
+  const m = Math.floor((seconds % 3600) / 60);
   const s = seconds % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
   return `${m}:${String(s).padStart(2, "0")}`;
+}
+
+function formatDuration(minutes: number): string {
+  const h = Math.floor(minutes / 60);
+  const m = minutes % 60;
+  if (h > 0 && m > 0) return `${h}h ${m}m`;
+  if (h > 0) return `${h}h`;
+  return `${m}m`;
 }
 
 export default function RoomPage() {
@@ -697,7 +707,6 @@ export default function RoomPage() {
   const elapsedMin = Math.floor(elapsedSec / 60);
   const remainingSec = duration > 0 ? Math.max(0, duration * 60 - elapsedSec) : 0;
   const remainingMin = Math.floor(remainingSec / 60);
-  const remainingSs  = remainingSec % 60;
   const progressPct  = duration > 0 ? Math.min(100, (elapsedSec / (duration * 60)) * 100) : 0;
 
   useEffect(() => {
@@ -827,7 +836,7 @@ export default function RoomPage() {
               <div className="flex items-center gap-2 mt-0.5">
                 <span className="inline-block w-2 h-2 rounded-full bg-clay animate-pulse" />
                 <span className="text-xs text-warm-gray">
-                  {session.isPublic ? "Public" : "Friends only"} · {duration > 0 ? `${duration} min` : "No time set"}
+                  {session.isPublic ? "Public" : "Friends only"} · {duration > 0 ? formatDuration(duration) : "No time set"}
                 </span>
               </div>
             </div>
@@ -867,7 +876,7 @@ export default function RoomPage() {
               </div>
               <div>
                 <span className="font-semibold text-sm text-charcoal">{myUsername}</span>
-                <span className="ml-1.5 text-xs text-warm-gray">{elapsedMin} / {duration} min</span>
+                <span className="ml-1.5 text-xs text-warm-gray">{formatDuration(elapsedMin)} / {formatDuration(duration)}</span>
               </div>
             </div>
             <div className="flex items-center gap-2">
@@ -885,7 +894,7 @@ export default function RoomPage() {
             </div>
           </div>
 
-          <div className="bg-gray-100 rounded-full h-1.5 mb-3" title={duration > 0 ? `${remainingMin}:${String(remainingSs).padStart(2,"0")} remaining` : undefined}>
+          <div className="bg-gray-100 rounded-full h-1.5 mb-3" title={duration > 0 ? `${formatDuration(remainingMin)} remaining` : undefined}>
             <div className="h-1.5 rounded-full bg-sage transition-all duration-1000" style={{ width: `${progressPct}%` }} />
           </div>
 
