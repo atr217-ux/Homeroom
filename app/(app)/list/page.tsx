@@ -511,9 +511,9 @@ export default function ListPage() {
                               </span>
                             )}
                             {t.homeroomStatus === "active" && t.scheduledForTitle && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "#ECFDF5", color: "#065F46" }}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block" />
-                                {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle} · {new Date().toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                              <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "#ECFDF5", color: "#065F46", border: "1px solid #A7F3D0" }}>
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block animate-pulse" />
+                                {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
                               </span>
                             )}
                             {t.scheduledForDate && t.scheduledForTitle && t.homeroomStatus !== "active" && (
