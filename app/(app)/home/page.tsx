@@ -343,9 +343,9 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
         <button
           onClick={() => { setMonthOffset(o => o - 1); setSelectedKey(null); }}
           disabled={monthOffset === 0}
-          className="p-1 rounded-lg transition-colors hover:bg-gray-100 disabled:opacity-20"
+          className="p-1 rounded-lg transition-colors hover:bg-gray-100 disabled:opacity-20 text-charcoal"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M15 18l-6-6 6-6" />
           </svg>
         </button>
@@ -353,9 +353,9 @@ function CalendarView({ scheduled, now, onLaunch, onRemove, onPrepop, onEdit }: 
         <button
           onClick={() => { setMonthOffset(o => o + 1); setSelectedKey(null); }}
           disabled={monthOffset >= 11}
-          className="p-1 rounded-lg transition-colors hover:bg-gray-100 disabled:opacity-20"
+          className="p-1 rounded-lg transition-colors hover:bg-gray-100 disabled:opacity-20 text-charcoal"
         >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#1C1917" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
