@@ -61,6 +61,13 @@ export default function RoomPage() {
   const [listPickerSearch, setListPickerSearch]   = useState("");
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
   const [tasksExpanded, setTasksExpanded]         = useState(false);
+  const [doneCollapsed, setDoneCollapsed]         = useState(() => { try { return localStorage.getItem("homeroom-done-collapsed") === "true"; } catch { return false; } });
+
+  function toggleDoneCollapsed() {
+    const next = !doneCollapsed;
+    setDoneCollapsed(next);
+    try { localStorage.setItem("homeroom-done-collapsed", String(next)); } catch { /* ignore */ }
+  }
   const [presentUsers, setPresentUsers]           = useState<{ username: string; avatar: string }[]>([]);
   const [dbParticipants, setDbParticipants]       = useState<{ userId: string; username: string; avatar: string }[]>([]);
   const [participantData, setParticipantData]     = useState<Record<string, { tasks: { id: string; text: string; done: boolean }[]; sharing: boolean }>>({});
@@ -678,10 +685,8 @@ export default function RoomPage() {
     });
   }, [showTodos, tasks, myUsername]);
 
-  const sortedTasks = [
-    ...tasks.filter(t => !t.done),
-    ...tasks.filter(t => t.done).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
-  ];
+  const undoneSorted = tasks.filter(t => !t.done);
+  const doneSorted   = tasks.filter(t => t.done).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0));
   const doneTasks = tasks.filter((t) => t.done).length;
   const groupDone = doneTasks + Object.values(participantData).reduce((sum, p) => sum + p.tasks.filter(t => t.done).length, 0);
   const duration = session?.duration ?? 0;
@@ -905,9 +910,9 @@ export default function RoomPage() {
               ) : (
                 <div className="space-y-2 mb-3">
                   {(tasksCollapsed
-                    ? [sortedTasks.find(t => t.startedAt !== null) ?? sortedTasks.find(t => !t.done) ?? sortedTasks[0]]
-                    : tasksExpanded ? sortedTasks : sortedTasks.slice(0, TASK_VISIBLE_LIMIT)
-                  ).filter(Boolean).map((t) => {
+                    ? [undoneSorted.find(t => t.startedAt !== null) ?? undoneSorted[0]].filter(Boolean)
+                    : tasksExpanded ? undoneSorted : undoneSorted.slice(0, TASK_VISIBLE_LIMIT)
+                  ).map((t) => {
                     const elapsed = getElapsed(t);
                     const running = t.startedAt !== null;
                     return (
@@ -1032,24 +1037,63 @@ export default function RoomPage() {
                 </div>
               )}
 
-              {!tasksCollapsed && tasks.length > TASK_VISIBLE_LIMIT && (
+              {!tasksCollapsed && undoneSorted.length > TASK_VISIBLE_LIMIT && (
                 <button
                   onClick={() => setTasksExpanded(v => !v)}
                   className="text-xs font-medium mb-2"
                   style={{ color: "var(--purple)" }}
                 >
-                  {tasksExpanded ? "Show less" : `+ ${tasks.length - TASK_VISIBLE_LIMIT} more task${tasks.length - TASK_VISIBLE_LIMIT !== 1 ? "s" : ""}`}
+                  {tasksExpanded ? "Show less" : `+ ${undoneSorted.length - TASK_VISIBLE_LIMIT} more task${undoneSorted.length - TASK_VISIBLE_LIMIT !== 1 ? "s" : ""}`}
                 </button>
               )}
 
-              {tasksCollapsed && tasks.filter(t => !t.done).length > 1 && (
+              {tasksCollapsed && undoneSorted.length > 1 && (
                 <button
                   onClick={() => setTasksCollapsed(false)}
                   className="text-xs text-warm-gray mt-1 mb-2"
                   style={{ color: "var(--purple)" }}
                 >
-                  + {tasks.filter(t => !t.done).length - 1} more task{tasks.filter(t => !t.done).length - 1 !== 1 ? "s" : ""}
+                  + {undoneSorted.length - 1} more task{undoneSorted.length - 1 !== 1 ? "s" : ""}
                 </button>
+              )}
+
+              {doneSorted.length > 0 && (
+                <div className="mt-2">
+                  <button
+                    onClick={toggleDoneCollapsed}
+                    className="w-full flex items-center justify-between py-1 mb-1"
+                  >
+                    <span className="text-xs font-semibold uppercase tracking-wide" style={{ color: "var(--text-2)" }}>
+                      Done · {doneSorted.length}
+                    </span>
+                    <svg
+                      width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                      style={{ color: "var(--text-2)", transform: doneCollapsed ? "rotate(-90deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {!doneCollapsed && (
+                    <div className="space-y-1">
+                      {doneSorted.map((t) => (
+                        <div key={t.id} className="flex items-center gap-2 px-1 py-0.5 rounded-lg opacity-60">
+                          <span className="w-2.5 flex-shrink-0" />
+                          <button
+                            onClick={() => toggleTask(t.id)}
+                            className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                            style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}
+                          >
+                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="20 6 9 17 4 12" />
+                            </svg>
+                          </button>
+                          <span className="text-sm line-through flex-1 break-words min-w-0" style={{ color: "var(--text-2)" }}>{t.text}</span>
+                          <span className="text-xs flex-shrink-0" style={{ color: "var(--text-3)" }}>{t.timeSpent > 0 ? formatTime(t.timeSpent) : ""}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
 
               {!tasksCollapsed && <div className="flex items-center gap-2 mt-2">
