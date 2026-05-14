@@ -17,6 +17,7 @@ type Task = {
   done: boolean;
   timeSpent: number;
   startedAt: number | null;
+  completedAt: number | null;
 };
 type Friend = { id: string; name: string; initials: string; color: string };
 type Session = {
@@ -153,14 +154,14 @@ export default function RoomPage() {
       // If room already ended, load tasks then show end popup immediately
       if (homeroom.status === "completed") {
         const { data: taskData } = await supabase
-          .from("tasks").select("id, text, done, time_spent")
+          .from("tasks").select("id, text, done, time_spent, completed_at")
           .eq("homeroom_id", homeroomId).order("sort_order", { ascending: true });
         setSession({
           homeroomId: homeroom.id, title: homeroom.title, duration: homeroom.duration,
           isPublic: !homeroom.is_private, startedAt: homeroom.started_at ?? new Date().toISOString(),
           squadTags: homeroom.squad_tags ?? [], invitedFriends: [],
         });
-        if (taskData) setTasks(taskData.map(t => ({ id: t.id, text: t.text, done: t.done, timeSpent: t.time_spent ?? 0, startedAt: null })));
+        if (taskData) setTasks(taskData.map(t => ({ id: t.id, text: t.text, done: t.done, timeSpent: t.time_spent ?? 0, startedAt: null, completedAt: t.completed_at ? new Date(t.completed_at).getTime() : null })));
         timerEndedRef.current = true;
         setShowSummary(true);
         setLoading(false);
@@ -225,7 +226,7 @@ export default function RoomPage() {
       // Load tasks
       const { data: taskData } = await supabase
         .from("tasks")
-        .select("id, text, done, time_spent")
+        .select("id, text, done, time_spent, completed_at")
         .eq("homeroom_id", homeroomId)
         .order("sort_order", { ascending: true });
       if (taskData) {
@@ -242,6 +243,7 @@ export default function RoomPage() {
           done: t.done,
           timeSpent: t.time_spent ?? 0,
           startedAt: runningTimer && runningTimer.taskId === t.id ? runningTimer.startedAt : null,
+          completedAt: t.completed_at ? new Date(t.completed_at).getTime() : null,
         })));
         tasksInitializedRef.current = true;
       }
@@ -431,8 +433,9 @@ export default function RoomPage() {
       completed_at: nowDone ? new Date().toISOString() : null,
     }).eq("id", id);
 
+    const completedAt = nowDone ? Date.now() : null;
     setTasks((prev) => prev.map((t) =>
-      t.id === id ? { ...t, done: nowDone, timeSpent, startedAt: null } : t
+      t.id === id ? { ...t, done: nowDone, timeSpent, startedAt: null, completedAt } : t
     ));
   }
 
@@ -589,7 +592,7 @@ export default function RoomPage() {
       sort_order: tasks.length,
     }).select("id").single();
     if (data) {
-      setTasks((prev) => [...prev, { id: data.id, text, done: false, timeSpent: 0, startedAt: null }]);
+      setTasks((prev) => [...prev, { id: data.id, text, done: false, timeSpent: 0, startedAt: null, completedAt: null }]);
     }
   }
 
@@ -675,6 +678,10 @@ export default function RoomPage() {
     });
   }, [showTodos, tasks, myUsername]);
 
+  const sortedTasks = [
+    ...tasks.filter(t => !t.done),
+    ...tasks.filter(t => t.done).sort((a, b) => (b.completedAt ?? 0) - (a.completedAt ?? 0)),
+  ];
   const doneTasks = tasks.filter((t) => t.done).length;
   const groupDone = doneTasks + Object.values(participantData).reduce((sum, p) => sum + p.tasks.filter(t => t.done).length, 0);
   const duration = session?.duration ?? 0;
@@ -898,8 +905,8 @@ export default function RoomPage() {
               ) : (
                 <div className="space-y-2 mb-3">
                   {(tasksCollapsed
-                    ? [tasks.find(t => t.startedAt !== null) ?? tasks.find(t => !t.done) ?? tasks[0]]
-                    : tasksExpanded ? tasks : tasks.slice(0, TASK_VISIBLE_LIMIT)
+                    ? [sortedTasks.find(t => t.startedAt !== null) ?? sortedTasks.find(t => !t.done) ?? sortedTasks[0]]
+                    : tasksExpanded ? sortedTasks : sortedTasks.slice(0, TASK_VISIBLE_LIMIT)
                   ).filter(Boolean).map((t) => {
                     const elapsed = getElapsed(t);
                     const running = t.startedAt !== null;
@@ -1435,7 +1442,7 @@ export default function RoomPage() {
             await supabase.from("tasks").update({ homeroom_id: session.homeroomId }).in("id", toAdd.map(t => t.id));
             setTasks((prev) => [
               ...prev,
-              ...toAdd.map((t) => ({ id: t.id, text: t.text, done: false, timeSpent: 0, startedAt: null })),
+              ...toAdd.map((t) => ({ id: t.id, text: t.text, done: false, timeSpent: 0, startedAt: null, completedAt: null })),
             ]);
             setMyListTasks(prev => prev.filter(t => !selectedListIds.includes(t.id)));
           }
