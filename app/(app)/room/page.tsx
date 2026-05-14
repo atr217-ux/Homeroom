@@ -670,10 +670,10 @@ export default function RoomPage() {
     if (!error) setInvitedInSession(prev => new Set([...prev, friend.userId]));
   }
 
-  async function resendInvite(f: Friend) {
-    await sendInvite({ username: f.name, userId: f.id });
-    setResentIds(prev => new Set([...prev, f.id]));
-    setTimeout(() => setResentIds(prev => { const n = new Set(prev); n.delete(f.id); return n; }), 2000);
+  async function resendInvite(userId: string, username: string) {
+    await sendInvite({ username, userId });
+    setResentIds(prev => new Set([...prev, userId]));
+    setTimeout(() => setResentIds(prev => { const n = new Set(prev); n.delete(userId); return n; }), 2000);
   }
 
   async function addTask() {
@@ -1537,7 +1537,7 @@ export default function RoomPage() {
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>{f.initials}</div>
                     <span className="text-xs text-warm-gray">{f.name}</span>
                     <button
-                      onClick={() => resendInvite(f)}
+                      onClick={() => resendInvite(f.id, f.name)}
                       className="text-xs px-2 py-0.5 rounded-full ml-0.5"
                       style={{ background: "var(--border)", color: "var(--text-3)" }}
                     >
@@ -1892,11 +1892,10 @@ export default function RoomPage() {
                                   <span className="text-sm font-medium text-charcoal">{p.username}</span>
                                 </div>
                                 <button
-                                  onClick={() => sendInvite({ username: p.username, userId: p.userId })}
-                                  disabled={sent}
+                                  onClick={() => sent ? resendInvite(p.userId, p.username) : sendInvite({ username: p.username, userId: p.userId })}
                                   className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
                                   style={sent ? { background: "var(--border)", color: "var(--text-3)" } : { background: "var(--purple)", color: "white" }}
-                                >{sent ? "Invited" : "Invite back"}</button>
+                                >{resentIds.has(p.userId) ? "Sent!" : sent ? "Resend" : "Invite back"}</button>
                               </div>
                             );
                           })}
@@ -1914,14 +1913,13 @@ export default function RoomPage() {
                           <span className="text-sm font-medium text-charcoal">{f.username}</span>
                         </div>
                         <button
-                          onClick={() => sendInvite(f)}
-                          disabled={sent}
+                          onClick={() => sent ? resendInvite(f.userId, f.username) : sendInvite(f)}
                           className="text-xs font-semibold px-4 py-2 rounded-xl transition-all"
                           style={sent
                             ? { background: "var(--border)", color: "var(--text-3)" }
                             : { background: "var(--purple)", color: "white" }}
                         >
-                          {sent ? "Invited" : "Invite"}
+                          {resentIds.has(f.userId) ? "Sent!" : sent ? "Resend" : "Invite"}
                         </button>
                       </div>
                     );
