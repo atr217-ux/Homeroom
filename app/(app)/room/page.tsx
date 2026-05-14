@@ -1309,15 +1309,15 @@ export default function RoomPage() {
                 return (
                   <div
                     key={msg.id}
-                    className="rounded-2xl px-4 py-3 transition-colors"
-                    style={{ background: isHighfive ? "var(--yellow-bg)" : "var(--surface-2)" }}
+                    className="rounded-2xl px-4 py-3 border"
+                    style={{ borderColor: "var(--border-2)", background: "var(--surface)" }}
                     onMouseEnter={() => setHoveredMsgId(msg.id)}
                     onMouseLeave={() => setHoveredMsgId(null)}
                   >
                     <div className="flex items-start gap-3">
                       <div
-                        className="flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center text-base mt-0.5"
-                        style={{ background: isHighfive ? "var(--yellow-bg)" : "var(--green-bg)", border: `1px solid ${isHighfive ? "var(--border-2)" : "var(--green-border)"}` }}
+                        className="flex-shrink-0 w-7 h-7 rounded-full flex items-center justify-center text-sm mt-0.5"
+                        style={{ background: "var(--surface-2)", border: "1px solid var(--border-2)" }}
                       >
                         {isHighfive ? "✋" : "✅"}
                       </div>
