@@ -1063,6 +1063,7 @@ export default function RoomPage() {
           });
           const visibleOthers = participantsExpanded ? filteredOthers : filteredOthers.slice(0, PARTICIPANTS_VISIBLE);
           const hiddenCount = filteredOthers.length - PARTICIPANTS_VISIBLE;
+          if (others.length === 0) return null;
           return (
             <div className="mt-5">
               <div className="flex items-center justify-between mb-3">
