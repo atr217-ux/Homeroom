@@ -788,25 +788,17 @@ export default function RoomPage() {
       <div className="max-w-2xl mx-auto px-4">
 
         {/* Group accomplishments */}
-        {groupDone > 0 ? (
-          <div className="mt-4 rounded-2xl p-4 flex items-center gap-4" style={{ background: "linear-gradient(135deg, #6D28D9 0%, #A855F7 100%)" }}>
-            <span className="text-4xl select-none" style={{ filter: "drop-shadow(0 2px 4px rgba(0,0,0,0.2))" }}>🔥</span>
-            <div className="min-w-0">
-              <div className="text-3xl font-extrabold text-white leading-none tracking-tight">{groupDone}</div>
-              <div className="text-sm font-medium mt-0.5" style={{ color: "#E9D5FF" }}>
-                task{groupDone !== 1 ? "s" : ""} done together
-              </div>
-            </div>
-            <div className="ml-auto text-right hidden sm:block">
-              <div className="text-xs font-medium" style={{ color: "#C4B5FD" }}>Keep the momentum going 🚀</div>
-            </div>
+        <div className="mt-4 flex justify-center">
+          <div
+            className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-semibold select-none"
+            style={groupDone > 0
+              ? { background: "#F3E8FF", color: "#6D28D9", border: "1.5px solid #DDD6FE" }
+              : { background: "#F3F4F6", color: "#9CA3AF", border: "1.5px solid #E5E7EB" }}
+          >
+            <span>{groupDone > 0 ? "🔥" : "🎯"}</span>
+            <span>{groupDone} task{groupDone !== 1 ? "s" : ""} done together</span>
           </div>
-        ) : (
-          <div className="mt-4 rounded-2xl px-4 py-3 flex items-center gap-2.5 bg-white border border-gray-100">
-            <span className="text-lg select-none">🎯</span>
-            <span className="text-sm text-warm-gray">No tasks done together yet — get going!</span>
-          </div>
-        )}
+        </div>
 
         {/* My card */}
         <div className="mt-4 bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
