@@ -16,7 +16,30 @@ export default function BottomNav() {
 
   useEffect(() => {
     const activeId = localStorage.getItem("homeroom-active-id");
-    setRoomHref(activeId ? `/room?id=${activeId}` : "/start");
+    if (activeId) { setRoomHref(`/room?id=${activeId}`); return; }
+    // No localStorage — check DB for an active session on this account
+    const supabase = createClient();
+    (async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      const { data: rows } = await supabase
+        .from("homeroom_participants")
+        .select("homeroom_id")
+        .eq("user_id", user.id);
+      const ids = (rows ?? []).map(r => r.homeroom_id as string);
+      if (!ids.length) return;
+      const { data: h } = await supabase
+        .from("homerooms")
+        .select("id")
+        .in("id", ids)
+        .eq("status", "active")
+        .limit(1)
+        .maybeSingle();
+      if (h) {
+        localStorage.setItem("homeroom-active-id", h.id);
+        setRoomHref(`/room?id=${h.id}`);
+      }
+    })();
   }, [pathname]);
 
   useEffect(() => {
