@@ -151,6 +151,12 @@ export default function RoomPage() {
       if (cachedHf) setHighfivedUsers(new Set(JSON.parse(cachedHf)));
     } catch { /* ignore */ }
 
+    // Restore participant cards immediately so "In this room" isn't blank on re-entry
+    try {
+      const cachedP = sessionStorage.getItem(`homeroom-participants-${homeroomId}`);
+      if (cachedP) setDbParticipants(JSON.parse(cachedP));
+    } catch { /* ignore */ }
+
     const local = localStorage.getItem("homeroom-username");
     if (local) { myUsernameRef.current = local; setMyUsername(local); }
     const localAvatar = localStorage.getItem("homeroom-avatar");
@@ -327,7 +333,7 @@ export default function RoomPage() {
       })
       .on("broadcast", { event: "user-left" }, ({ payload }) => {
         if (!payload.username) return;
-        setDbParticipants((prev) => prev.filter(p => p.username !== payload.username));
+        // Keep the card — presence handles the green dot. Only clear task-share data.
         setParticipantData((prev) => { const n = { ...prev }; delete n[payload.username]; return n; });
       })
       .on("broadcast", { event: "request-session-info" }, () => {
@@ -687,6 +693,12 @@ export default function RoomPage() {
       sessionStorage.setItem(`homeroom-highfived-${homeroomIdRef.current}`, JSON.stringify([...highfivedUsers]));
     } catch { /* ignore */ }
   }, [highfivedUsers]);
+  useEffect(() => {
+    if (!homeroomIdRef.current || dbParticipants.length === 0) return;
+    try {
+      sessionStorage.setItem(`homeroom-participants-${homeroomIdRef.current}`, JSON.stringify(dbParticipants));
+    } catch { /* ignore */ }
+  }, [dbParticipants]);
   useEffect(() => { showChatRef.current = showChat; if (showChat) setChatUnread(0); }, [showChat]);
 
   const [showTodos, setShowTodos] = useState(true);
