@@ -1357,7 +1357,7 @@ export default function HomePage() {
         const progressPct = activeSession.duration > 0 ? Math.min(100, (elapsedSec / (activeSession.duration * 60)) * 100) : 0;
         return (
           <div className="mb-6">
-            <h2 className="text-sm font-semibold text-charcoal mb-3">Active session</h2>
+            <h2 className="text-sm font-semibold text-charcoal mb-3">Current session</h2>
             <div className="bg-white rounded-2xl border border-purple-100 px-4 py-3">
               <div className="flex items-center justify-between mb-2">
                 <div>
@@ -1476,7 +1476,7 @@ export default function HomePage() {
       <div className="mb-6" id="active-rooms">
         <button onClick={() => setActiveRoomsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-charcoal">
-            Active rooms
+            Available to join
             {(publicRooms.length > 0 || activeSession?.isPublic) && (() => {
               const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
               const othersCount = publicRooms.filter(r => {
