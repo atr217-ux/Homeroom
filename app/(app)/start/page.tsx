@@ -273,7 +273,7 @@ export default function StartPage() {
           value={title}
           onChange={e => setTitle(e.target.value)}
           placeholder="What are you trying to accomplish?"
-          className="w-full text-sm border border-gray-200 rounded-xl px-3 py-3 bg-cream text-charcoal placeholder:text-violet-400 focus:outline-none focus:border-sage transition-colors"
+          className="w-full text-sm border border-gray-200 rounded-xl px-3 py-3 bg-cream text-charcoal placeholder:text-violet-500 placeholder:font-semibold focus:outline-none focus:border-sage transition-colors"
         />
         <p className="text-xs text-warm-gray mt-1.5">Will be shared as the title of your homeroom</p>
       </div>
