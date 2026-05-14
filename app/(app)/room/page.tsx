@@ -68,6 +68,7 @@ export default function RoomPage() {
   const [tick, setTick] = useState(0);
   const [chatMessages, setChatMessages] = useState<{ id: string; type: "chat" | "activity" | "highfive"; text: string; sender: string; time: Date; reactions: string[] }[]>([]);
   const [highfivedUsers, setHighfivedUsers] = useState<Set<string>>(new Set());
+  const [receivedHighfivesFrom, setReceivedHighfivesFrom] = useState<Set<string>>(new Set());
   const [chatInput, setChatInput] = useState("");
   const [hoveredMsgId, setHoveredMsgId] = useState<string | null>(null);
   const [draggingId, setDraggingId]     = useState<string | null>(null);
@@ -177,6 +178,12 @@ export default function RoomPage() {
     try {
       const cachedHf = sessionStorage.getItem(`homeroom-highfived-${homeroomId}`);
       if (cachedHf) setHighfivedUsers(new Set(JSON.parse(cachedHf)));
+    } catch { /* ignore */ }
+
+    // Restore who has high-fived me
+    try {
+      const cachedRhf = sessionStorage.getItem(`homeroom-receivedhf-${homeroomId}`);
+      if (cachedRhf) setReceivedHighfivesFrom(new Set(JSON.parse(cachedRhf)));
     } catch { /* ignore */ }
 
     // Restore participant cards immediately so "In this room" isn't blank on re-entry
@@ -338,6 +345,8 @@ export default function RoomPage() {
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const alreadyHighfived = new Set((msgData as any[]).filter(m => m.type === "highfive" && m.sender === me).map(m => m.text as string));
         if (alreadyHighfived.size > 0) setHighfivedUsers(alreadyHighfived);
+        const hfFromOthers = new Set((msgData as any[]).filter(m => m.type === "highfive" && m.text === me).map(m => m.sender as string));
+        if (hfFromOthers.size > 0) setReceivedHighfivesFrom(hfFromOthers);
       }
       setLoading(false);
     })();
@@ -354,6 +363,9 @@ export default function RoomPage() {
         if (payload.sender !== myUsername) {
           setChatMessages((prev) => [...prev, { ...payload, time: new Date(payload.time) }]);
           if (payload.type === "chat" && !showChatRef.current) setChatUnread((prev) => prev + 1);
+          if (payload.type === "highfive" && payload.text === myUsername) {
+            setReceivedHighfivesFrom((prev) => new Set([...prev, payload.sender]));
+          }
         }
       })
       .on("broadcast", { event: "task-share" }, ({ payload }) => {
@@ -745,6 +757,12 @@ export default function RoomPage() {
       sessionStorage.setItem(`homeroom-highfived-${homeroomIdRef.current}`, JSON.stringify([...highfivedUsers]));
     } catch { /* ignore */ }
   }, [highfivedUsers]);
+  useEffect(() => {
+    if (!homeroomIdRef.current || receivedHighfivesFrom.size === 0) return;
+    try {
+      sessionStorage.setItem(`homeroom-receivedhf-${homeroomIdRef.current}`, JSON.stringify([...receivedHighfivesFrom]));
+    } catch { /* ignore */ }
+  }, [receivedHighfivesFrom]);
   useEffect(() => {
     if (!homeroomIdRef.current || dbParticipants.length === 0) return;
     try {
@@ -1422,6 +1440,9 @@ export default function RoomPage() {
                               </div>
                               {isPresent && (
                                 <span className="absolute bottom-0 right-0 w-2.5 h-2.5 rounded-full border-2" style={{ background: "#22C55E", borderColor: "var(--surface)" }} />
+                              )}
+                              {receivedHighfivesFrom.has(p.username) && (
+                                <span className="absolute -top-1 -left-1 w-4 h-4 rounded-full flex items-center justify-center text-xs border-2" style={{ background: "var(--yellow-bg)", borderColor: "var(--surface)", fontSize: "10px" }}>✋</span>
                               )}
                             </div>
                             {/* Name + task count */}
