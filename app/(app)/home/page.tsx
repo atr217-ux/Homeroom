@@ -468,6 +468,7 @@ export default function HomePage() {
   const [friends, setFriends] = useState<Friend[]>([]);
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
   const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
+  const [activeRoomsExpanded, setActiveRoomsExpanded] = useState(false);
 
   const [editingSession, setEditingSession] = useState<ScheduledSession | null>(null);
   const [editTitle, setEditTitle] = useState("");
@@ -1460,21 +1461,27 @@ export default function HomePage() {
 
       {/* Active public rooms */}
       <div className="mb-6" id="active-rooms">
-        <h2 className="text-sm font-semibold text-charcoal mb-3">
-          Active rooms
-          {(publicRooms.length > 0 || activeSession?.isPublic) && (() => {
-            const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
-            const othersCount = publicRooms.filter(r => {
-              if (r.id === ownRoomId) return false;
-              if (squadFilter && !r.squad_tags.includes(squadFilter)) return false;
-              if (r.duration > 0 && (Date.now() - new Date(r.started_at).getTime()) / 1000 >= r.duration * 60) return false;
-              return true;
-            }).length;
-            const total = othersCount + (activeSession?.isPublic ? 1 : 0);
-            return <span className="ml-1.5 text-warm-gray font-normal">· {total}</span>;
-          })()}
-        </h2>
-        <div className="space-y-3">
+        <button onClick={() => setActiveRoomsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
+          <h2 className="text-sm font-semibold text-charcoal">
+            Active rooms
+            {(publicRooms.length > 0 || activeSession?.isPublic) && (() => {
+              const ownRoomId = activeSession?.isPublic ? activeSession.id : undefined;
+              const othersCount = publicRooms.filter(r => {
+                if (r.id === ownRoomId) return false;
+                if (squadFilter && !r.squad_tags.includes(squadFilter)) return false;
+                if (r.duration > 0 && (Date.now() - new Date(r.started_at).getTime()) / 1000 >= r.duration * 60) return false;
+                return true;
+              }).length;
+              const total = othersCount + (activeSession?.isPublic ? 1 : 0);
+              return <span className="ml-1.5 text-warm-gray font-normal">· {total}</span>;
+            })()}
+          </h2>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            style={{ transform: activeRoomsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+            <polyline points="6 9 12 15 18 9" />
+          </svg>
+        </button>
+        {activeRoomsExpanded && <div className="space-y-3">
           {/* Own active session card */}
           {activeSession?.isPublic && (() => {
             const myUsername = localStorage.getItem("homeroom-username") ?? "You";
@@ -1683,7 +1690,7 @@ export default function HomePage() {
               );
             });
           })()}
-        </div>
+        </div>}
       </div>
 
       {/* Public scheduled sessions */}
