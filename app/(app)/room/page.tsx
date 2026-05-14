@@ -116,6 +116,7 @@ export default function RoomPage() {
   const [showInviteModal, setShowInviteModal] = useState(false);
   const [inviteSearch, setInviteSearch] = useState("");
   const [invitedInSession, setInvitedInSession] = useState<Set<string>>(new Set());
+  const [resentIds, setResentIds] = useState<Set<string>>(new Set());
   const [mySquads, setMySquads]                   = useState<{ id: string; name: string; emoji: string }[]>([]);
   const [squadMemberMap, setSquadMemberMap]       = useState<Record<string, Set<string>>>({});
   const [activeFilters, setActiveFilters]         = useState<Set<string>>(new Set());
@@ -667,6 +668,12 @@ export default function RoomPage() {
       status: "pending",
     }, { onConflict: "homeroom_id,to_user" });
     if (!error) setInvitedInSession(prev => new Set([...prev, friend.userId]));
+  }
+
+  async function resendInvite(f: Friend) {
+    await sendInvite({ username: f.name, userId: f.id });
+    setResentIds(prev => new Set([...prev, f.id]));
+    setTimeout(() => setResentIds(prev => { const n = new Set(prev); n.delete(f.id); return n; }), 2000);
   }
 
   async function addTask() {
@@ -1526,9 +1533,16 @@ export default function RoomPage() {
               </button>
               {!invitedCollapsed && <div className="flex flex-wrap gap-2">
                 {pending.map((f) => (
-                  <div key={f.id} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full px-2.5 py-1">
+                  <div key={f.id} className="flex items-center gap-1.5 bg-white border border-gray-100 rounded-full pl-2 pr-1 py-1">
                     <div className="w-5 h-5 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>{f.initials}</div>
                     <span className="text-xs text-warm-gray">{f.name}</span>
+                    <button
+                      onClick={() => resendInvite(f)}
+                      className="text-xs px-2 py-0.5 rounded-full ml-0.5"
+                      style={{ background: "var(--border)", color: "var(--text-3)" }}
+                    >
+                      {resentIds.has(f.id) ? "Sent!" : "Resend"}
+                    </button>
                   </div>
                 ))}
               </div>}
