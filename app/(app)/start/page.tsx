@@ -62,6 +62,7 @@ function StartPageInner() {
         setCarryForward(tasks);
         setSelectedIds(new Set(tasks.map(t => t.id)));
         localStorage.removeItem("homeroom-carry-forward");
+        localStorage.removeItem("homeroom-carry-forward-from");
       }
     } catch { /* ignore */ }
   }, []);

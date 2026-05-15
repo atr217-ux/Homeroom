@@ -77,7 +77,11 @@ export default function RoomPage() {
   const touchDragOverRef = useRef<string | null>(null);
   const [editingTaskId, setEditingTaskId]   = useState<string | null>(null);
   const [editingTaskText, setEditingTaskText] = useState("");
-  const [taskMenuId, setTaskMenuId] = useState<string | null>(null);
+  const [isTouch, setIsTouch] = useState(false);
+  const [swipedTaskId, setSwipedTaskId] = useState<string | null>(null);
+  const [liveTaskSwipe, setLiveTaskSwipe] = useState<{ id: string; offset: number } | null>(null);
+  const taskSwipeRef = useRef<{ id: string; x: number; y: number; isH: boolean | null } | null>(null);
+  const TASK_SWIPE_W = 130;
   const [showListPicker, setShowListPicker]       = useState(false);
   const [listPickerSearch, setListPickerSearch]   = useState("");
   const [tasksCollapsed, setTasksCollapsed]       = useState(false);
@@ -230,6 +234,11 @@ export default function RoomPage() {
 
       // If room already ended, load tasks then show end popup immediately
       if (homeroom.status === "completed") {
+        // If user already clicked "Schedule remaining tasks" for this room, go straight to /start
+        if (localStorage.getItem("homeroom-carry-forward-from") === homeroomId) {
+          window.location.href = "/start";
+          return;
+        }
         const { data: taskData } = await supabase
           .from("tasks").select("id, text, done, time_spent, completed_at, timer_started_at")
           .eq("homeroom_id", homeroomId).order("sort_order", { ascending: true });
@@ -617,6 +626,42 @@ export default function RoomPage() {
     return () => document.removeEventListener("touchmove", prevent);
   }, []);
 
+  useEffect(() => { setIsTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
+
+  function onTaskSwipeTouchStart(e: React.TouchEvent, id: string) {
+    if (swipedTaskId && swipedTaskId !== id) setSwipedTaskId(null);
+    taskSwipeRef.current = { id, x: e.touches[0].clientX, y: e.touches[0].clientY, isH: null };
+  }
+  function onTaskSwipeTouchMove(e: React.TouchEvent) {
+    const s = taskSwipeRef.current;
+    if (!s) return;
+    const dx = e.touches[0].clientX - s.x;
+    const dy = e.touches[0].clientY - s.y;
+    if (s.isH === null) {
+      if (Math.abs(dx) > 8 && Math.abs(dx) > Math.abs(dy)) taskSwipeRef.current = { ...s, isH: true };
+      else if (Math.abs(dy) > 8) { taskSwipeRef.current = null; return; }
+    }
+    if (!taskSwipeRef.current?.isH) return;
+    e.stopPropagation();
+    const base = swipedTaskId === s.id ? -TASK_SWIPE_W : 0;
+    const offset = Math.min(0, Math.max(-(TASK_SWIPE_W * 1.5), base + dx));
+    setLiveTaskSwipe({ id: s.id, offset });
+  }
+  function onTaskSwipeTouchEnd(id: string) {
+    const s = taskSwipeRef.current;
+    if (!s?.isH) { taskSwipeRef.current = null; return; }
+    const offset = liveTaskSwipe?.id === s.id ? liveTaskSwipe.offset : (swipedTaskId === s.id ? -TASK_SWIPE_W : 0);
+    taskSwipeRef.current = null;
+    setLiveTaskSwipe(null);
+    if (offset < -(TASK_SWIPE_W * 0.4)) { setSwipedTaskId(id); return; }
+    setSwipedTaskId(null);
+  }
+  function taskRowOffset(id: string): number {
+    if (liveTaskSwipe?.id === id) return liveTaskSwipe.offset;
+    if (swipedTaskId === id) return -TASK_SWIPE_W;
+    return 0;
+  }
+
   function onHandleTouchStart(e: React.TouchEvent, taskId: string) {
     const startY = e.touches[0].clientY;
     touchDragRef.current = {
@@ -913,10 +958,9 @@ export default function RoomPage() {
   }
 
   function scheduleRemaining(remaining: Task[]) {
-    localStorage.setItem(
-      "homeroom-carry-forward",
-      JSON.stringify(remaining.map((t) => ({ id: t.id, text: t.text })))
-    );
+    localStorage.setItem("homeroom-carry-forward", JSON.stringify(remaining.map((t) => ({ id: t.id, text: t.text }))));
+    localStorage.setItem("homeroom-carry-forward-from", session?.homeroomId ?? "");
+    localStorage.removeItem("homeroom-active-id");
     window.location.href = "/start";
   }
 
@@ -1078,118 +1122,129 @@ export default function RoomPage() {
                       <div
                         key={t.id}
                         data-task-id={t.id}
-                        draggable={!t.done}
+                        draggable={!t.done && !isTouch}
                         onDragStart={() => setDraggingId(t.id)}
                         onDragOver={(e) => { e.preventDefault(); setDragOverId(t.id); }}
                         onDrop={() => { if (draggingId) moveTask(draggingId, t.id); setDraggingId(null); setDragOverId(null); }}
                         onDragEnd={() => { setDraggingId(null); setDragOverId(null); }}
-                        className="flex items-center gap-2 px-1 py-0.5 rounded-lg transition-colors"
-                        style={{
-                          opacity: draggingId === t.id ? 0.4 : 1,
-                          background: dragOverId === t.id && draggingId !== t.id ? "var(--purple-bg-2)" : "transparent",
-                          cursor: t.done ? "default" : "grab",
-                        }}
+                        className="relative overflow-hidden rounded-lg group"
+                        style={{ opacity: draggingId === t.id ? 0.4 : 1 }}
                       >
                         {!t.done && (
-                          <span
-                            className="flex-shrink-0 text-warm-gray opacity-40 hover:opacity-80 cursor-grab"
-                            style={{ lineHeight: 1, touchAction: "none" }}
-                            onTouchStart={(e) => onHandleTouchStart(e, t.id)}
-                            onTouchMove={onHandleTouchMove}
-                            onTouchEnd={onHandleTouchEnd}
-                          >
-                            <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
-                              <rect x="0" y="0" width="10" height="2" rx="1" />
-                              <rect x="0" y="6" width="10" height="2" rx="1" />
-                              <rect x="0" y="12" width="10" height="2" rx="1" />
-                            </svg>
-                          </span>
-                        )}
-                        {t.done && <span className="w-2.5 flex-shrink-0" />}
-                        <button
-                          onClick={() => toggleTask(t.id)}
-                          className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                          style={t.done
-                            ? { background: "var(--purple)", border: "2px solid var(--purple)" }
-                            : { border: "2px solid var(--border-3)" }}
-                        >
-                          {t.done && (
-                            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="20 6 9 17 4 12" />
-                            </svg>
-                          )}
-                        </button>
-                        {editingTaskId === t.id ? (
-                          <input
-                            autoFocus
-                            type="text"
-                            value={editingTaskText}
-                            onChange={(e) => setEditingTaskText(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") saveTaskEdit(); if (e.key === "Escape") { setEditingTaskId(null); setEditingTaskText(""); } }}
-                            onBlur={saveTaskEdit}
-                            className="flex-1 text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
-                          />
-                        ) : (
-                          <span
-                            className={`text-sm flex-1 break-words min-w-0 ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}
-                            onDoubleClick={() => { if (!t.done) { setEditingTaskId(t.id); setEditingTaskText(t.text); } }}
-                          >
-                            {t.text}
-                          </span>
-                        )}
-                        {t.done ? (
-                          <span className="text-xs text-warm-gray flex-shrink-0">{formatTime(elapsed)}</span>
-                        ) : taskMenuId === t.id ? (
-                          <div className="flex items-center gap-1 flex-shrink-0">
+                          <div className="absolute right-0 top-0 bottom-0 flex items-center gap-1 px-2" style={{ width: TASK_SWIPE_W }}>
                             <button
-                              onClick={() => { removeTaskFromRoom(t.id); setTaskMenuId(null); }}
-                              className="text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0"
+                              onClick={() => { removeTaskFromRoom(t.id); setSwipedTaskId(null); }}
+                              className="text-xs font-medium px-2 py-1.5 rounded-lg flex-1"
                               style={{ background: "var(--border)", color: "var(--text-2)" }}
                             >
                               Remove
                             </button>
                             <button
-                              onClick={() => { deleteTask(t.id); setTaskMenuId(null); }}
-                              className="text-xs font-medium px-2 py-1 rounded-lg transition-colors flex-shrink-0"
+                              onClick={() => { deleteTask(t.id); setSwipedTaskId(null); }}
+                              className="text-xs font-medium px-2 py-1.5 rounded-lg flex-1"
                               style={{ background: "#FEE2E2", color: "#EF4444" }}
                             >
                               Delete
                             </button>
-                            <button
-                              onClick={() => setTaskMenuId(null)}
-                              className="text-warm-gray p-1 flex-shrink-0"
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-                              </svg>
-                            </button>
-                          </div>
-                        ) : (
-                          <div className="flex items-center gap-1.5 flex-shrink-0">
-                            <span className="text-xs font-mono w-10 text-right" style={{ color: running ? "var(--purple)" : "#A8A29E" }}>
-                              {elapsed > 0 || running ? formatTime(elapsed) : ""}
-                            </span>
-                            <button
-                              onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
-                              className="flex items-center justify-center w-6 h-6 rounded-full transition-colors flex-shrink-0"
-                              style={running ? { background: "var(--purple)" } : { background: "var(--border)" }}
-                            >
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "#78716C"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <circle cx="12" cy="12" r="10" />
-                                <polyline points="12 6 12 12 16 14" />
-                              </svg>
-                            </button>
-                            <button
-                              onClick={() => setTaskMenuId(t.id)}
-                              className="flex items-center justify-center w-5 h-5 rounded flex-shrink-0 transition-colors"
-                              style={{ color: "var(--text-3)" }}
-                            >
-                              <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                                <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
-                              </svg>
-                            </button>
                           </div>
                         )}
+                        <div
+                          className="flex items-center gap-2 px-1 py-0.5 rounded-lg"
+                          style={{
+                            cursor: t.done ? "default" : "grab",
+                            background: dragOverId === t.id && draggingId !== t.id ? "var(--purple-bg-2)" : "var(--surface)",
+                            transform: `translateX(${taskRowOffset(t.id)}px)`,
+                            transition: liveTaskSwipe?.id === t.id ? "none" : "transform 0.2s ease",
+                          }}
+                          onTouchStart={!t.done ? (e) => onTaskSwipeTouchStart(e, t.id) : undefined}
+                          onTouchMove={!t.done ? onTaskSwipeTouchMove : undefined}
+                          onTouchEnd={!t.done ? () => onTaskSwipeTouchEnd(t.id) : undefined}
+                        >
+                          {!t.done && (
+                            <span
+                              className="flex-shrink-0 text-warm-gray opacity-40 hover:opacity-80 cursor-grab"
+                              style={{ lineHeight: 1, touchAction: "none" }}
+                              onTouchStart={(e) => { e.stopPropagation(); onHandleTouchStart(e, t.id); }}
+                              onTouchMove={onHandleTouchMove}
+                              onTouchEnd={onHandleTouchEnd}
+                            >
+                              <svg width="10" height="14" viewBox="0 0 10 14" fill="currentColor">
+                                <rect x="0" y="0" width="10" height="2" rx="1" />
+                                <rect x="0" y="6" width="10" height="2" rx="1" />
+                                <rect x="0" y="12" width="10" height="2" rx="1" />
+                              </svg>
+                            </span>
+                          )}
+                          {t.done && <span className="w-2.5 flex-shrink-0" />}
+                          <button
+                            onClick={() => toggleTask(t.id)}
+                            className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                            style={t.done
+                              ? { background: "var(--purple)", border: "2px solid var(--purple)" }
+                              : { border: "2px solid var(--border-3)" }}
+                          >
+                            {t.done && (
+                              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                                <polyline points="20 6 9 17 4 12" />
+                              </svg>
+                            )}
+                          </button>
+                          {editingTaskId === t.id ? (
+                            <input
+                              autoFocus
+                              type="text"
+                              value={editingTaskText}
+                              onChange={(e) => setEditingTaskText(e.target.value)}
+                              onKeyDown={(e) => { if (e.key === "Enter") saveTaskEdit(); if (e.key === "Escape") { setEditingTaskId(null); setEditingTaskText(""); } }}
+                              onBlur={saveTaskEdit}
+                              className="flex-1 text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
+                            />
+                          ) : (
+                            <span
+                              className={`text-sm flex-1 break-words min-w-0 ${t.done ? "line-through text-warm-gray" : "text-charcoal"}`}
+                              onDoubleClick={() => { if (!t.done) { setEditingTaskId(t.id); setEditingTaskText(t.text); } }}
+                            >
+                              {t.text}
+                            </span>
+                          )}
+                          {t.done ? (
+                            <span className="text-xs text-warm-gray flex-shrink-0">{formatTime(elapsed)}</span>
+                          ) : (
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              <span className="text-xs font-mono w-10 text-right" style={{ color: running ? "var(--purple)" : "#A8A29E" }}>
+                                {elapsed > 0 || running ? formatTime(elapsed) : ""}
+                              </span>
+                              <button
+                                onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
+                                className="flex items-center justify-center w-6 h-6 rounded-full transition-colors flex-shrink-0"
+                                style={running ? { background: "var(--purple)" } : { background: "var(--border)" }}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "#78716C"} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <circle cx="12" cy="12" r="10" />
+                                  <polyline points="12 6 12 12 16 14" />
+                                </svg>
+                              </button>
+                              {!isTouch && (
+                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity flex-shrink-0">
+                                  <button
+                                    onClick={() => removeTaskFromRoom(t.id)}
+                                    className="text-xs font-medium px-1.5 py-0.5 rounded transition-colors"
+                                    style={{ background: "var(--border)", color: "var(--text-2)" }}
+                                  >
+                                    Remove
+                                  </button>
+                                  <button
+                                    onClick={() => deleteTask(t.id)}
+                                    className="text-xs font-medium px-1.5 py-0.5 rounded transition-colors"
+                                    style={{ background: "#FEE2E2", color: "#EF4444" }}
+                                  >
+                                    Del
+                                  </button>
+                                </div>
+                              )}
+                            </div>
+                          )}
+                        </div>
                       </div>
                     );
                   })}
