@@ -544,11 +544,16 @@ export default function HomePage() {
         .eq("status", "scheduled")
         .order("scheduled_for", { ascending: true });
 
-      // Pending invites with homeroom data
+      // Clean up any self-invites that shouldn't exist
+      supabase.from("homeroom_invites").update({ status: "expired" })
+        .eq("from_user", user.id).eq("to_user", user.id).eq("status", "pending").then(() => {});
+
+      // Pending invites with homeroom data (exclude self-invites)
       const { data: pendingInvites } = await supabase
         .from("homeroom_invites")
         .select("*, homerooms(*)")
         .eq("to_user", user.id)
+        .neq("from_user", user.id)
         .eq("status", "pending");
 
       // Accepted invites (scheduled sessions I've RSVP'd to)
@@ -655,11 +660,18 @@ export default function HomePage() {
           .from("profiles")
           .select("id, username, avatar")
           .in("id", fromUserIds);
+        const now = Date.now();
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const staleInviteIds = (pendingInvites as any[])
           .filter(row => {
             const h = Array.isArray(row.homerooms) ? row.homerooms[0] : row.homerooms;
-            return !h || h.status === "completed";
+            if (!h || h.status === "completed") return true;
+            // Abandon-detect: active session running past its duration + 30 min grace
+            if (h.status === "active" && h.started_at && h.duration) {
+              const endsAt = new Date(h.started_at).getTime() + (h.duration + 30) * 60000;
+              if (now > endsAt) return true;
+            }
+            return false;
           })
           .map(row => row.id as string);
         if (staleInviteIds.length > 0) {
@@ -670,7 +682,7 @@ export default function HomePage() {
         const inv: Invite[] = (pendingInvites as any[]).flatMap((row: any) => {
           const h = Array.isArray(row.homerooms) ? row.homerooms[0] : row.homerooms;
           const profile = fromProfiles?.find(p => p.id === row.from_user);
-          if (!h || !profile || h.status === "completed") return [];
+          if (!h || !profile || staleInviteIds.includes(row.id)) return [];
           const uname = profile.username;
           return [{
             id: row.id,
@@ -1444,7 +1456,7 @@ export default function HomePage() {
           <button
             onClick={() => { setSquadFilter(null); setFriendsFilter(false); }}
             className="px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-            style={squadFilter === null && !friendsFilter ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}
+            style={squadFilter === null && !friendsFilter ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
           >
             All
           </button>
@@ -1452,7 +1464,7 @@ export default function HomePage() {
             <button
               onClick={() => setFriendsFilter(f => !f)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-              style={friendsFilter ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}
+              style={friendsFilter ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
             >
               <span>👥</span>
               <span>Friends</span>
@@ -1463,7 +1475,7 @@ export default function HomePage() {
               key={sq.id}
               onClick={() => setSquadFilter(squadFilter === sq.id ? null : sq.id)}
               className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold border transition-colors"
-              style={squadFilter === sq.id ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}
+              style={squadFilter === sq.id ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
             >
               <span>{sq.emoji}</span>
               <span>{sq.name}</span>

@@ -290,7 +290,7 @@ function StartPageInner() {
               {([{ label: "Start now", value: "now" }, { label: "Schedule", value: "later" }] as const).map(opt => (
                 <button key={opt.value} onClick={() => setScheduleMode(opt.value)}
                   className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-                  style={scheduleMode === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
+                  style={scheduleMode === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
                   {opt.label}
                 </button>
               ))}
@@ -379,7 +379,7 @@ function StartPageInner() {
           {[{ label: "Friends only", value: true }, { label: "Public", value: false }].map(opt => (
             <button key={opt.label} onClick={() => setIsPrivate(opt.value)}
               className="flex-1 py-2.5 rounded-xl text-sm font-medium border transition-colors"
-              style={isPrivate === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
+              style={isPrivate === opt.value ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
               {opt.label}
             </button>
           ))}
@@ -397,7 +397,7 @@ function StartPageInner() {
                 <button key={s.id}
                   onClick={() => setSelectedSquads(prev => { const n = new Set(prev); n.has(s.id) ? n.delete(s.id) : n.add(s.id); return n; })}
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium border transition-colors"
-                  style={active ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "#E5E2DC" }}>
+                  style={active ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" } : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
                   <span>{s.emoji}</span><span>{s.name}</span>
                 </button>
               );

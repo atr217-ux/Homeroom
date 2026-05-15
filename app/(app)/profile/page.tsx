@@ -10,7 +10,7 @@ const AVATAR_EMOJIS = [
   "🎸","🎨","🏋️","🧘","🌊","🏔️","🌿","🍀","🦄","👾",
 ];
 
-const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
+const USER_COLORS = ["var(--purple)","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
 function colorFromUsername(u: string): string {
   let h = 0;
   for (let i = 0; i < u.length; i++) h = (h * 31 + u.charCodeAt(i)) & 0xffffffff;
@@ -738,7 +738,7 @@ export default function ProfilePage() {
         >
           <div
             className="w-20 h-20 rounded-full flex items-center justify-center text-3xl"
-            style={{ background: avatar ? "#F3F4F6" : "#7C9E87" }}
+            style={{ background: avatar ? "var(--border)" : "#7C9E87" }}
           >
             {avatar ?? <span className="text-white text-2xl font-bold">?</span>}
           </div>
@@ -757,7 +757,7 @@ export default function ProfilePage() {
             <div className="flex items-center justify-center gap-2">
               <div
                 className="flex items-center border rounded-xl px-3 py-1.5 bg-white"
-                style={{ borderColor: usernameError ? "#F87171" : "#7C3AED" }}
+                style={{ borderColor: usernameError ? "#F87171" : "var(--purple)" }}
               >
                 <input
                   type="text"
@@ -771,7 +771,7 @@ export default function ProfilePage() {
                 />
                 <span className="text-xs text-warm-gray ml-1 flex-shrink-0">{usernameInput.length}/15</span>
               </div>
-              <button onClick={saveUsername} disabled={!usernameInput.trim() || !!usernameError} className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-opacity" style={{ background: "#7C3AED", color: "white", opacity: usernameInput.trim() && !usernameError ? 1 : 0.4 }}>
+              <button onClick={saveUsername} disabled={!usernameInput.trim() || !!usernameError} className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-opacity" style={{ background: "var(--purple)", color: "white", opacity: usernameInput.trim() && !usernameError ? 1 : 0.4 }}>
                 Save
               </button>
               <button onClick={() => { setEditingUsername(false); setUsernameError(""); }} className="text-xs text-warm-gray hover:text-charcoal">
@@ -821,7 +821,7 @@ export default function ProfilePage() {
         <div className="mb-6">
           <button onClick={() => setSquadsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
             <h2 className="text-sm font-semibold text-charcoal">My Squads · {allSquads.filter(s => joinedSquads.includes(s.id)).length}</h2>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
               style={{ transform: squadsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
@@ -831,7 +831,7 @@ export default function ProfilePage() {
               <div key={squad.id} className="relative rounded-2xl overflow-hidden">
                 {isTouch && (
                   <div className="absolute inset-y-0 right-0 flex" style={{ width: SWIPE_W_SQUAD, borderRadius: "16px 0 0 16px", overflow: "hidden" }}>
-                    <button className="flex-1 text-white text-sm font-semibold" style={{ background: "#7C3AED" }}
+                    <button className="flex-1 text-white text-sm font-semibold" style={{ background: "var(--purple)" }}
                       onClick={() => { setInviteSquadId(squad.id); setInviteSearch(""); setSwipedId(null); }}>
                       Invite
                     </button>
@@ -867,7 +867,7 @@ export default function ProfilePage() {
                         <div className="flex items-center gap-1.5 mt-0.5">
                           <span className="text-xs text-warm-gray">{squad.members} member{squad.members !== 1 ? "s" : ""}</span>
                           {friendCount > 0 && (
-                            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                            <span className="text-xs font-medium px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
                               👥 {friendCount} friend{friendCount !== 1 ? "s" : ""}
                             </span>
                           )}
@@ -880,7 +880,7 @@ export default function ProfilePage() {
                       <button
                         onClick={(e) => { e.stopPropagation(); setInviteSquadId(squad.id); setInviteSearch(""); }}
                         className="text-xs font-semibold px-2.5 py-1 rounded-lg"
-                        style={{ background: "#EDE9FE", color: "#7C3AED" }}
+                        style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}
                       >Invite</button>
                       <button
                         onClick={(e) => { e.stopPropagation(); leaveSquad(squad.id); }}
@@ -916,7 +916,7 @@ export default function ProfilePage() {
                 <button
                   onClick={() => acceptSquadInvite(invite)}
                   className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
-                  style={{ background: "#7C3AED", color: "white" }}
+                  style={{ background: "var(--purple)", color: "white" }}
                 >
                   Accept
                 </button>
@@ -952,7 +952,7 @@ export default function ProfilePage() {
                 <button
                   onClick={() => acceptRequest(f.username)}
                   className="text-xs font-semibold px-3 py-1.5 rounded-xl flex-shrink-0"
-                  style={{ background: "#7C3AED", color: "white" }}
+                  style={{ background: "var(--purple)", color: "white" }}
                 >
                   Accept
                 </button>
@@ -1023,7 +1023,7 @@ export default function ProfilePage() {
       <div className="mb-6">
         <button onClick={() => setFriendsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-charcoal">Friends · {friends.length}</h2>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
             style={{ transform: friendsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
             <polyline points="6 9 12 15 18 9" />
           </svg>
@@ -1087,7 +1087,7 @@ export default function ProfilePage() {
       {/* Session history */}
       <button onClick={() => setHistoryExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
         <h2 className="text-sm font-semibold text-charcoal">Session History{sessionHistory.length > 0 ? ` · ${sessionHistory.length}` : ""}</h2>
-        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#78716C" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
           style={{ transform: historyExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
           <polyline points="6 9 12 15 18 9" />
         </svg>
@@ -1144,11 +1144,11 @@ export default function ProfilePage() {
                   </div>
                   <div className="flex flex-wrap items-center gap-2">
                     {s.durationMin > 0 && (
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#EDE9FE", color: "#7C3AED" }}>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
                         ⏱ {formatDuration(s.durationMin)}
                       </span>
                     )}
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "#ECFDF5", color: "#065F46" }}>
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
                       ✓ {s.tasksCompleted} done
                     </span>
                     {s.tasksNotCompleted > 0 && (
@@ -1242,8 +1242,8 @@ export default function ProfilePage() {
                 onClick={() => setSquadDetailFriendsOnly(v => !v)}
                 className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors"
                 style={squadDetailFriendsOnly
-                  ? { background: "#7C3AED", color: "white", borderColor: "#7C3AED" }
-                  : { background: "white", color: "#78716C", borderColor: "#E5E7EB" }}
+                  ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                  : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
               >
                 👥 Friends only
               </button>
@@ -1307,7 +1307,7 @@ export default function ProfilePage() {
                       <p className="text-xs font-semibold text-emerald-700 uppercase tracking-wide mb-2">Completed</p>
                       <div className="space-y-2">
                         {sessionDetailPopup.tasks.filter(t => t.done).map((t, i) => (
-                          <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "#ECFDF5" }}>
+                          <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "var(--green-bg)" }}>
                             <span className="text-emerald-600 flex-shrink-0">
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
                             </span>
@@ -1322,7 +1322,7 @@ export default function ProfilePage() {
                       <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Not completed</p>
                       <div className="space-y-2">
                         {sessionDetailPopup.tasks.filter(t => !t.done).map((t, i) => (
-                          <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "#F3F4F6" }}>
+                          <div key={i} className="flex items-center gap-2.5 px-3 py-2.5 rounded-xl" style={{ background: "var(--border)" }}>
                             <span className="text-gray-400 flex-shrink-0">
                               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="9" /></svg>
                             </span>
@@ -1349,7 +1349,7 @@ export default function ProfilePage() {
                   key={emoji}
                   onClick={() => saveAvatar(emoji)}
                   className="text-2xl h-12 w-full rounded-xl flex items-center justify-center transition-colors hover:bg-gray-100"
-                  style={avatar === emoji ? { background: "#EDE9FE" } : {}}
+                  style={avatar === emoji ? { background: "var(--purple-bg-2)" } : {}}
                 >
                   {emoji}
                 </button>
@@ -1395,7 +1395,7 @@ export default function ProfilePage() {
                 <button
                   onClick={() => requestFriend(user)}
                   className="text-xs font-semibold px-3 py-1.5 rounded-xl transition-colors"
-                  style={{ background: "#7C3AED", color: "white" }}
+                  style={{ background: "var(--purple)", color: "white" }}
                 >
                   Add
                 </button>
@@ -1458,7 +1458,7 @@ export default function ProfilePage() {
                     {newSquadEmoji}
                   </button>
                   <div className="flex-1">
-                    <div className="flex items-center border rounded-xl px-3 py-2 bg-white" style={{ borderColor: newSquadNameError ? "#F87171" : "#E5E7EB" }}>
+                    <div className="flex items-center border rounded-xl px-3 py-2 bg-white" style={{ borderColor: newSquadNameError ? "#F87171" : "var(--border-2)" }}>
                       <span className="text-sm text-warm-gray mr-0.5">#</span>
                       <input
                         type="text"
@@ -1493,7 +1493,7 @@ export default function ProfilePage() {
                     <button
                       onClick={() => setNewSquadPrivate((v) => !v)}
                       className="inline-flex items-center w-9 h-5 rounded-full p-0.5 transition-colors"
-                      style={{ background: newSquadPrivate ? "#7C3AED" : "#D1D5DB" }}
+                      style={{ background: newSquadPrivate ? "var(--purple)" : "var(--border-3)" }}
                     >
                       <span
                         className="w-4 h-4 bg-white rounded-full shadow transition-transform duration-200"
@@ -1506,7 +1506,7 @@ export default function ProfilePage() {
                     onClick={createSquad}
                     disabled={!newSquadName.trim()}
                     className="text-xs font-semibold px-4 py-1.5 rounded-xl transition-opacity"
-                    style={{ background: "#7C3AED", color: "white", opacity: newSquadName.trim() ? 1 : 0.4 }}
+                    style={{ background: "var(--purple)", color: "white", opacity: newSquadName.trim() ? 1 : 0.4 }}
                   >
                     Create
                   </button>
@@ -1541,8 +1541,8 @@ export default function ProfilePage() {
                       onClick={() => joined ? leaveSquad(squad.id) : joinSquad(squad)}
                       className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors flex-shrink-0"
                       style={joined
-                        ? { border: "1px solid #D1D5DB", color: "#78716C" }
-                        : { background: "#7C3AED", color: "white", border: "1px solid #7C3AED" }}
+                        ? { border: "1px solid var(--border-3)", color: "var(--text-2)" }
+                        : { background: "var(--purple)", color: "white", border: "1px solid #7C3AED" }}
                     >
                       {joined ? "Leave" : "Join"}
                     </button>
@@ -1625,8 +1625,8 @@ export default function ProfilePage() {
                       disabled={invited}
                       className="text-xs font-semibold px-3 py-1.5 rounded-xl border transition-colors flex-shrink-0"
                       style={invited
-                        ? { border: "1px solid #D1D5DB", color: "#78716C" }
-                        : { background: "#7C3AED", color: "white", border: "1px solid #7C3AED" }}
+                        ? { border: "1px solid var(--border-3)", color: "var(--text-2)" }
+                        : { background: "var(--purple)", color: "white", border: "1px solid #7C3AED" }}
                     >
                       {invited ? "Added ✓" : "Add"}
                     </button>

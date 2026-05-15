@@ -289,7 +289,7 @@ export default function WelcomePage() {
               key={emoji}
               onClick={() => setRegAvatar(emoji)}
               className="text-2xl h-12 w-full rounded-xl flex items-center justify-center transition-colors hover:bg-gray-100"
-              style={regAvatar === emoji ? { background: "#EDE9FE", outline: "2px solid #7C3AED" } : {}}
+              style={regAvatar === emoji ? { background: "var(--purple-bg-2)", outline: "2px solid var(--purple)" } : {}}
             >
               {emoji}
             </button>

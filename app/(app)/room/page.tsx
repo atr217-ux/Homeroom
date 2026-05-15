@@ -137,12 +137,12 @@ export default function RoomPage() {
     setChatMessages((prev) => prev.map((m) => {
       if (m.id !== msgId) return m;
       const has = m.reactions.includes(emoji);
-      const newReactions = has ? m.reactions.filter((e) => e !== emoji) : [...m.reactions, emoji];
+      const added = !has;
       realtimeChannelRef.current?.send({
         type: "broadcast", event: "reaction",
-        payload: { msgId, emoji, added: !has, allReactions: newReactions, reactor: myUsernameRef.current || myUsername },
+        payload: { msgId, emoji, reactor: myUsernameRef.current || myUsername, added, msgSender: m.sender, msgText: m.text },
       });
-      return { ...m, reactions: newReactions };
+      return { ...m, reactions: has ? m.reactions.filter((e) => e !== emoji) : [...m.reactions, emoji] };
     }));
   }
 
@@ -410,14 +410,6 @@ export default function RoomPage() {
         if (payload.reactor === me) return;
         setChatMessages((prev) => prev.map((m) => {
           if (m.id !== payload.msgId) return m;
-          if (Array.isArray(payload.allReactions)) {
-            if (payload.added) {
-              // Union merge — even if earlier broadcasts were dropped, any received broadcast catches up
-              return { ...m, reactions: [...new Set([...m.reactions, ...payload.allReactions])] };
-            } else {
-              return { ...m, reactions: m.reactions.filter((e) => e !== payload.emoji) };
-            }
-          }
           const has = m.reactions.includes(payload.emoji);
           if (payload.added && !has) return { ...m, reactions: [...m.reactions, payload.emoji] };
           if (!payload.added && has) return { ...m, reactions: m.reactions.filter((e) => e !== payload.emoji) };
@@ -667,7 +659,7 @@ export default function RoomPage() {
   }
 
   async function sendInvite(friend: { username: string; userId: string }) {
-    if (!session?.homeroomId || !myUserId) return;
+    if (!session?.homeroomId || !myUserId || friend.userId === myUserId) return;
     const supabase = createClient();
     const { error } = await supabase.from("homeroom_invites").upsert({
       homeroom_id: session.homeroomId,
@@ -866,6 +858,33 @@ export default function RoomPage() {
       if (runningTask) {
         await supabase.from("tasks").update({ timer_started_at: null, time_spent: getElapsed(runningTask) }).eq("id", runningTask.id);
       }
+
+      // Record session stats BEFORE clearing homeroom_id from undone tasks
+      const snapshot = tasks;
+      const homeroomId = session.homeroomId;
+      const taskIds = snapshot.map(t => t.id);
+      let createdAts: Record<string, string> = {};
+      if (taskIds.length > 0) {
+        const { data: meta } = await supabase.from("tasks").select("id, created_at").in("id", taskIds);
+        if (meta) meta.forEach((r: { id: string; created_at: string }) => { createdAts[r.id] = r.created_at; });
+      }
+      const tasks_committed = snapshot.length;
+      const tasks_completed = snapshot.filter(t => t.done).length;
+      const tasks_rolled_over = snapshot.filter(t => !t.done).length;
+      let breakthrough_14_29 = 0;
+      let breakthrough_30_plus = 0;
+      for (const t of snapshot.filter(t => t.done && t.completedAt)) {
+        const ca = createdAts[t.id];
+        if (!ca) continue;
+        const ageDays = (t.completedAt! - new Date(ca).getTime()) / 86400000;
+        if (ageDays >= 30) breakthrough_30_plus++;
+        else if (ageDays >= 14) breakthrough_14_29++;
+      }
+      supabase.from("homeroom_session_stats").upsert(
+        { homeroom_id: homeroomId, user_id: myUserId, tasks_committed, tasks_completed, tasks_rolled_over, tasks_discarded: 0, breakthrough_14_29, breakthrough_30_plus, ended_at: new Date().toISOString() },
+        { onConflict: "homeroom_id,user_id" }
+      ).then(() => {});
+
       await supabase.from("homeroom_participants").delete()
         .eq("homeroom_id", session.homeroomId).eq("user_id", myUserId);
       supabase.from("tasks").update({ homeroom_id: null })

@@ -106,10 +106,18 @@ html.dark {
   & .text-gray-900 { color: var(--text); }
   & .text-black    { color: var(--text); }
 
+  /* Custom theme colors — @theme inline bakes light-mode values at build time */
+  & .text-charcoal  { color: var(--text); }
+  & .text-warm-gray { color: var(--text-2); }
+  & .bg-cream       { background-color: var(--bg); }
+  & .bg-purple-50   { background-color: var(--purple-bg); }
+  & .border-purple-200 { border-color: var(--purple-border); }
+
   /* Hover backgrounds */
   & .hover\:bg-white:hover   { background-color: var(--surface); }
   & .hover\:bg-gray-50:hover { background-color: var(--surface-2); }
   & .hover\:bg-gray-100:hover { background-color: var(--border); }
+  & .hover\:text-charcoal:hover { color: var(--text); }
 
   /* Inputs / surfaces that use bg-cream */
   & input, & textarea, & select {
