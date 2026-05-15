@@ -819,12 +819,12 @@ export default function ProfilePage() {
       {/* My squads */}
       {(joinedSquads.length > 0) && (
         <div className="mb-6">
-          <button onClick={() => setSquadsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
-            <h2 className="text-sm font-semibold text-charcoal">My Squads · {allSquads.filter(s => joinedSquads.includes(s.id)).length}</h2>
+          <button onClick={() => setSquadsExpanded(v => !v)} className="w-full flex items-center gap-2 mb-3">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-              style={{ transform: squadsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+              style={{ transform: squadsExpanded ? "rotate(180deg)" : "rotate(90deg)", transition: "transform 0.2s", flexShrink: 0 }}>
               <polyline points="6 9 12 15 18 9" />
             </svg>
+            <h2 className="text-sm font-semibold text-charcoal">My Squads · {allSquads.filter(s => joinedSquads.includes(s.id)).length}</h2>
           </button>
           {squadsExpanded && <div className="space-y-2">
             {allSquads.filter((s) => joinedSquads.includes(s.id)).slice(0, squadsShowAll ? undefined : 3).map((squad) => (
@@ -1021,12 +1021,12 @@ export default function ProfilePage() {
 
       {/* Friends */}
       <div className="mb-6">
-        <button onClick={() => setFriendsExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-charcoal">Friends · {friends.length}</h2>
+        <button onClick={() => setFriendsExpanded(v => !v)} className="w-full flex items-center gap-2 mb-3">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-            style={{ transform: friendsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+            style={{ transform: friendsExpanded ? "rotate(180deg)" : "rotate(90deg)", transition: "transform 0.2s", flexShrink: 0 }}>
             <polyline points="6 9 12 15 18 9" />
           </svg>
+          <h2 className="text-sm font-semibold text-charcoal">Friends · {friends.length}</h2>
         </button>
         {friendsExpanded && (friends.length === 0 ? (
           <div className="text-center py-6 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
@@ -1085,12 +1085,12 @@ export default function ProfilePage() {
       </div>
 
       {/* Session history */}
-      <button onClick={() => setHistoryExpanded(v => !v)} className="w-full flex items-center justify-between mb-3">
-        <h2 className="text-sm font-semibold text-charcoal">Session History{sessionHistory.length > 0 ? ` · ${sessionHistory.length}` : ""}</h2>
+      <button onClick={() => setHistoryExpanded(v => !v)} className="w-full flex items-center gap-2 mb-3">
         <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
-          style={{ transform: historyExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}>
+          style={{ transform: historyExpanded ? "rotate(180deg)" : "rotate(90deg)", transition: "transform 0.2s", flexShrink: 0 }}>
           <polyline points="6 9 12 15 18 9" />
         </svg>
+        <h2 className="text-sm font-semibold text-charcoal">Session History{sessionHistory.length > 0 ? ` · ${sessionHistory.length}` : ""}</h2>
       </button>
       {historyExpanded && (sessionHistory.length === 0 ? (
         <div className="text-center py-8 text-warm-gray text-sm bg-white rounded-2xl border border-gray-100">
