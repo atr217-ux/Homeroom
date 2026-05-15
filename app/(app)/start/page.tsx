@@ -314,7 +314,7 @@ function StartPageInner() {
                 <span className="text-base font-semibold flex-1" style={{ color: scheduleDate ? "var(--purple)" : "var(--purple-light)" }}>
                   {scheduleDate ? new Date(scheduleDate + "T00:00:00").toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "Pick a date"}
                 </span>
-                <input ref={dateInputRef} type="date" min={todayStr} value={scheduleDate} onChange={e => setScheduleDate(e.target.value)}
+                <input ref={dateInputRef} type="date" min={todayStr} value={scheduleDate} onChange={e => setScheduleDate(e.target.value < todayStr ? todayStr : e.target.value)}
                   className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" />
               </div>
             </div>
