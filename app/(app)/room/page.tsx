@@ -926,11 +926,12 @@ export default function RoomPage() {
         else if (ageDays >= 14) breakthrough_14_29++;
       }
       const statRow = { homeroom_id: homeroomId, user_id: myUserId, tasks_committed, tasks_completed, tasks_rolled_over, tasks_discarded: 0, breakthrough_14_29, breakthrough_30_plus, ended_at: new Date().toISOString() };
-      const { error: statError } = await supabase.from("homeroom_session_stats").insert(statRow);
-      if (statError) {
-        // Row may already exist — try update instead
-        await supabase.from("homeroom_session_stats").update(statRow)
+      const { error: statInsertError } = await supabase.from("homeroom_session_stats").insert(statRow);
+      if (statInsertError) {
+        console.error("[homeroom] session stat INSERT failed:", statInsertError.message, statInsertError);
+        const { error: statUpdateError } = await supabase.from("homeroom_session_stats").update(statRow)
           .eq("homeroom_id", homeroomId).eq("user_id", myUserId);
+        if (statUpdateError) console.error("[homeroom] session stat UPDATE also failed:", statUpdateError.message, statUpdateError);
       }
 
       await supabase.from("homeroom_participants").delete()

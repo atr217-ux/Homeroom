@@ -128,10 +128,11 @@ export default function ProgressPage() {
         const fiveWeeksAgo  = new Date(now.getTime() - 35 * msDay);
         const thirtyDaysAgo = new Date(now.getTime() - 30 * msDay);
 
-        const [stuckRes, statsRes, completedNowRes, completedPrevRes, winsRes, monthRes] = await Promise.all([
+        const [stuckRes, statsRes, completedNowRes, completedPrevRes, winsRes, homesRes] = await Promise.all([
           supabase.from("tasks").select("id, created_at")
             .eq("user_id", user.id).eq("done", false).is("homeroom_id", null),
 
+          // Used only for momentum math — may be empty if table isn't set up yet
           supabase.from("homeroom_session_stats").select("*")
             .eq("user_id", user.id)
             .gte("ended_at", fiveWeeksAgo.toISOString())
@@ -152,13 +153,15 @@ export default function ProgressPage() {
             .order("completed_at", { ascending: false })
             .limit(20),
 
-          supabase.from("homeroom_session_stats").select("ended_at")
-            .eq("user_id", user.id)
-            .gte("ended_at", thirtyDaysAgo.toISOString()),
+          // Reliable session source: completed homerooms the user created
+          supabase.from("homerooms").select("id, ended_at")
+            .eq("created_by", user.id)
+            .eq("status", "completed")
+            .not("ended_at", "is", null),
         ]);
 
         const stuckTasks: StuckTask[] = stuckRes.data ?? [];
-        if (statsRes.error) console.error("homeroom_session_stats query error:", statsRes.error);
+        if (statsRes.error) console.error("[progress] homeroom_session_stats error:", statsRes.error.message);
         const sessionStats: SessionStat[] = statsRes.data ?? [];
 
         const stuckAgeDays = stuckTasks.map(t =>
@@ -167,11 +170,12 @@ export default function ProgressPage() {
 
         const momentum = calculateMomentum(stuckAgeDays, sessionStats);
 
-        const sessionsThisWeek = sessionStats.filter(s =>
-          new Date(s.ended_at).getTime() >= oneWeekAgo.getTime()
+        // Use completed homerooms as the authoritative session source
+        const completedHomes = homesRes.data ?? [];
+        const sessionsThisWeek = completedHomes.filter(h =>
+          new Date(h.ended_at as string).getTime() >= oneWeekAgo.getTime()
         ).length;
 
-        // Daily session counts for last 7 days
         const DAY_LABELS = ["Su", "Mo", "Tu", "We", "Th", "Fr", "Sa"];
         const dailySessionCounts = Array.from({ length: 7 }, (_, i) => {
           const dayStart = new Date(now);
@@ -179,8 +183,8 @@ export default function ProgressPage() {
           dayStart.setHours(0, 0, 0, 0);
           const dayEnd = new Date(dayStart);
           dayEnd.setDate(dayEnd.getDate() + 1);
-          return sessionStats.filter(s => {
-            const t = new Date(s.ended_at).getTime();
+          return completedHomes.filter(h => {
+            const t = new Date(h.ended_at as string).getTime();
             return t >= dayStart.getTime() && t < dayEnd.getTime();
           }).length;
         });
@@ -191,7 +195,9 @@ export default function ProgressPage() {
         });
 
         const activeDateSet = new Set(
-          (monthRes.data ?? []).map(s => new Date(s.ended_at).toDateString())
+          completedHomes
+            .filter(h => new Date(h.ended_at as string).getTime() >= thirtyDaysAgo.getTime())
+            .map(h => new Date(h.ended_at as string).toDateString())
         );
 
         const recentWins: RecentWin[] = (winsRes.data ?? [])
@@ -206,13 +212,7 @@ export default function ProgressPage() {
           .sort((a, b) => b.ageDays - a.ageDays)
           .slice(0, 3);
 
-        // Total session count for empty state check
-        const { count: totalCount } = await supabase
-          .from("homeroom_session_stats")
-          .select("id", { count: "exact", head: true })
-          .eq("user_id", user.id);
-
-        const total = totalCount ?? 0;
+        const total = completedHomes.length;
         setData({
           momentum,
           stuckTasks,
