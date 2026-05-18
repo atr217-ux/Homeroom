@@ -107,9 +107,12 @@ interface ProgressData {
 
 // ─── Page ──────────────────────────────────────────────────────────────────────
 
+const MIN_SESSIONS = 3;
+
 export default function ProgressPage() {
   const [data, setData] = useState<ProgressData | null>(null);
   const [error, setError] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -208,6 +211,7 @@ export default function ProgressPage() {
           .select("id", { count: "exact", head: true })
           .eq("user_id", user.id);
 
+        const total = totalCount ?? 0;
         setData({
           momentum,
           stuckTasks,
@@ -218,8 +222,9 @@ export default function ProgressPage() {
           dailySessionCounts,
           weekDayLabels,
           recentWins,
-          totalSessionCount: totalCount ?? 0,
+          totalSessionCount: total,
         });
+        if (total < MIN_SESSIONS) setShowOverlay(true);
       } catch {
         setError(true);
       }
@@ -235,64 +240,7 @@ export default function ProgressPage() {
     );
   }
 
-  // ── Empty state ──────────────────────────────────────────────────────────────
-  if (!data || data.totalSessionCount < 3) {
-    return (
-      <div className="max-w-2xl mx-auto px-4 pt-8 pb-28 space-y-4">
-        <div>
-          <h1 className="text-3xl font-bold text-charcoal" style={{ letterSpacing: "-0.5px" }}>Progress</h1>
-          <p className="text-sm text-warm-gray mt-1">Your focus history at a glance.</p>
-        </div>
-
-        <div className="bg-white rounded-3xl border p-5" style={{ borderColor: "var(--border-2)", boxShadow: "0 2px 12px rgba(0,0,0,0.06)" }}>
-          <Speedometer score={0} />
-          <div className="text-center mt-1">
-            <div className="text-4xl font-bold" style={{ color: "var(--text-3)", letterSpacing: "-2px" }}>—</div>
-            <div className="text-sm font-semibold mt-1" style={{ color: "var(--text-3)" }}>Just getting started</div>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-2xl border p-5" style={{ borderColor: "var(--border-2)" }}>
-          <div className="text-2xl mb-3">✨</div>
-          <p className="text-sm font-semibold text-charcoal mb-1.5">
-            Your insights will appear here as you complete sessions.
-          </p>
-          <p className="text-sm text-warm-gray leading-relaxed">
-            The more you use Homeroom, the more useful this page gets — personalized stats, momentum tracking, and wins tailored to how you work.
-          </p>
-        </div>
-
-        <div className="bg-white rounded-2xl border p-5 space-y-4" style={{ borderColor: "var(--border-2)" }}>
-          <div>
-            <p className="text-sm font-bold text-charcoal">Tips to get started</p>
-            <p className="text-xs text-warm-gray mt-0.5">A few things worth trying</p>
-          </div>
-          {[
-            { icon: "🎯", text: "Add tasks to My List before your first session so you have something to focus on." },
-            { icon: "🏠", text: "Join a public Homeroom to see what a live session feels like." },
-            { icon: "📅", text: "Schedule a session for a time you know you'll be free — even 25 minutes counts." },
-          ].map((tip, i) => (
-            <div key={i} className="flex items-start gap-3">
-              <span className="text-lg flex-shrink-0 mt-0.5">{tip.icon}</span>
-              <p className="text-sm text-charcoal leading-relaxed">{tip.text}</p>
-            </div>
-          ))}
-        </div>
-
-        <div className="rounded-2xl border p-5 text-center" style={{ background: "var(--green-bg)", borderColor: "var(--green-border)" }}>
-          <div className="text-2xl mb-2">🏆</div>
-          <p className="text-sm font-semibold text-charcoal">Complete your first task to see your wins here</p>
-          <Link
-            href="/start"
-            className="inline-block mt-3 text-xs font-semibold px-5 py-2.5 rounded-xl text-white transition-opacity hover:opacity-85"
-            style={{ background: "var(--purple)" }}
-          >
-            Start a Homeroom
-          </Link>
-        </div>
-      </div>
-    );
-  }
+  if (!data) return null;
 
   // ── Full page ────────────────────────────────────────────────────────────────
   const { momentum, stuckTasks, completedThisWeek, completedLastWeek, sessionsThisWeek, activeThisMonth, dailySessionCounts, weekDayLabels, recentWins } = data;
@@ -362,6 +310,7 @@ export default function ProgressPage() {
   }
 
   return (
+    <>
     <div className="max-w-2xl mx-auto px-4 pt-8 pb-28 space-y-4">
 
       {/* Header */}
@@ -558,5 +507,64 @@ export default function ProgressPage() {
       )}
 
     </div>
+
+    {/* Sessions-needed overlay */}
+    {showOverlay && (
+      <div
+        className="fixed inset-0 z-40 flex items-end justify-center pb-8 px-4 pointer-events-none"
+        style={{ background: "rgba(0,0,0,0.35)" }}
+      >
+        <div
+          className="w-full max-w-sm rounded-3xl p-6 pointer-events-auto"
+          style={{
+            background: "rgba(255,255,255,0.92)",
+            backdropFilter: "blur(16px)",
+            WebkitBackdropFilter: "blur(16px)",
+            boxShadow: "0 8px 40px rgba(0,0,0,0.18)",
+            animation: "slideUp 0.3s ease",
+          }}
+        >
+          <div className="flex items-center justify-between mb-4">
+            <span className="text-base font-bold text-charcoal">Insights unlocking…</span>
+            <button
+              onClick={() => setShowOverlay(false)}
+              className="w-7 h-7 flex items-center justify-center rounded-full transition-colors"
+              style={{ background: "var(--border)", color: "var(--text-2)" }}
+            >
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+          </div>
+
+          <div className="flex gap-2 mb-4">
+            {Array.from({ length: MIN_SESSIONS }).map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 h-2 rounded-full transition-colors"
+                style={{ background: i < data.totalSessionCount ? "var(--purple)" : "var(--border-2)" }}
+              />
+            ))}
+          </div>
+
+          <p className="text-sm text-warm-gray leading-relaxed mb-4">
+            {MIN_SESSIONS - data.totalSessionCount === MIN_SESSIONS
+              ? `Complete ${MIN_SESSIONS} sessions to unlock your momentum score and personalized insights.`
+              : `${MIN_SESSIONS - data.totalSessionCount} more session${MIN_SESSIONS - data.totalSessionCount !== 1 ? "s" : ""} until your momentum score and full insights unlock.`}
+          </p>
+
+          <Link
+            href="/start"
+            className="block w-full text-center text-sm font-semibold py-3 rounded-xl text-white transition-opacity hover:opacity-85"
+            style={{ background: "var(--purple)" }}
+            onClick={() => setShowOverlay(false)}
+          >
+            Start a Homeroom
+          </Link>
+        </div>
+      </div>
+    )}
+    <style>{`@keyframes slideUp { from { transform: translateY(24px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }`}</style>
+    </>
   );
 }
