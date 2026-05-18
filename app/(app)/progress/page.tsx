@@ -158,6 +158,7 @@ export default function ProgressPage() {
         ]);
 
         const stuckTasks: StuckTask[] = stuckRes.data ?? [];
+        if (statsRes.error) console.error("homeroom_session_stats query error:", statsRes.error);
         const sessionStats: SessionStat[] = statsRes.data ?? [];
 
         const stuckAgeDays = stuckTasks.map(t =>
