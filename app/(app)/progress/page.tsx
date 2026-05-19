@@ -24,7 +24,7 @@ function zonePos(deg: number, r: number) {
 }
 
 // Adjust label anchor/offset so they don't collide with the arc
-function zoneLabelProps(deg: number): { textAnchor: string; dx: number; dy: number } {
+function zoneLabelProps(deg: number): { textAnchor: "start" | "middle" | "end"; dx: number; dy: number } {
   if (deg === 180) return { textAnchor: "end",    dx: -2, dy: 0   };
   if (deg === 135) return { textAnchor: "end",    dx:  0, dy: -6  };
   if (deg === 90)  return { textAnchor: "middle", dx:  0, dy: -10 };
