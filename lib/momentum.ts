@@ -24,60 +24,42 @@ function getWeekStart(date: Date): Date {
   return d;
 }
 
+// Age of stories: per-task tiered penalty; bonus if all tasks are fresh
 function taskAgeBurden(ageDays: number[]): number {
+  if (ageDays.length === 0) return 0;
+  if (ageDays.every(d => d <= 7)) return 10;
   let total = 0;
   for (const age of ageDays) {
-    if (age >= 31) total -= 1.5;
-    else if (age >= 15) total -= 1;
-    else if (age >= 8) total -= 0.5;
+    if (age > 21)      total -= 5;
+    else if (age > 14) total -= 3;
+    else if (age > 7)  total -= 2;
   }
-  return Math.max(total, -10);
+  return Math.max(total, -30);
 }
 
+// Attendance: ≥2 sessions = +10, <2 = -10
 function attendanceScore(count: number): number {
-  if (count === 0) return -8;
-  if (count === 1) return -2;
-  if (count === 2) return 8;
-  if (count === 3) return 14;
-  return 20;
+  return count >= 2 ? 10 : -10;
 }
 
-function completionRateScore(sessions: { committed: number; completed: number }[]): number {
+// % of sessions where ALL committed tasks were completed
+function allCompletionScore(sessions: { committed: number; completed: number }[]): number {
   if (sessions.length === 0) return 0;
-  const rates = sessions.map(s => (s.committed > 0 ? s.completed / s.committed : 1));
-  const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
-  return (avg - 0.5) * 30;
+  const allDone = sessions.filter(s => s.committed > 0 && s.completed >= s.committed).length;
+  return allDone / sessions.length >= 0.5 ? 15 : -15;
 }
 
+// Rollover: did user carry unfinished tasks into new homerooms >50% of the time?
 function rolloverScore(sessions: { rolled: number; discarded: number }[]): number {
   const relevant = sessions.filter(s => s.rolled + s.discarded > 0);
   if (relevant.length === 0) return 0;
-  const rates = relevant.map(s => s.rolled / (s.rolled + s.discarded));
-  const avg = rates.reduce((a, b) => a + b, 0) / rates.length;
-  return (avg - 0.5) * 10;
+  const rolledCount = relevant.filter(s => s.rolled > 0).length;
+  return rolledCount / relevant.length > 0.5 ? 15 : -5;
 }
 
-function breakthroughScore(total14_29: number, total30plus: number): number {
-  return Math.min(total14_29 * 5 + total30plus * 10, 20);
-}
-
-function socialScore(totalInSession: number): number {
-  return Math.min(totalInSession, 10);
-}
-
-function weekRawScore(stuckAgeDays: number[], sessions: SessionStat[]): number {
-  return (
-    taskAgeBurden(stuckAgeDays) +
-    attendanceScore(sessions.length) +
-    completionRateScore(sessions.map(s => ({ committed: s.tasks_committed, completed: s.tasks_completed }))) +
-    rolloverScore(sessions.map(s => ({ rolled: s.tasks_rolled_over, discarded: s.tasks_discarded }))) +
-    // Category 5 (future scheduling) omitted — feature doesn't exist yet
-    breakthroughScore(
-      sessions.reduce((a, s) => a + s.breakthrough_14_29, 0),
-      sessions.reduce((a, s) => a + s.breakthrough_30_plus, 0)
-    ) +
-    socialScore(sessions.reduce((a, s) => a + s.tasks_completed, 0))
-  );
+// Scheduling: +2 per scheduled homeroom created this week; -5 if none
+function schedulingScore(scheduledThisWeek: number): number {
+  return scheduledThisWeek === 0 ? -5 : scheduledThisWeek * 2;
 }
 
 function sigmoid(raw: number): number {
@@ -85,8 +67,8 @@ function sigmoid(raw: number): number {
 }
 
 export function getMomentumZone(displayed: number): string {
-  if (displayed >= 60) return "Surging";
-  if (displayed >= 20) return "Building";
+  if (displayed >= 60)  return "Surging";
+  if (displayed >= 20)  return "Building";
   if (displayed >= -19) return "Steady";
   if (displayed >= -59) return "Slowing";
   return "Stuck";
@@ -94,25 +76,39 @@ export function getMomentumZone(displayed: number): string {
 
 export function calculateMomentum(
   stuckTaskAgeDays: number[],
-  allSessions: SessionStat[]
+  allSessions: SessionStat[],
+  scheduledHomerooms: { created_at: string }[] = []
 ): MomentumResult {
   const now = new Date();
   const thisWeekStart = getWeekStart(now).getTime();
   const MS_PER_WEEK = 7 * 24 * 60 * 60 * 1000;
 
-  function scoreForWeek(weeksAgo: number): number | null {
-    const weekEnd = weeksAgo === 0 ? now.getTime() : thisWeekStart - (weeksAgo - 1) * MS_PER_WEEK;
-    const weekStart = weeksAgo === 0 ? thisWeekStart : thisWeekStart - weeksAgo * MS_PER_WEEK;
+  function weekRawScore(weeksAgo: number): number | null {
+    const weekEnd   = weeksAgo === 0 ? now.getTime()        : thisWeekStart - (weeksAgo - 1) * MS_PER_WEEK;
+    const weekStart = weeksAgo === 0 ? thisWeekStart        : thisWeekStart - weeksAgo * MS_PER_WEEK;
+
     const sessions = allSessions.filter(s => {
       const t = new Date(s.ended_at).getTime();
       return t >= weekStart && t < weekEnd;
     });
     if (sessions.length === 0 && weeksAgo !== 0) return null;
-    return weekRawScore(weeksAgo === 0 ? stuckTaskAgeDays : [], sessions);
+
+    const scheduledCount = scheduledHomerooms.filter(h => {
+      const t = new Date(h.created_at).getTime();
+      return t >= weekStart && t < weekEnd;
+    }).length;
+
+    return (
+      (weeksAgo === 0 ? taskAgeBurden(stuckTaskAgeDays) : 0) +
+      attendanceScore(sessions.length) +
+      allCompletionScore(sessions.map(s => ({ committed: s.tasks_committed, completed: s.tasks_completed }))) +
+      rolloverScore(sessions.map(s => ({ rolled: s.tasks_rolled_over, discarded: s.tasks_discarded }))) +
+      schedulingScore(scheduledCount)
+    );
   }
 
   const currentScores = ([0, 1, 2, 3] as const)
-    .map(w => scoreForWeek(w))
+    .map(w => weekRawScore(w))
     .filter((s): s is number => s !== null);
 
   if (currentScores.length === 0) {
@@ -123,9 +119,8 @@ export function calculateMomentum(
   const displayedScore = Math.round(sigmoid(rawMomentum));
   const zone = getMomentumZone(displayedScore);
 
-  // Trend: score using weeks 1–4 (shift the window back one week)
   const prevScores = ([1, 2, 3, 4] as const)
-    .map(w => scoreForWeek(w))
+    .map(w => weekRawScore(w))
     .filter((s): s is number => s !== null);
   const prevRaw = prevScores.length > 0
     ? prevScores.reduce((a, b) => a + b, 0) / prevScores.length

@@ -147,7 +147,7 @@ export default function ProgressPage() {
         const fiveWeeksAgo  = new Date(now.getTime() - 35 * msDay);
         const thirtyDaysAgo = new Date(now.getTime() - 30 * msDay);
 
-        const [stuckRes, statsRes, completedNowRes, completedPrevRes, winsRes, homesRes] = await Promise.all([
+        const [stuckRes, statsRes, completedNowRes, completedPrevRes, winsRes, homesRes, scheduledRes] = await Promise.all([
           supabase.from("tasks").select("id, text, created_at")
             .eq("user_id", user.id).eq("done", false).is("homeroom_id", null),
 
@@ -177,6 +177,12 @@ export default function ProgressPage() {
             .eq("created_by", user.id)
             .eq("status", "completed")
             .not("ended_at", "is", null),
+
+          // Scheduled homerooms: used for scheduling momentum score
+          supabase.from("homerooms").select("id, created_at")
+            .eq("created_by", user.id)
+            .not("scheduled_for", "is", null)
+            .gte("created_at", fiveWeeksAgo.toISOString()),
         ]);
 
         if (homesRes.error) { console.error("[progress] homerooms query error:", homesRes.error.message); setError(true); return; }
@@ -188,7 +194,7 @@ export default function ProgressPage() {
           Math.floor((now.getTime() - new Date(t.created_at).getTime()) / msDay)
         );
 
-        const momentum = calculateMomentum(stuckAgeDays, sessionStats);
+        const momentum = calculateMomentum(stuckAgeDays, sessionStats, scheduledRes.data ?? []);
 
         // Use completed homerooms as the authoritative session source
         const completedHomes = homesRes.data ?? [];
