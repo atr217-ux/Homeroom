@@ -179,7 +179,25 @@ export default function ListPage() {
         .select("id, text, done, time_spent, created_at, completed_at, homeroom_id, task_tags(tag_id, tags(id, name))")
         .eq("user_id", user.id)
         .order("sort_order", { ascending: true })
-        .then(async ({ data: allTasks }) => {
+        .then(async ({ data: allTasksRaw, error: tasksError }) => {
+          // If the joined query fails (e.g. tables not yet available), fall back without tags
+          if (tasksError) {
+            const { data: fallback } = await supabase
+              .from("tasks")
+              .select("id, text, done, time_spent, created_at, completed_at, homeroom_id")
+              .eq("user_id", user.id)
+              .order("sort_order", { ascending: true });
+            if (fallback) {
+              setTasks(fallback.map(t => ({
+                id: t.id, text: t.text, done: t.done,
+                addedAt: t.created_at, completedAt: t.completed_at ?? null,
+                lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
+                homeroomId: t.homeroom_id, homeroomStatus: null, tagIds: [],
+              })));
+            }
+            return;
+          }
+          const allTasks = allTasksRaw;
           const homeroomIds = [...new Set((allTasks ?? []).filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
           const { data: homeroomsData } = homeroomIds.length
             ? await supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
