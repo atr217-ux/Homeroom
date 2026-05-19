@@ -7,8 +7,9 @@ import { calculateMomentum, getMomentumZone, type MomentumResult, type SessionSt
 
 // ─── Speedometer SVG ──────────────────────────────────────────────────────────
 
-const CX = 140, CY = 150, RADIUS = 108, STROKE = 14, NEEDLE = 82, LABEL_R = 124;
+const CX = 140, CY = 150, RADIUS = 108, STROKE = 14, LABEL_R = 128;
 
+// score -100 → 180° (left), score 0 → 90° (top), score +100 → 0° (right)
 const ZONES = [
   { label: "STUCK",    deg: 180 },
   { label: "SLOWING",  deg: 135 },
@@ -22,7 +23,17 @@ function zonePos(deg: number, r: number) {
   return { x: CX + r * Math.cos(rad), y: CY - r * Math.sin(rad) };
 }
 
+// Adjust label anchor/offset so they don't collide with the arc
+function zoneLabelProps(deg: number): { textAnchor: string; dx: number; dy: number } {
+  if (deg === 180) return { textAnchor: "end",    dx: -2, dy: 0   };
+  if (deg === 135) return { textAnchor: "end",    dx:  0, dy: -6  };
+  if (deg === 90)  return { textAnchor: "middle", dx:  0, dy: -10 };
+  if (deg === 45)  return { textAnchor: "start",  dx:  0, dy: -6  };
+  return                   { textAnchor: "start",  dx:  2, dy: 0   };
+}
+
 function Speedometer({ score }: { score: number }) {
+  // Dot starts at top of arc (score 0). CSS rotate(+90deg)=right(+100), rotate(-90deg)=left(-100)
   const target = (score / 100) * 90;
   const [rotation, setRotation] = useState(0);
 
@@ -34,7 +45,7 @@ function Speedometer({ score }: { score: number }) {
   const arc = `M ${CX - RADIUS} ${CY} A ${RADIUS} ${RADIUS} 0 0 0 ${CX + RADIUS} ${CY}`;
 
   return (
-    <svg viewBox="-8 -12 296 172" width="100%" aria-hidden="true">
+    <svg viewBox="-8 -24 296 206" width="100%" aria-hidden="true">
       <defs>
         <linearGradient id="gaugeGrad" x1={CX - RADIUS} y1="0" x2={CX + RADIUS} y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#F59E0B" />
@@ -43,37 +54,42 @@ function Speedometer({ score }: { score: number }) {
           <stop offset="75%"  stopColor="#5EEAD4" />
           <stop offset="100%" stopColor="#14B8A6" />
         </linearGradient>
-        <filter id="nShadow">
-          <feDropShadow dx="0.5" dy="1" stdDeviation="1.5" floodOpacity="0.18" />
-        </filter>
       </defs>
 
+      {/* Arc track */}
       <path d={arc} fill="none" stroke="#EBEBE6" strokeWidth={STROKE} strokeLinecap="round" />
       <path d={arc} fill="none" stroke="url(#gaugeGrad)" strokeWidth={STROKE} strokeLinecap="round" />
 
+      {/* Zone labels */}
       {ZONES.map((z) => {
         const p = zonePos(z.deg, LABEL_R);
-        const dy = z.deg === 0 || z.deg === 180 ? -9 : 0;
+        const { textAnchor, dx, dy } = zoneLabelProps(z.deg);
         return (
-          <text key={z.label} x={p.x} y={p.y + dy} textAnchor="middle" fontSize="7" fontWeight="700" letterSpacing="0.7" fill="#C0BDB5">
+          <text key={z.label} x={p.x + dx} y={p.y + dy} textAnchor={textAnchor} fontSize="7" fontWeight="700" letterSpacing="0.7" fill="#C0BDB5">
             {z.label}
           </text>
         );
       })}
 
+      {/* Needle — rotates from top (score 0). +90deg=right(+100), -90deg=left(-100) */}
       <g
         style={{
           transform: `rotate(${rotation}deg)`,
           transformOrigin: `${CX}px ${CY}px`,
           transition: "transform 1.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
-        filter="url(#nShadow)"
       >
-        <line x1={CX} y1={CY + 6} x2={CX} y2={CY - NEEDLE} stroke="#111827" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 10} stroke="#111827" strokeWidth="2.5" strokeLinecap="round" />
       </g>
 
-      <circle cx={CX} cy={CY} r="8.5" fill="#111827" />
-      <circle cx={CX} cy={CY} r="4.5" fill="#FAFAF9" />
+      {/* Pivot circle */}
+      <circle cx={CX} cy={CY} r="8" fill="#111827" />
+      <circle cx={CX} cy={CY} r="4" fill="#FAFAF9" />
+
+      {/* Scale markers */}
+      <text x={CX - RADIUS} y={CY + 20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">-100</text>
+      <text x={CX}          y={CY + 20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">0</text>
+      <text x={CX + RADIUS} y={CY + 20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">+100</text>
     </svg>
   );
 }
