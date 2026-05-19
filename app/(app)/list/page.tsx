@@ -285,10 +285,9 @@ export default function ListPage() {
       sort_order: tasks.length,
     }).select("id, created_at").single();
     if (data) {
-      const tagObjs = (await Promise.all(tagNames.map(n => getOrCreateTag(n)))).filter(Boolean) as Tag[];
+      const tagObjs = (await Promise.all(tagNames.map(n => getOrCreateTag(n, supabase, myUserId)))).filter(Boolean) as Tag[];
       if (tagObjs.length > 0) {
-        const supabase2 = createClient();
-        await supabase2.from("task_tags").insert(tagObjs.map(t => ({ task_id: data.id, tag_id: t.id })));
+        await supabase.from("task_tags").insert(tagObjs.map(t => ({ task_id: data.id, tag_id: t.id })));
       }
       setTasks(prev => [...prev, {
         id: data.id,
@@ -344,11 +343,10 @@ export default function ListPage() {
       await supabase.from("tasks").update({ text: cleanText }).eq("id", editingId);
       const currentTask = tasks.find(t => t.id === editingId);
       if (tagNames.length > 0) {
-        const tagObjs = (await Promise.all(tagNames.map(n => getOrCreateTag(n)))).filter(Boolean) as Tag[];
-        const newTagIds = tagObjs.filter(t => !currentTask?.tagIds.includes(t.id));
-        if (newTagIds.length > 0) {
-          const supabase2 = createClient();
-          await supabase2.from("task_tags").insert(newTagIds.map(t => ({ task_id: editingId, tag_id: t.id })));
+        const tagObjs = (await Promise.all(tagNames.map(n => getOrCreateTag(n, supabase, myUserId!)))).filter(Boolean) as Tag[];
+        const newTagObjs = tagObjs.filter(t => !currentTask?.tagIds.includes(t.id));
+        if (newTagObjs.length > 0) {
+          await supabase.from("task_tags").insert(newTagObjs.map(t => ({ task_id: editingId, tag_id: t.id })));
         }
         setTasks(prev => prev.map(t => t.id === editingId
           ? { ...t, text: cleanText, tagIds: [...new Set([...t.tagIds, ...tagObjs.map(x => x.id)])] }
@@ -371,20 +369,17 @@ export default function ListPage() {
     setEditingText("");
   }
 
-  async function getOrCreateTag(name: string): Promise<Tag | null> {
-    if (!myUserId) return null;
+  async function getOrCreateTag(name: string, supabase: ReturnType<typeof createClient>, userId: string): Promise<Tag | null> {
     const normalized = name.trim();
-    const existing = allTags.find(t => t.name.toLowerCase() === normalized.toLowerCase());
-    if (existing) return existing;
-    const supabase = createClient();
-    const { data, error } = await supabase
-      .from("tags").insert({ user_id: myUserId, name: normalized }).select("id, name").single();
-    if (error) {
-      const { data: found } = await supabase
-        .from("tags").select("id, name").eq("user_id", myUserId).ilike("name", normalized).maybeSingle();
-      return found ? { id: found.id, name: found.name } : null;
-    }
-    return data ? { id: data.id, name: data.name } : null;
+    if (!normalized) return null;
+    // Select first — avoids unique constraint issues on retry
+    const { data: found } = await supabase
+      .from("tags").select("id, name")
+      .eq("user_id", userId).ilike("name", normalized).maybeSingle();
+    if (found) return { id: found.id, name: found.name };
+    const { data: created } = await supabase
+      .from("tags").insert({ user_id: userId, name: normalized }).select("id, name").single();
+    return created ? { id: created.id, name: created.name } : null;
   }
 
   async function addTagToTask(taskId: string, tag: Tag) {
