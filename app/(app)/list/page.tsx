@@ -738,40 +738,42 @@ export default function ListPage() {
                         ) : (
                           <span className="text-sm text-charcoal select-none leading-snug">{t.text}</span>
                         )}
-                        {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle) || t.tagIds.length > 0) && (
-                          <div className="flex flex-wrap gap-1 mt-1.5">
-                            {t.lastSessionTime !== undefined && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
-                                {formatSeconds(t.lastSessionTime)}
-                              </span>
-                            )}
-                            {t.homeroomStatus === "active" && t.scheduledForTitle && (
-                              <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)", border: "1px solid var(--green-border)" }}>
-                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block animate-pulse" />
-                                {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
-                              </span>
-                            )}
-                            {t.homeroomId && t.scheduledForTitle && t.homeroomStatus !== "active" && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
-                                {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle}{t.scheduledForDate ? ` · ${new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}` : ""}
-                              </span>
-                            )}
-                            {t.tagIds.map(tid => {
-                              const tag = allTags.find(x => x.id === tid);
-                              if (!tag) return null;
-                              const { bg, fg } = tagColor(tag.name);
-                              return (
-                                <span key={tid} className="group/tag text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
-                                  #{tag.name}
-                                  <button
-                                    onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
-                                    className="opacity-0 group-hover/tag:opacity-100 transition-opacity leading-none"
-                                    style={{ color: fg }}>
-                                    ×
-                                  </button>
+                        {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || t.homeroomId || t.tagIds.length > 0) && (
+                          <div className="flex items-center justify-between gap-2 mt-1.5">
+                            <div className="flex flex-wrap gap-1">
+                              {t.lastSessionTime !== undefined && (
+                                <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
+                                  {formatSeconds(t.lastSessionTime)}
                                 </span>
-                              );
-                            })}
+                              )}
+                              {t.homeroomStatus === "active" && t.scheduledForTitle && (
+                                <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)", border: "1px solid var(--green-border)" }}>
+                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block animate-pulse" />
+                                  {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
+                                </span>
+                              )}
+                              {t.tagIds.map(tid => {
+                                const tag = allTags.find(x => x.id === tid);
+                                if (!tag) return null;
+                                const { bg, fg } = tagColor(tag.name);
+                                return (
+                                  <span key={tid} className="group/tag text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
+                                    #{tag.name}
+                                    <button
+                                      onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
+                                      className="opacity-0 group-hover/tag:opacity-100 transition-opacity leading-none"
+                                      style={{ color: fg }}>
+                                      ×
+                                    </button>
+                                  </span>
+                                );
+                              })}
+                            </div>
+                            {t.homeroomId && t.homeroomStatus !== "active" && (
+                              <span className="text-xs flex-shrink-0 font-medium" style={{ color: "var(--yellow-text)" }}>
+                                {t.scheduledForDate ? new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "scheduled"}
+                              </span>
+                            )}
                           </div>
                         )}
                       </div>
