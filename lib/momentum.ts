@@ -32,7 +32,6 @@ function taskAgeBurden(ageDays: number[]): number {
   for (const age of ageDays) {
     if (age > 21)      total -= 5;
     else if (age > 14) total -= 3;
-    else if (age > 7)  total -= 2;
   }
   return Math.max(total, -30);
 }
