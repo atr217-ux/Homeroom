@@ -182,30 +182,28 @@ export default function ListPage() {
         .then(async ({ data: allTasks }) => {
           const homeroomIds = [...new Set((allTasks ?? []).filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
 
-          // Fetch homerooms and task-tags in parallel
-          const [{ data: homeroomsData }, { data: ttRows }] = await Promise.all([
+          // Fetch homerooms, task-tags, and all user tags in parallel — all flat queries, no joins
+          const taskIds = (allTasks ?? []).map(t => t.id);
+          const [{ data: homeroomsData }, { data: ttRows }, { data: tagsData }] = await Promise.all([
             homeroomIds.length
               ? supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
               : Promise.resolve({ data: [] }),
-            (allTasks ?? []).length
-              ? supabase.from("task_tags").select("task_id, tag_id, tags(id, name)")
-                  .in("task_id", (allTasks ?? []).map(t => t.id))
+            taskIds.length
+              ? supabase.from("task_tags").select("task_id, tag_id").in("task_id", taskIds)
               : Promise.resolve({ data: [] }),
+            supabase.from("tags").select("id, name").eq("user_id", user.id),
           ]);
 
           const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
+          const tagById = Object.fromEntries((tagsData ?? []).map(t => [t.id, t]));
 
           // Build per-task tag index
           const taskTagIds: Record<string, string[]> = {};
-          const tagMap = new Map<string, Tag>();
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const r of (ttRows ?? []) as any[]) {
-            const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
-            if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
+          for (const r of (ttRows ?? [])) {
             if (!taskTagIds[r.task_id]) taskTagIds[r.task_id] = [];
             taskTagIds[r.task_id].push(r.tag_id);
           }
-          setAllTags([...tagMap.values()]);
+          setAllTags(Object.values(tagById));
 
           // Only clear homeroom_id for completed/deleted rooms.
           // leaveRoom() in the room page already handles the active-but-left case,

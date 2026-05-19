@@ -148,23 +148,21 @@ function StartPageInner() {
         .then(async ({ data }) => {
           if (!data) return;
           const ids = [...new Set(data.filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
-          const [{ data: hrs }, { data: ttRows }] = await Promise.all([
+          const taskIds = data.map(t => t.id);
+          const [{ data: hrs }, { data: ttRows }, { data: tagsData }] = await Promise.all([
             ids.length
               ? supabase.from("homerooms").select("id, title, status, scheduled_for").in("id", ids)
               : Promise.resolve({ data: [] }),
-            data.length
-              ? supabase.from("task_tags").select("task_id, tag_id, tags(id, name)")
-                  .in("task_id", data.map(t => t.id))
+            taskIds.length
+              ? supabase.from("task_tags").select("task_id, tag_id").in("task_id", taskIds)
               : Promise.resolve({ data: [] }),
+            supabase.from("tags").select("id, name").eq("user_id", user.id),
           ]);
           const hrMap = Object.fromEntries((hrs ?? []).map(h => [h.id, h]));
           const today = new Date(); today.setHours(0, 0, 0, 0);
-          const tagMap = new Map<string, Tag>();
+          const tagById = Object.fromEntries((tagsData ?? []).map(t => [t.id, t]));
           const taskTagIds: Record<string, string[]> = {};
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          for (const r of (ttRows ?? []) as any[]) {
-            const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
-            if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
+          for (const r of (ttRows ?? [])) {
             if (!taskTagIds[r.task_id]) taskTagIds[r.task_id] = [];
             taskTagIds[r.task_id].push(r.tag_id);
           }
@@ -181,7 +179,7 @@ function StartPageInner() {
             };
           });
           setMyListTasks(mapped);
-          setAllTags([...tagMap.values()]);
+          setAllTags(Object.values(tagById));
         });
 
       // Load squads
