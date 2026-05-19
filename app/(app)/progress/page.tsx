@@ -50,14 +50,14 @@ function Speedometer({ score }: { score: number }) {
         <linearGradient id="gaugeGrad" x1={CX - RADIUS} y1="0" x2={CX + RADIUS} y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#F59E0B" />
           <stop offset="25%"  stopColor="#FCD34D" />
-          <stop offset="50%"  stopColor="#D1D5DB" />
+          <stop offset="50%"  stopColor="#A8A5A2" />
           <stop offset="75%"  stopColor="#5EEAD4" />
           <stop offset="100%" stopColor="#14B8A6" />
         </linearGradient>
       </defs>
 
       {/* Arc track */}
-      <path d={arc} fill="none" stroke="#EBEBE6" strokeWidth={STROKE} strokeLinecap="round" />
+      <path d={arc} fill="none" stroke="#D5D2CD" strokeWidth={STROKE} strokeLinecap="round" />
       <path d={arc} fill="none" stroke="url(#gaugeGrad)" strokeWidth={STROKE} strokeLinecap="round" />
 
       {/* Zone labels */}
@@ -79,7 +79,7 @@ function Speedometer({ score }: { score: number }) {
           transition: "transform 1.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 10} stroke="#111827" strokeWidth="2.5" strokeLinecap="round" />
+        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 12} stroke="#111827" strokeWidth="3" strokeLinecap="round" />
       </g>
 
       {/* Pivot circle */}
