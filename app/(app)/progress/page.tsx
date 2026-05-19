@@ -47,7 +47,7 @@ function Speedometer({ score }: { score: number }) {
   const zone = getMomentumZone(score);
 
   return (
-    <svg viewBox="-24 -20 328 210" width="100%" aria-hidden="true">
+    <svg viewBox="-40 -20 360 210" width="100%" aria-hidden="true">
       <defs>
         <linearGradient id="gaugeGrad" x1={CX - RADIUS} y1="0" x2={CX + RADIUS} y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#F59E0B" />
