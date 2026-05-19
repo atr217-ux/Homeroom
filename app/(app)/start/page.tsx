@@ -141,28 +141,35 @@ function StartPageInner() {
 
       // Load my list tasks with homeroom status so badges are accurate
       supabase.from("tasks")
-        .select("id, text, done, homeroom_id, sort_order, task_tags(tag_id, tags(id, name))")
+        .select("id, text, done, homeroom_id, sort_order")
         .eq("user_id", user.id)
         .eq("done", false)
         .order("sort_order", { ascending: true })
-        .then(async ({ data: rawData }) => {
-          if (!rawData) return;
-          // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          const data = rawData as any[];
+        .then(async ({ data }) => {
+          if (!data) return;
           const ids = [...new Set(data.filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
-          const { data: hrs } = ids.length
-            ? await supabase.from("homerooms").select("id, title, status, scheduled_for").in("id", ids)
-            : { data: [] };
+          const [{ data: hrs }, { data: ttRows }] = await Promise.all([
+            ids.length
+              ? supabase.from("homerooms").select("id, title, status, scheduled_for").in("id", ids)
+              : Promise.resolve({ data: [] }),
+            data.length
+              ? supabase.from("task_tags").select("task_id, tag_id, tags(id, name)")
+                  .in("task_id", data.map(t => t.id))
+              : Promise.resolve({ data: [] }),
+          ]);
           const hrMap = Object.fromEntries((hrs ?? []).map(h => [h.id, h]));
           const today = new Date(); today.setHours(0, 0, 0, 0);
           const tagMap = new Map<string, Tag>();
+          const taskTagIds: Record<string, string[]> = {};
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const r of (ttRows ?? []) as any[]) {
+            const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
+            if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
+            if (!taskTagIds[r.task_id]) taskTagIds[r.task_id] = [];
+            taskTagIds[r.task_id].push(r.tag_id);
+          }
           const mapped: ListTask[] = data.map(t => {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
-            const ttRows: any[] = t.task_tags ?? [];
-            for (const r of ttRows) {
-              const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
-              if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
-            }
             return {
               id: t.id, text: t.text, done: t.done,
               homeroom_id: t.homeroom_id, sort_order: t.sort_order,
@@ -170,7 +177,7 @@ function StartPageInner() {
               homeroomTitle: hr?.title ?? null,
               scheduledForDate: hr?.status === "scheduled" && hr.scheduled_for && new Date(hr.scheduled_for) >= today
                 ? hr.scheduled_for : null,
-              tagIds: ttRows.map((r: any) => r.tag_id as string),
+              tagIds: taskTagIds[t.id] ?? [],
             };
           });
           setMyListTasks(mapped);

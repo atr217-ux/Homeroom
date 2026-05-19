@@ -176,33 +176,36 @@ export default function ListPage() {
       setMyUserId(user.id);
       supabase
         .from("tasks")
-        .select("id, text, done, time_spent, created_at, completed_at, homeroom_id, task_tags(tag_id, tags(id, name))")
+        .select("id, text, done, time_spent, created_at, completed_at, homeroom_id")
         .eq("user_id", user.id)
         .order("sort_order", { ascending: true })
-        .then(async ({ data: allTasksRaw, error: tasksError }) => {
-          // If the joined query fails (e.g. tables not yet available), fall back without tags
-          if (tasksError) {
-            const { data: fallback } = await supabase
-              .from("tasks")
-              .select("id, text, done, time_spent, created_at, completed_at, homeroom_id")
-              .eq("user_id", user.id)
-              .order("sort_order", { ascending: true });
-            if (fallback) {
-              setTasks(fallback.map(t => ({
-                id: t.id, text: t.text, done: t.done,
-                addedAt: t.created_at, completedAt: t.completed_at ?? null,
-                lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
-                homeroomId: t.homeroom_id, homeroomStatus: null, tagIds: [],
-              })));
-            }
-            return;
-          }
-          const allTasks = allTasksRaw;
+        .then(async ({ data: allTasks }) => {
           const homeroomIds = [...new Set((allTasks ?? []).filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
-          const { data: homeroomsData } = homeroomIds.length
-            ? await supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
-            : { data: [] };
+
+          // Fetch homerooms and task-tags in parallel
+          const [{ data: homeroomsData }, { data: ttRows }] = await Promise.all([
+            homeroomIds.length
+              ? supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
+              : Promise.resolve({ data: [] }),
+            (allTasks ?? []).length
+              ? supabase.from("task_tags").select("task_id, tag_id, tags(id, name)")
+                  .in("task_id", (allTasks ?? []).map(t => t.id))
+              : Promise.resolve({ data: [] }),
+          ]);
+
           const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
+
+          // Build per-task tag index
+          const taskTagIds: Record<string, string[]> = {};
+          const tagMap = new Map<string, Tag>();
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          for (const r of (ttRows ?? []) as any[]) {
+            const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
+            if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
+            if (!taskTagIds[r.task_id]) taskTagIds[r.task_id] = [];
+            taskTagIds[r.task_id].push(r.tag_id);
+          }
+          setAllTags([...tagMap.values()]);
 
           // Only clear homeroom_id for completed/deleted rooms.
           // leaveRoom() in the room page already handles the active-but-left case,
@@ -225,15 +228,8 @@ export default function ListPage() {
             });
           }
 
-          const tagMap = new Map<string, Tag>();
           const mapped = (allTasks ?? []).map(t => {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            const ttRows: any[] = (t as any).task_tags ?? [];
-            for (const r of ttRows) {
-              const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
-              if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
-            }
             return {
               id: t.id,
               text: t.text,
@@ -246,11 +242,10 @@ export default function ListPage() {
               homeroomId: t.homeroom_id,
               homeroomStatus: hr?.status ?? null,
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
-              tagIds: ttRows.map((r: any) => r.tag_id as string),
+              tagIds: taskTagIds[t.id] ?? [],
             };
           });
           setTasks(mapped);
-          setAllTags([...tagMap.values()]);
         });
     });
 
