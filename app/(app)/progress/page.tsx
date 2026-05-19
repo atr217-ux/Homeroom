@@ -42,7 +42,7 @@ function Speedometer({ score }: { score: number }) {
     return () => clearTimeout(t);
   }, [target]);
 
-  const arc = `M ${CX - RADIUS} ${CY} A ${RADIUS} ${RADIUS} 0 0 0 ${CX + RADIUS} ${CY}`;
+  const arc = `M ${CX - RADIUS} ${CY} A ${RADIUS} ${RADIUS} 0 0 1 ${CX + RADIUS} ${CY}`;
 
   return (
     <svg viewBox="-8 -24 296 206" width="100%" aria-hidden="true">
