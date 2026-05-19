@@ -56,8 +56,8 @@ function Speedometer({ score }: { score: number }) {
         </linearGradient>
       </defs>
 
-      {/* Arc track */}
-      <path d={arc} fill="none" stroke="#D5D2CD" strokeWidth={STROKE} strokeLinecap="round" />
+      {/* Arc track — solid visible base so gradient renders on top */}
+      <path d={arc} fill="none" stroke="#B8B4AF" strokeWidth={STROKE + 2} strokeLinecap="round" />
       <path d={arc} fill="none" stroke="url(#gaugeGrad)" strokeWidth={STROKE} strokeLinecap="round" />
 
       {/* Zone labels */}
