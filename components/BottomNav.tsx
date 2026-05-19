@@ -18,14 +18,16 @@ export default function BottomNav() {
     const activeId = localStorage.getItem("homeroom-active-id");
     if (activeId) { setRoomHref(`/room?id=${activeId}`); return; }
     // No localStorage — check DB for an active session on this account
+    let cancelled = false;
     const supabase = createClient();
     (async () => {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
+      if (!user || cancelled) return;
       const { data: rows } = await supabase
         .from("homeroom_participants")
         .select("homeroom_id")
         .eq("user_id", user.id);
+      if (cancelled) return;
       const ids = (rows ?? []).map(r => r.homeroom_id as string);
       if (!ids.length) return;
       const { data: h } = await supabase
@@ -35,11 +37,12 @@ export default function BottomNav() {
         .eq("status", "active")
         .limit(1)
         .maybeSingle();
-      if (h) {
+      if (!cancelled && h) {
         localStorage.setItem("homeroom-active-id", h.id);
         setRoomHref(`/room?id=${h.id}`);
       }
     })();
+    return () => { cancelled = true; };
   }, [pathname]);
 
   useEffect(() => {
@@ -74,7 +77,7 @@ export default function BottomNav() {
 
       // Presence heartbeat
       const pingPresence = () =>
-        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", user.id).then(() => {});
+        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", user.id).then();
       pingPresence();
       heartbeatRef.current = setInterval(pingPresence, 90_000);
 

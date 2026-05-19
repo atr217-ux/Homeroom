@@ -465,15 +465,15 @@ export default function RoomPage() {
     return t.timeSpent + Math.floor((Date.now() - t.startedAt) / 1000);
   }
 
-  function startTimer(id: string) {
+  async function startTimer(id: string) {
     const now = Date.now();
     const supabase = createClient();
-    // Stop any previously running timer
     const prev = tasks.find(t => t.startedAt !== null && t.id !== id);
-    if (prev) {
-      supabase.from("tasks").update({ timer_started_at: null, time_spent: getElapsed(prev) }).eq("id", prev.id).then(() => {});
-    }
-    supabase.from("tasks").update({ timer_started_at: new Date(now).toISOString() }).eq("id", id).then(() => {});
+    const writes = [
+      supabase.from("tasks").update({ timer_started_at: new Date(now).toISOString() }).eq("id", id).then(),
+      prev ? supabase.from("tasks").update({ timer_started_at: null, time_spent: getElapsed(prev) }).eq("id", prev.id).then() : Promise.resolve(),
+    ];
+    await Promise.all(writes);
     setTasks((prevTasks) => prevTasks.map((t) => {
       if (t.id === id) return { ...t, startedAt: now };
       if (t.startedAt !== null) return { ...t, timeSpent: getElapsed(t), startedAt: null };
@@ -481,11 +481,11 @@ export default function RoomPage() {
     }));
   }
 
-  function stopTimer(id: string) {
+  async function stopTimer(id: string) {
     const task = tasks.find(t => t.id === id);
     const timeSpent = task ? getElapsed(task) : 0;
     const supabase = createClient();
-    supabase.from("tasks").update({ timer_started_at: null, time_spent: timeSpent }).eq("id", id).then(() => {});
+    await supabase.from("tasks").update({ timer_started_at: null, time_spent: timeSpent }).eq("id", id);
     setTasks((prev) => prev.map((t) =>
       t.id === id ? { ...t, timeSpent: getElapsed(t), startedAt: null } : t
     ));
@@ -867,26 +867,29 @@ export default function RoomPage() {
   const remainingMin = Math.floor(remainingSec / 60);
   const progressPct  = duration > 0 ? Math.min(100, (elapsedSec / (duration * 60)) * 100) : 0;
 
+  const leaveRoomRef = useRef<() => Promise<void>>(async () => {});
+  useEffect(() => { leaveRoomRef.current = leaveRoom; });
+
   useEffect(() => {
     if (duration > 0 && remainingSec === 0 && !timerEndedRef.current) {
       timerEndedRef.current = true;
-      // Mark completed immediately so the home page removes it from active rooms
       const supabase = createClient();
       const homeroomId = session?.homeroomId;
       if (homeroomId) {
         realtimeChannelRef.current?.send({ type: "broadcast", event: "session-ended", payload: {} });
-        supabase.from("homerooms")
-          .update({ status: "completed", ended_at: new Date().toISOString() })
-          .eq("id", homeroomId)
-          .then(() => {});
-        if (myUserId) {
-          supabase.from("tasks")
-            .update({ homeroom_id: null })
-            .eq("homeroom_id", homeroomId).eq("user_id", myUserId).eq("done", false)
-            .then(() => {});
-        }
+        Promise.all([
+          supabase.from("homerooms")
+            .update({ status: "completed", ended_at: new Date().toISOString() })
+            .eq("id", homeroomId),
+          myUserId
+            ? supabase.from("tasks")
+                .update({ homeroom_id: null })
+                .eq("homeroom_id", homeroomId).eq("user_id", myUserId).eq("done", false)
+            : Promise.resolve(),
+        ]).then(() => leaveRoomRef.current());
+      } else {
+        leaveRoomRef.current();
       }
-      leaveRoom();
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [remainingSec, duration]);

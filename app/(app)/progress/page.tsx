@@ -160,8 +160,9 @@ export default function ProgressPage() {
             .not("ended_at", "is", null),
         ]);
 
-        const stuckTasks: StuckTask[] = stuckRes.data ?? [];
+        if (homesRes.error) { console.error("[progress] homerooms query error:", homesRes.error.message); setError(true); return; }
         if (statsRes.error) console.error("[progress] homeroom_session_stats error:", statsRes.error.message);
+        const stuckTasks: StuckTask[] = stuckRes.data ?? [];
         const sessionStats: SessionStat[] = statsRes.data ?? [];
 
         const stuckAgeDays = stuckTasks.map(t =>
@@ -241,7 +242,13 @@ export default function ProgressPage() {
     );
   }
 
-  if (!data) return null;
+  if (!data) return (
+    <div className="max-w-2xl mx-auto px-4 pt-16 pb-28 flex flex-col items-center justify-center gap-3 text-center" style={{ minHeight: 300 }}>
+      <p className="text-sm font-semibold text-charcoal">Couldn&apos;t load your progress</p>
+      <p className="text-xs text-warm-gray">Check your connection and try again.</p>
+      <button onClick={() => window.location.reload()} className="text-xs font-semibold px-4 py-2 rounded-xl text-white" style={{ background: "var(--purple)" }}>Retry</button>
+    </div>
+  );
 
   // ── Full page ────────────────────────────────────────────────────────────────
   const { momentum, stuckTasks, completedThisWeek, completedLastWeek, sessionsThisWeek, activeThisMonth, dailySessionCounts, weekDayLabels, recentWins } = data;
