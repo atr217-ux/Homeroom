@@ -419,12 +419,6 @@ export default function ListPage() {
     return created ? { id: created.id, name: created.name } : null;
   }
 
-  async function addTagToTask(taskId: string, tag: Tag) {
-    const supabase = createClient();
-    await supabase.from("task_tags").insert({ task_id: taskId, tag_id: tag.id });
-    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, tagIds: [...t.tagIds, tag.id] } : t));
-    setAllTags(prev => prev.some(x => x.id === tag.id) ? prev : [...prev, tag]);
-  }
 
   async function removeTagFromTask(taskId: string, tagId: string) {
     const supabase = createClient();
@@ -757,9 +751,9 @@ export default function ListPage() {
                                 {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
                               </span>
                             )}
-                            {t.scheduledForDate && t.scheduledForTitle && t.homeroomStatus !== "active" && (
+                            {t.homeroomId && t.scheduledForTitle && t.homeroomStatus !== "active" && (
                               <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
-                                {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
+                                {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle}{t.scheduledForDate ? ` · ${new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}` : ""}
                               </span>
                             )}
                             {t.tagIds.map(tid => {
