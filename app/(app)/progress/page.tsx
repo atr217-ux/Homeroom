@@ -33,7 +33,7 @@ function zoneLabelProps(deg: number): { textAnchor: "start" | "middle" | "end"; 
 }
 
 function Speedometer({ score }: { score: number }) {
-  // Dot starts at top of arc (score 0). CSS rotate(+90deg)=right(+100), rotate(-90deg)=left(-100)
+  // Ring starts at arc top (score 0). +90deg CSS = right (+100), -90deg = left (-100)
   const target = (score / 100) * 90;
   const [rotation, setRotation] = useState(0);
 
@@ -43,21 +43,24 @@ function Speedometer({ score }: { score: number }) {
   }, [target]);
 
   const arc = `M ${CX - RADIUS} ${CY} A ${RADIUS} ${RADIUS} 0 0 1 ${CX + RADIUS} ${CY}`;
+  const scoreLabel = (score > 0 ? "+" : "") + score;
+  const zone = getMomentumZone(score);
 
   return (
-    <svg viewBox="-8 -24 296 206" width="100%" aria-hidden="true">
+    <svg viewBox="-24 -20 328 210" width="100%" aria-hidden="true">
       <defs>
         <linearGradient id="gaugeGrad" x1={CX - RADIUS} y1="0" x2={CX + RADIUS} y2="0" gradientUnits="userSpaceOnUse">
           <stop offset="0%"   stopColor="#F59E0B" />
-          <stop offset="25%"  stopColor="#FCD34D" />
-          <stop offset="50%"  stopColor="#A8A5A2" />
-          <stop offset="75%"  stopColor="#5EEAD4" />
+          <stop offset="28%"  stopColor="#FCD34D" />
+          <stop offset="50%"  stopColor="#EDE8E1" />
+          <stop offset="72%"  stopColor="#6EE7DA" />
           <stop offset="100%" stopColor="#14B8A6" />
         </linearGradient>
       </defs>
 
-      {/* Arc track — solid visible base so gradient renders on top */}
-      <path d={arc} fill="none" stroke="#B8B4AF" strokeWidth={STROKE + 2} strokeLinecap="round" />
+      {/* Background track (slightly wider so it shows as a subtle border) */}
+      <path d={arc} fill="none" stroke="#C8C4BF" strokeWidth={STROKE + 2} strokeLinecap="round" />
+      {/* Gradient arc */}
       <path d={arc} fill="none" stroke="url(#gaugeGrad)" strokeWidth={STROKE} strokeLinecap="round" />
 
       {/* Zone labels */}
@@ -71,7 +74,7 @@ function Speedometer({ score }: { score: number }) {
         );
       })}
 
-      {/* Needle — rotates from top (score 0). +90deg=right(+100), -90deg=left(-100) */}
+      {/* Needle — rotates from top. +90deg=right(+100), -90deg=left(-100) */}
       <g
         style={{
           transform: `rotate(${rotation}deg)`,
@@ -79,17 +82,24 @@ function Speedometer({ score }: { score: number }) {
           transition: "transform 1.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 12} stroke="#111827" strokeWidth="3" strokeLinecap="round" />
+        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 14} stroke="#111827" strokeWidth="3" strokeLinecap="round" />
       </g>
-
-      {/* Pivot circle */}
+      {/* Pivot */}
       <circle cx={CX} cy={CY} r="8" fill="#111827" />
-      <circle cx={CX} cy={CY} r="4" fill="#FAFAF9" />
+      <circle cx={CX} cy={CY} r="4" fill="white" />
+
+      {/* Score inside the arc */}
+      <text x={CX} y={CY - 24} textAnchor="middle" fontSize="48" fontWeight="800" letterSpacing="-2" fill="#111827">
+        {scoreLabel}
+      </text>
+      <text x={CX} y={CY - 6} textAnchor="middle" fontSize="13" fontWeight="600" fill="#9CA3AF">
+        {zone}
+      </text>
 
       {/* Scale markers */}
-      <text x={CX - RADIUS} y={CY + 20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">-100</text>
-      <text x={CX}          y={CY + 20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">0</text>
-      <text x={CX + RADIUS} y={CY + 20} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">+100</text>
+      <text x={CX - RADIUS} y={CY + 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">-100</text>
+      <text x={CX}          y={CY + 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">0</text>
+      <text x={CX + RADIUS} y={CY + 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">+100</text>
     </svg>
   );
 }
@@ -350,22 +360,16 @@ export default function ProgressPage() {
         style={{ borderColor: "var(--border-2)", boxShadow: "0 2px 14px rgba(0,0,0,0.07)", padding: "20px 20px 24px" }}
       >
         <Speedometer score={momentum.displayedScore} />
-        <div className="text-center mt-2">
-          <div className="font-bold" style={{ fontSize: 52, letterSpacing: "-3px", lineHeight: 1, color: "var(--text)" }}>
-            {momentum.displayedScore > 0 ? "+" : ""}{momentum.displayedScore}
-          </div>
-          <div className="text-sm font-semibold mt-1.5" style={{ color: "var(--text-2)" }}>
-            {getMomentumZone(momentum.displayedScore)}
-          </div>
-          {momentum.trendDelta !== 0 && (
+        {momentum.trendDelta !== 0 && (
+          <div className="flex justify-center -mt-2 mb-1">
             <div
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full mt-3"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
               style={trendUp ? { background: "var(--green-bg)", color: "var(--green-text)" } : { background: "var(--yellow-bg)", color: "var(--yellow-text)" }}
             >
               {trendUp ? "↑" : "↓"} {Math.abs(momentum.trendDelta)} this week
             </div>
-          )}
-        </div>
+          </div>
+        )}
       </div>
 
       {/* ── Metric grid ─────────────────────────────────────────────────────── */}
