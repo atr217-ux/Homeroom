@@ -106,6 +106,7 @@ export default function ListPage() {
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
+  const [tagDebug, setTagDebug] = useState<string | null>(null);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -372,13 +373,14 @@ export default function ListPage() {
   async function getOrCreateTag(name: string, supabase: ReturnType<typeof createClient>, userId: string): Promise<Tag | null> {
     const normalized = name.trim();
     if (!normalized) return null;
-    // Select first — avoids unique constraint issues on retry
-    const { data: found } = await supabase
+    const { data: found, error: selErr } = await supabase
       .from("tags").select("id, name")
       .eq("user_id", userId).ilike("name", normalized).maybeSingle();
+    if (selErr) { setTagDebug(`SELECT error: ${selErr.message} (uid=${userId})`); return null; }
     if (found) return { id: found.id, name: found.name };
-    const { data: created } = await supabase
+    const { data: created, error: insErr } = await supabase
       .from("tags").insert({ user_id: userId, name: normalized }).select("id, name").single();
+    if (insErr) { setTagDebug(`INSERT error: ${insErr.message} (uid=${userId})`); return null; }
     return created ? { id: created.id, name: created.name } : null;
   }
 
@@ -477,6 +479,11 @@ export default function ListPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
+        {tagDebug && (
+          <div className="mt-3 px-3 py-2 rounded-xl text-xs font-mono break-all" style={{ background: "#fef2f2", color: "#dc2626" }}>
+            {tagDebug}
+          </div>
+        )}
         {/* Add task */}
         <div className="mt-4 relative">
           <div className="flex gap-2">
