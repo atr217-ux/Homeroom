@@ -108,6 +108,7 @@ export default function ListPage() {
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [expandedHomeroomTaskId, setExpandedHomeroomTaskId] = useState<string | null>(null);
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
@@ -739,40 +740,59 @@ export default function ListPage() {
                           <span className="text-sm text-charcoal select-none leading-snug">{t.text}</span>
                         )}
                         {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || t.homeroomId || t.tagIds.length > 0) && (
-                          <div className="flex items-center justify-between gap-2 mt-1.5">
-                            <div className="flex flex-wrap gap-1">
-                              {t.lastSessionTime !== undefined && (
-                                <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
-                                  {formatSeconds(t.lastSessionTime)}
-                                </span>
-                              )}
-                              {t.homeroomStatus === "active" && t.scheduledForTitle && (
-                                <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)", border: "1px solid var(--green-border)" }}>
-                                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block animate-pulse" />
-                                  {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
-                                </span>
-                              )}
-                              {t.tagIds.map(tid => {
-                                const tag = allTags.find(x => x.id === tid);
-                                if (!tag) return null;
-                                const { bg, fg } = tagColor(tag.name);
-                                return (
-                                  <span key={tid} className="group/tag text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
-                                    #{tag.name}
-                                    <button
-                                      onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
-                                      className="opacity-0 group-hover/tag:opacity-100 transition-opacity leading-none"
-                                      style={{ color: fg }}>
-                                      ×
-                                    </button>
+                          <div className="mt-1.5">
+                            <div className="flex items-center justify-between gap-2">
+                              <div className="flex flex-wrap gap-1">
+                                {t.lastSessionTime !== undefined && (
+                                  <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
+                                    {formatSeconds(t.lastSessionTime)}
                                   </span>
-                                );
-                              })}
+                                )}
+                                {t.homeroomStatus === "active" && t.scheduledForTitle && (
+                                  <span className="text-xs px-2 py-0.5 rounded-full flex items-center gap-1.5 font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)", border: "1px solid var(--green-border)" }}>
+                                    <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block animate-pulse" />
+                                    {t.scheduledForTitle.length > 22 ? t.scheduledForTitle.slice(0, 22) + "…" : t.scheduledForTitle}
+                                  </span>
+                                )}
+                                {t.tagIds.map(tid => {
+                                  const tag = allTags.find(x => x.id === tid);
+                                  if (!tag) return null;
+                                  const { bg, fg } = tagColor(tag.name);
+                                  return (
+                                    <span key={tid} className="group/tag text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
+                                      #{tag.name}
+                                      <button
+                                        onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
+                                        className="opacity-0 group-hover/tag:opacity-100 transition-opacity leading-none"
+                                        style={{ color: fg }}>
+                                        ×
+                                      </button>
+                                    </span>
+                                  );
+                                })}
+                              </div>
+                              {t.homeroomId && t.homeroomStatus !== "active" && (
+                                <button
+                                  onClick={e => { e.stopPropagation(); setExpandedHomeroomTaskId(prev => prev === t.id ? null : t.id); }}
+                                  className="flex-shrink-0 p-0.5 rounded transition-colors hover:opacity-70"
+                                  style={{ color: expandedHomeroomTaskId === t.id ? "var(--purple)" : "var(--text-2)" }}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                                  </svg>
+                                </button>
+                              )}
                             </div>
-                            {t.homeroomId && t.homeroomStatus !== "active" && (
-                              <span className="text-xs flex-shrink-0 font-medium" style={{ color: "var(--yellow-text)" }}>
-                                {t.scheduledForDate ? new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" }) : "scheduled"}
-                              </span>
+                            {expandedHomeroomTaskId === t.id && t.homeroomId && t.scheduledForTitle && t.homeroomStatus !== "active" && (
+                              <div className="mt-1.5 flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                                </svg>
+                                <span className="font-medium">{t.scheduledForTitle}</span>
+                                {t.scheduledForDate && (
+                                  <span className="opacity-70">· {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}</span>
+                                )}
+                              </div>
                             )}
                           </div>
                         )}
