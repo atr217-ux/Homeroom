@@ -80,6 +80,12 @@ function StartPageInner() {
         localStorage.removeItem("homeroom-carry-forward");
         localStorage.removeItem("homeroom-carry-forward-from");
       }
+      const stuckRaw = localStorage.getItem("homeroom-stuck-preselect");
+      if (stuckRaw) {
+        const ids = JSON.parse(stuckRaw) as string[];
+        setSelectedIds(prev => new Set([...prev, ...ids]));
+        localStorage.removeItem("homeroom-stuck-preselect");
+      }
     } catch { /* ignore */ }
   }, []);
 

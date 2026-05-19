@@ -89,7 +89,7 @@ function circleStyle(n: number): { size: number; fill: string; border: boolean }
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
-interface StuckTask { id: string; created_at: string }
+interface StuckTask { id: string; text: string; created_at: string }
 interface RecentWin { text: string; created_at: string; completed_at: string; ageDays: number }
 
 interface ProgressData {
@@ -113,6 +113,7 @@ export default function ProgressPage() {
   const [data, setData] = useState<ProgressData | null>(null);
   const [error, setError] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
+  const [showStuckModal, setShowStuckModal] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
@@ -129,7 +130,7 @@ export default function ProgressPage() {
         const thirtyDaysAgo = new Date(now.getTime() - 30 * msDay);
 
         const [stuckRes, statsRes, completedNowRes, completedPrevRes, winsRes, homesRes] = await Promise.all([
-          supabase.from("tasks").select("id, created_at")
+          supabase.from("tasks").select("id, text, created_at")
             .eq("user_id", user.id).eq("done", false).is("homeroom_id", null),
 
           // Used only for momentum math — may be empty if table isn't set up yet
@@ -162,7 +163,7 @@ export default function ProgressPage() {
 
         if (homesRes.error) { console.error("[progress] homerooms query error:", homesRes.error.message); setError(true); return; }
         if (statsRes.error) console.error("[progress] homeroom_session_stats error:", statsRes.error.message);
-        const stuckTasks: StuckTask[] = stuckRes.data ?? [];
+        const stuckTasks: StuckTask[] = (stuckRes.data ?? []).map(t => ({ id: t.id, text: t.text as string, created_at: t.created_at as string }));
         const sessionStats: SessionStat[] = statsRes.data ?? [];
 
         const stuckAgeDays = stuckTasks.map(t =>
@@ -355,59 +356,67 @@ export default function ProgressPage() {
       <div className="grid grid-cols-2 gap-3">
 
         {/* Tasks Closed */}
-        <div className="bg-white rounded-2xl border p-4" style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-          <div className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Tasks Closed</div>
-          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>{completedThisWeek}</div>
-          <div className="text-xs text-warm-gray mt-0.5">this week</div>
+        <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}>
+          <div className="text-xs font-medium text-warm-gray mb-3">Tasks closed</div>
+          <div className="text-4xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1.5px", lineHeight: 1 }}>{completedThisWeek}</div>
+          <div className="text-xs text-warm-gray mt-1">this week</div>
           {taskDelta !== 0 && (
-            <div className="text-xs font-semibold mt-2.5" style={{ color: taskDelta > 0 ? "var(--green-text)" : "var(--yellow-text)" }}>
-              {taskDelta > 0 ? "↑" : "↓"} {Math.abs(taskDelta)} from last week
+            <div className="inline-flex items-center gap-1 text-xs font-semibold mt-3 px-2 py-0.5 rounded-full"
+              style={taskDelta > 0 ? { background: "var(--green-bg)", color: "var(--green-text)" } : { background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
+              {taskDelta > 0 ? "↑" : "↓"} {Math.abs(taskDelta)} vs last week
             </div>
           )}
-          {taskDelta === 0 && completedLastWeek > 0 && (
-            <div className="text-xs font-medium mt-2.5" style={{ color: "var(--text-2)" }}>Same as last week</div>
-          )}
         </div>
 
-        {/* Stuck Tasks */}
-        <div
-          className="rounded-2xl border p-4"
-          style={{ background: "var(--yellow-bg)", borderColor: "var(--yellow-border, #FDE68A)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}
-        >
-          <div className="text-xs font-semibold uppercase tracking-wide mb-2" style={{ color: "var(--yellow-text)" }}>Stuck Tasks</div>
-          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>
-            {stuckTasks.filter(t => Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000) >= 8).length}
-          </div>
-          {oldestStuckDays >= 8 && (
-            <div className="text-xs font-medium mt-0.5" style={{ color: "var(--yellow-text)" }}>Oldest: {oldestStuckDays} days</div>
-          )}
-          {stuckTasks.length === 0 && (
-            <div className="text-xs text-warm-gray mt-0.5">All clear!</div>
-          )}
-          <button
-            onClick={() => { window.location.href = "/start"; }}
-            className="mt-2.5 text-xs font-semibold w-full py-1.5 rounded-lg text-white transition-all active:scale-95 hover:opacity-90"
-            style={{ background: "#F59E0B" }}
-          >
-            Tackle these →
-          </button>
-        </div>
+        {/* Stuck Tasks — tappable */}
+        {(() => {
+          const stuckCount = stuckTasks.filter(t => Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000) >= 8).length;
+          const hasStuck = stuckCount > 0;
+          return (
+            <button
+              onClick={() => hasStuck && setShowStuckModal(true)}
+              className="rounded-2xl border p-4 text-left w-full transition-opacity active:opacity-70"
+              style={{
+                background: hasStuck ? "var(--yellow-bg)" : "var(--surface)",
+                borderColor: hasStuck ? "#FDE68A" : "var(--border-2)",
+                cursor: hasStuck ? "pointer" : "default",
+              }}
+            >
+              <div className="flex items-center justify-between mb-3">
+                <div className="text-xs font-medium" style={{ color: hasStuck ? "#92400E" : "var(--text-2)" }}>Stuck tasks</div>
+                {hasStuck && (
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#92400E" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ opacity: 0.6 }}>
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                )}
+              </div>
+              <div className="text-4xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1.5px", lineHeight: 1 }}>{stuckCount}</div>
+              {hasStuck ? (
+                <div className="text-xs mt-1" style={{ color: "#92400E" }}>
+                  {oldestStuckDays >= 8 ? `oldest: ${oldestStuckDays}d` : "tap to view"}
+                </div>
+              ) : (
+                <div className="text-xs text-warm-gray mt-1">all clear</div>
+              )}
+            </button>
+          );
+        })()}
 
         {/* Sessions */}
-        <div className="bg-white rounded-2xl border p-4" style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-          <div className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Sessions</div>
-          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>{sessionsThisWeek}</div>
-          <div className="text-xs text-warm-gray mt-0.5">this week</div>
-          <div className="text-xs font-medium mt-2.5" style={{ color: "var(--text-2)" }}>
-            {data.totalSessionCount} total all time
+        <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}>
+          <div className="text-xs font-medium text-warm-gray mb-3">Sessions</div>
+          <div className="text-4xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1.5px", lineHeight: 1 }}>{sessionsThisWeek}</div>
+          <div className="text-xs text-warm-gray mt-1">this week</div>
+          <div className="text-xs font-medium mt-3" style={{ color: "var(--text-3)" }}>
+            {data.totalSessionCount} all time
           </div>
         </div>
 
         {/* Active Days */}
-        <div className="bg-white rounded-2xl border p-4" style={{ borderColor: "var(--border-2)", boxShadow: "0 1px 2px rgba(0,0,0,0.04)" }}>
-          <div className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">Active Days</div>
-          <div className="text-3xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1px" }}>{activeThisMonth}</div>
-          <div className="text-xs text-warm-gray mt-0.5">last 30 days</div>
+        <div className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}>
+          <div className="text-xs font-medium text-warm-gray mb-3">Active days</div>
+          <div className="text-4xl font-bold" style={{ color: "var(--text)", letterSpacing: "-1.5px", lineHeight: 1 }}>{activeThisMonth}</div>
+          <div className="text-xs text-warm-gray mt-1">last 30 days</div>
         </div>
       </div>
 
@@ -515,6 +524,69 @@ export default function ProgressPage() {
       )}
 
     </div>
+
+    {/* Stuck tasks modal */}
+    {showStuckModal && (() => {
+      const modalTasks = stuckTasks
+        .map(t => ({ ...t, ageDays: Math.floor((Date.now() - new Date(t.created_at).getTime()) / 86400000) }))
+        .filter(t => t.ageDays >= 8)
+        .sort((a, b) => b.ageDays - a.ageDays);
+      function tackleThese() {
+        localStorage.setItem("homeroom-stuck-preselect", JSON.stringify(modalTasks.map(t => t.id)));
+        window.location.href = "/start";
+      }
+      return (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/50" onClick={() => setShowStuckModal(false)} />
+          <div
+            className="relative w-full max-w-sm rounded-t-3xl sm:rounded-3xl p-5 shadow-2xl max-h-[80vh] flex flex-col"
+            style={{ background: "var(--surface)", animation: "slideUp 0.25s ease" }}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <div>
+                <h2 className="text-base font-bold" style={{ color: "var(--text)" }}>Stuck tasks</h2>
+                <p className="text-xs text-warm-gray mt-0.5">{modalTasks.length} task{modalTasks.length !== 1 ? "s" : ""} needing attention</p>
+              </div>
+              <button
+                onClick={() => setShowStuckModal(false)}
+                className="w-7 h-7 flex items-center justify-center rounded-full"
+                style={{ background: "var(--border)", color: "var(--text-2)" }}
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+                </svg>
+              </button>
+            </div>
+
+            <div className="overflow-y-auto flex-1 space-y-2 mb-4">
+              {modalTasks.map(t => (
+                <div key={t.id} className="flex items-start gap-3 rounded-xl border p-3" style={{ borderColor: "var(--border-2)", background: "var(--bg)" }}>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm leading-snug" style={{ color: "var(--text)" }}>{t.text}</p>
+                  </div>
+                  <span
+                    className="flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full"
+                    style={t.ageDays >= 30
+                      ? { background: "#FEE2E2", color: "#B91C1C" }
+                      : { background: "var(--yellow-bg)", color: "#92400E" }}
+                  >
+                    {t.ageDays}d
+                  </span>
+                </div>
+              ))}
+            </div>
+
+            <button
+              onClick={tackleThese}
+              className="w-full font-bold text-sm py-3.5 rounded-2xl text-white transition-opacity hover:opacity-90 active:opacity-75"
+              style={{ background: "var(--purple)" }}
+            >
+              Tackle these in a Homeroom →
+            </button>
+          </div>
+        </div>
+      );
+    })()}
 
     {/* Sessions-needed overlay */}
     {showOverlay && (
