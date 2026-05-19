@@ -6,7 +6,16 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string; userId: string };
-type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number; homeroomStatus?: string | null; scheduledForDate?: string | null; homeroomTitle?: string | null };
+type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number; homeroomStatus?: string | null; scheduledForDate?: string | null; homeroomTitle?: string | null; tagIds: string[] };
+type Tag = { id: string; name: string };
+
+const TAG_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7"];
+function tagColor(name: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  const c = TAG_COLORS[Math.abs(h) % TAG_COLORS.length];
+  return { bg: c + "22", fg: c };
+}
 
 const USER_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7","#BE185D"];
 function colorFromUsername(u: string): string {
@@ -55,6 +64,8 @@ function StartPageInner() {
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState("");
   const [carryForward, setCarryForward] = useState<{ id: string; text: string }[]>([]);
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -130,28 +141,40 @@ function StartPageInner() {
 
       // Load my list tasks with homeroom status so badges are accurate
       supabase.from("tasks")
-        .select("id, text, done, homeroom_id, sort_order")
+        .select("id, text, done, homeroom_id, sort_order, task_tags(tag_id, tags(id, name))")
         .eq("user_id", user.id)
         .eq("done", false)
         .order("sort_order", { ascending: true })
-        .then(async ({ data }) => {
-          if (!data) return;
+        .then(async ({ data: rawData }) => {
+          if (!rawData) return;
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const data = rawData as any[];
           const ids = [...new Set(data.filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
           const { data: hrs } = ids.length
             ? await supabase.from("homerooms").select("id, title, status, scheduled_for").in("id", ids)
             : { data: [] };
           const hrMap = Object.fromEntries((hrs ?? []).map(h => [h.id, h]));
           const today = new Date(); today.setHours(0, 0, 0, 0);
-          setMyListTasks(data.map(t => {
+          const tagMap = new Map<string, Tag>();
+          const mapped: ListTask[] = data.map(t => {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
+            const ttRows: any[] = t.task_tags ?? [];
+            for (const r of ttRows) {
+              const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
+              if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
+            }
             return {
-              ...t,
+              id: t.id, text: t.text, done: t.done,
+              homeroom_id: t.homeroom_id, sort_order: t.sort_order,
               homeroomStatus: hr?.status ?? null,
               homeroomTitle: hr?.title ?? null,
               scheduledForDate: hr?.status === "scheduled" && hr.scheduled_for && new Date(hr.scheduled_for) >= today
                 ? hr.scheduled_for : null,
-            } as ListTask;
-          }));
+              tagIds: ttRows.map((r: any) => r.tag_id as string),
+            };
+          });
+          setMyListTasks(mapped);
+          setAllTags([...tagMap.values()]);
         });
 
       // Load squads
@@ -274,6 +297,9 @@ function StartPageInner() {
 
   const carryForwardIds = new Set(carryForward.map(t => t.id));
   const allSelectableTasks = myListTasks.filter(t => !t.done && !carryForwardIds.has(t.id));
+  const filteredSelectableTasks = tagFilter
+    ? allSelectableTasks.filter(t => t.tagIds.includes(tagFilter))
+    : allSelectableTasks;
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
@@ -615,8 +641,27 @@ function StartPageInner() {
       {allSelectableTasks.length > 0 && (
         <div className="mb-6">
           <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">From your list</p>
+
+          {/* Tag filter chips */}
+          {allTags.length > 0 && (
+            <div className="flex flex-wrap gap-1.5 mb-3">
+              {allTags.map(tag => {
+                const { bg, fg } = tagColor(tag.name);
+                const active = tagFilter === tag.id;
+                return (
+                  <button key={tag.id}
+                    onClick={() => setTagFilter(active ? null : tag.id)}
+                    className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                    style={{ background: active ? fg : bg, color: active ? "white" : fg }}>
+                    #{tag.name}
+                  </button>
+                );
+              })}
+            </div>
+          )}
+
           <div className="space-y-2">
-            {(showAllTasks ? allSelectableTasks : allSelectableTasks.slice(0, TASK_LIMIT)).map(t => {
+            {(showAllTasks ? filteredSelectableTasks : filteredSelectableTasks.slice(0, TASK_LIMIT)).map(t => {
               const checked = selectedIds.has(t.id);
               return (
                 <button key={t.id}
@@ -629,7 +674,7 @@ function StartPageInner() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-charcoal leading-snug">{t.text}</span>
-                    {(t.homeroomStatus === "active" && t.homeroomTitle) || (t.scheduledForDate && t.homeroomTitle) ? (
+                    {((t.homeroomStatus === "active" && t.homeroomTitle) || (t.scheduledForDate && t.homeroomTitle) || t.tagIds.length > 0) && (
                       <div className="flex flex-wrap gap-1 mt-1">
                         {t.homeroomStatus === "active" && t.homeroomTitle && (
                           <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
@@ -642,16 +687,26 @@ function StartPageInner() {
                             {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                           </span>
                         )}
+                        {t.tagIds.map(tid => {
+                          const tag = allTags.find(x => x.id === tid);
+                          if (!tag) return null;
+                          const { bg, fg } = tagColor(tag.name);
+                          return (
+                            <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                              #{tag.name}
+                            </span>
+                          );
+                        })}
                       </div>
-                    ) : null}
+                    )}
                   </div>
                 </button>
               );
             })}
           </div>
-          {allSelectableTasks.length > TASK_LIMIT && (
+          {filteredSelectableTasks.length > TASK_LIMIT && (
             <button onClick={() => setShowAllTasks(v => !v)} className="mt-2 text-xs font-medium underline" style={{ color: "var(--purple)" }}>
-              {showAllTasks ? "Show less" : `Show all ${allSelectableTasks.length} tasks`}
+              {showAllTasks ? "Show less" : `Show all ${filteredSelectableTasks.length} tasks`}
             </button>
           )}
         </div>

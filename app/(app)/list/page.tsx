@@ -18,9 +18,20 @@ type Task = {
   scheduledForDate?: string | null;
   homeroomId?: string | null;
   homeroomStatus?: string | null;
+  tagIds: string[];
 };
 
 type TaskHistory = { text: string; lastSessionTime: number };
+
+type Tag = { id: string; name: string };
+
+const TAG_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7"];
+function tagColor(name: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  const c = TAG_COLORS[Math.abs(h) % TAG_COLORS.length];
+  return { bg: c + "22", fg: c };
+}
 
 function completedLabel(completedAt: string | null | undefined): string {
   if (!completedAt) return "";
@@ -79,6 +90,7 @@ const EditIcon = () => (
   </svg>
 );
 
+
 export default function ListPage() {
   const [myUserId, setMyUserId] = useState<string | null>(null);
   const [tasks, setTasks] = useState<Task[]>([]);
@@ -91,6 +103,9 @@ export default function ListPage() {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
   const [taskHistory, setTaskHistory] = useState<TaskHistory[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
+
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [tagFilter, setTagFilter] = useState<string | null>(null);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -161,7 +176,7 @@ export default function ListPage() {
       setMyUserId(user.id);
       supabase
         .from("tasks")
-        .select("id, text, done, time_spent, created_at, completed_at, homeroom_id")
+        .select("id, text, done, time_spent, created_at, completed_at, homeroom_id, task_tags(tag_id, tags(id, name))")
         .eq("user_id", user.id)
         .order("sort_order", { ascending: true })
         .then(async ({ data: allTasks }) => {
@@ -192,8 +207,15 @@ export default function ListPage() {
             });
           }
 
-          setTasks((allTasks ?? []).map(t => {
+          const tagMap = new Map<string, Tag>();
+          const mapped = (allTasks ?? []).map(t => {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const ttRows: any[] = (t as any).task_tags ?? [];
+            for (const r of ttRows) {
+              const tag = Array.isArray(r.tags) ? r.tags[0] : r.tags;
+              if (tag) tagMap.set(tag.id, { id: tag.id, name: tag.name });
+            }
             return {
               id: t.id,
               text: t.text,
@@ -205,8 +227,12 @@ export default function ListPage() {
               scheduledForDate: hr?.scheduled_for ?? null,
               homeroomId: t.homeroom_id,
               homeroomStatus: hr?.status ?? null,
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              tagIds: ttRows.map((r: any) => r.tag_id as string),
             };
-          }));
+          });
+          setTasks(mapped);
+          setAllTags([...tagMap.values()]);
         });
     });
 
@@ -231,28 +257,42 @@ export default function ListPage() {
     : [];
 
   async function addTask(text?: string, lastSessionTime?: number) {
-    const t = (text ?? input).trim();
-    if (!t || !myUserId) return;
+    const raw = (text ?? input).trim();
+    if (!raw || !myUserId) return;
+    const tagNames = (raw.match(/#(\w+)/g) ?? []).map(t => t.slice(1));
+    const cleanText = raw.replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
+    if (!cleanText) return;
     setInput("");
     setShowSuggestions(false);
     const supabase = createClient();
     const { data } = await supabase.from("tasks").insert({
       user_id: myUserId,
-      text: t,
+      text: cleanText,
       done: false,
       time_spent: lastSessionTime ?? 0,
       homeroom_id: null,
       sort_order: tasks.length,
     }).select("id, created_at").single();
     if (data) {
-      setTasks((prev) => [...prev, {
+      const tagObjs = (await Promise.all(tagNames.map(n => getOrCreateTag(n)))).filter(Boolean) as Tag[];
+      if (tagObjs.length > 0) {
+        const supabase2 = createClient();
+        await supabase2.from("task_tags").insert(tagObjs.map(t => ({ task_id: data.id, tag_id: t.id })));
+      }
+      setTasks(prev => [...prev, {
         id: data.id,
-        text: t,
+        text: cleanText,
         done: false,
         addedAt: data.created_at,
         completedAt: null,
         lastSessionTime,
+        tagIds: tagObjs.map(t => t.id),
       }]);
+      setAllTags(prev => {
+        const map = new Map(prev.map(t => [t.id, t]));
+        for (const t of tagObjs) map.set(t.id, t);
+        return [...map.values()];
+      });
     }
   }
 
@@ -283,11 +323,33 @@ export default function ListPage() {
   }
 
   async function saveEdit() {
-    const text = editingText.trim();
-    if (text && editingId) {
+    const raw = editingText.trim();
+    if (raw && editingId) {
+      const tagNames = (raw.match(/#(\w+)/g) ?? []).map(t => t.slice(1));
+      const cleanText = tagNames.length > 0
+        ? raw.replace(/#\w+/g, "").replace(/\s+/g, " ").trim() || raw
+        : raw;
       const supabase = createClient();
-      await supabase.from("tasks").update({ text }).eq("id", editingId);
-      setTasks((prev) => prev.map((t) => (t.id === editingId ? { ...t, text } : t)));
+      await supabase.from("tasks").update({ text: cleanText }).eq("id", editingId);
+      const currentTask = tasks.find(t => t.id === editingId);
+      if (tagNames.length > 0) {
+        const tagObjs = (await Promise.all(tagNames.map(n => getOrCreateTag(n)))).filter(Boolean) as Tag[];
+        const newTagIds = tagObjs.filter(t => !currentTask?.tagIds.includes(t.id));
+        if (newTagIds.length > 0) {
+          const supabase2 = createClient();
+          await supabase2.from("task_tags").insert(newTagIds.map(t => ({ task_id: editingId, tag_id: t.id })));
+        }
+        setTasks(prev => prev.map(t => t.id === editingId
+          ? { ...t, text: cleanText, tagIds: [...new Set([...t.tagIds, ...tagObjs.map(x => x.id)])] }
+          : t));
+        setAllTags(prev => {
+          const map = new Map(prev.map(t => [t.id, t]));
+          for (const t of tagObjs) map.set(t.id, t);
+          return [...map.values()];
+        });
+      } else {
+        setTasks(prev => prev.map(t => t.id === editingId ? { ...t, text: cleanText } : t));
+      }
     }
     setEditingId(null);
     setEditingText("");
@@ -297,6 +359,36 @@ export default function ListPage() {
     setEditingId(null);
     setEditingText("");
   }
+
+  async function getOrCreateTag(name: string): Promise<Tag | null> {
+    if (!myUserId) return null;
+    const normalized = name.trim();
+    const existing = allTags.find(t => t.name.toLowerCase() === normalized.toLowerCase());
+    if (existing) return existing;
+    const supabase = createClient();
+    const { data, error } = await supabase
+      .from("tags").insert({ user_id: myUserId, name: normalized }).select("id, name").single();
+    if (error) {
+      const { data: found } = await supabase
+        .from("tags").select("id, name").eq("user_id", myUserId).ilike("name", normalized).maybeSingle();
+      return found ? { id: found.id, name: found.name } : null;
+    }
+    return data ? { id: data.id, name: data.name } : null;
+  }
+
+  async function addTagToTask(taskId: string, tag: Tag) {
+    const supabase = createClient();
+    await supabase.from("task_tags").insert({ task_id: taskId, tag_id: tag.id });
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, tagIds: [...t.tagIds, tag.id] } : t));
+    setAllTags(prev => prev.some(x => x.id === tag.id) ? prev : [...prev, tag]);
+  }
+
+  async function removeTagFromTask(taskId: string, tagId: string) {
+    const supabase = createClient();
+    await supabase.from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, tagIds: t.tagIds.filter(id => id !== tagId) } : t));
+  }
+
 
   function handleSort(field: "date" | "time" | "homeroom") {
     if (sortField === field) {
@@ -344,9 +436,13 @@ export default function ListPage() {
         }
       });
 
-  const showScrollable = displayLimit === EXPANDED_LIMIT && sortedActive.length > EXPANDED_LIMIT;
-  const visibleActive = showScrollable ? sortedActive : sortedActive.slice(0, displayLimit);
-  const canShowMore = sortedActive.length > displayLimit && displayLimit < EXPANDED_LIMIT;
+  const filteredSortedActive = tagFilter
+    ? sortedActive.filter(t => t.tagIds.includes(tagFilter))
+    : sortedActive;
+
+  const showScrollable = displayLimit === EXPANDED_LIMIT && filteredSortedActive.length > EXPANDED_LIMIT;
+  const visibleActive = showScrollable ? filteredSortedActive : filteredSortedActive.slice(0, displayLimit);
+  const canShowMore = filteredSortedActive.length > displayLimit && displayLimit < EXPANDED_LIMIT;
 
   return (
     <div>
@@ -444,6 +540,24 @@ export default function ListPage() {
           </div>
         )}
 
+        {/* Tag filter chips */}
+        {allTags.length > 0 && (
+          <div className="flex flex-wrap gap-1.5 mt-2">
+            {allTags.map(tag => {
+              const { bg, fg } = tagColor(tag.name);
+              const active = tagFilter === tag.id;
+              return (
+                <button key={tag.id}
+                  onClick={() => setTagFilter(active ? null : tag.id)}
+                  className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
+                  style={{ background: active ? fg : bg, color: active ? "white" : fg }}>
+                  #{tag.name}
+                </button>
+              );
+            })}
+          </div>
+        )}
+
         {/* Task list */}
         <div className="mt-4 mb-8">
           {tasks.length === 0 ? (
@@ -501,7 +615,7 @@ export default function ListPage() {
                         ) : (
                           <span className="text-sm text-charcoal select-none leading-snug">{t.text}</span>
                         )}
-                        {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle)) && (
+                        {(t.lastSessionTime !== undefined || (t.homeroomStatus === "active" && t.scheduledForTitle) || (t.scheduledForDate && t.scheduledForTitle) || t.tagIds.length > 0) && (
                           <div className="flex flex-wrap gap-1 mt-1.5">
                             {t.lastSessionTime !== undefined && (
                               <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
@@ -519,6 +633,22 @@ export default function ListPage() {
                                 {t.scheduledForTitle.length > 25 ? t.scheduledForTitle.slice(0, 25) + "…" : t.scheduledForTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
                               </span>
                             )}
+                            {t.tagIds.map(tid => {
+                              const tag = allTags.find(x => x.id === tid);
+                              if (!tag) return null;
+                              const { bg, fg } = tagColor(tag.name);
+                              return (
+                                <span key={tid} className="group/tag text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
+                                  #{tag.name}
+                                  <button
+                                    onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
+                                    className="opacity-0 group-hover/tag:opacity-100 transition-opacity leading-none"
+                                    style={{ color: fg }}>
+                                    ×
+                                  </button>
+                                </span>
+                              );
+                            })}
                           </div>
                         )}
                       </div>
