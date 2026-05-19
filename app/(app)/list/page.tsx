@@ -107,9 +107,11 @@ export default function ListPage() {
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tagFilter, setTagFilter] = useState<string | null>(null);
   const [tagDebug, setTagDebug] = useState<string | null>(null);
+  const [inputFocused, setInputFocused] = useState(false);
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
+  const overlayRef = useRef<HTMLDivElement>(null);
   const lastTap = useRef<{ id: string; time: number } | null>(null);
 
   // ── Swipe-to-delete ──────────────────────────────────────────────────────
@@ -261,12 +263,31 @@ export default function ListPage() {
     }
   }, [editingId]);
 
-  const suggestions: TaskHistory[] = input.trim().length > 0
+  // Detect if cursor is at end of a #word — for tag autocomplete
+  const hashMatch = input.match(/#(\w*)$/);
+  const tagQuery = hashMatch ? hashMatch[1] : null;
+
+  const suggestions: TaskHistory[] = tagQuery === null && input.trim().length > 0
     ? taskHistory.filter((h) =>
         h.text.toLowerCase().includes(input.toLowerCase()) &&
         h.text.toLowerCase() !== input.toLowerCase()
       )
     : [];
+
+  const tagCompletions = tagQuery !== null
+    ? allTags.filter(t => t.name.toLowerCase().startsWith(tagQuery.toLowerCase()))
+    : [];
+
+  function applyTagCompletion(tagName: string) {
+    setInput(prev => prev.replace(/#\w*$/, `#${tagName} `));
+    setShowSuggestions(false);
+    inputRef.current?.focus();
+  }
+
+  function syncOverlay() {
+    if (overlayRef.current && inputRef.current)
+      overlayRef.current.scrollLeft = inputRef.current.scrollLeft;
+  }
 
   async function addTask(text?: string, lastSessionTime?: number) {
     const raw = (text ?? input).trim();
@@ -487,17 +508,43 @@ export default function ListPage() {
         {/* Add task */}
         <div className="mt-4 relative">
           <div className="flex gap-2">
-            <input
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => { setInput(e.target.value); setShowSuggestions(true); }}
-              onKeyDown={(e) => { if (e.key === "Enter") addTask(); if (e.key === "Escape") setShowSuggestions(false); }}
-              onFocus={() => setShowSuggestions(true)}
-              onBlur={() => setTimeout(() => setShowSuggestions(false), 150)}
-              placeholder="Add a task…"
-              className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors"
-            />
+            {/* Input with hashtag color overlay */}
+            <div className="flex-1 relative rounded-xl transition-colors"
+              style={{ background: "var(--bg)", border: `1px solid ${inputFocused ? "var(--purple)" : "#E5E7EB"}` }}>
+              {/* Color overlay — renders #tags in purple */}
+              <div
+                ref={overlayRef}
+                aria-hidden
+                className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden"
+                style={{ whiteSpace: "pre", fontFamily: "inherit" }}
+              >
+                {input.split(/(#\w+)/g).map((part, i) =>
+                  /^#\w+/.test(part)
+                    ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
+                    : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
+                )}
+              </div>
+              <input
+                ref={inputRef}
+                type="text"
+                value={input}
+                onChange={(e) => { setInput(e.target.value); setShowSuggestions(true); requestAnimationFrame(syncOverlay); }}
+                onScroll={syncOverlay}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") addTask();
+                  if (e.key === "Escape") setShowSuggestions(false);
+                  if (e.key === "Tab" && tagCompletions.length > 0) {
+                    e.preventDefault();
+                    applyTagCompletion(tagCompletions[0].name);
+                  }
+                }}
+                onFocus={() => { setInputFocused(true); setShowSuggestions(true); }}
+                onBlur={() => { setInputFocused(false); setTimeout(() => setShowSuggestions(false), 150); }}
+                placeholder="Add a task… use #tag"
+                className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
+                style={{ color: "transparent", caretColor: "var(--text)" }}
+              />
+            </div>
             <button
               onClick={() => addTask()}
               style={{ color: "var(--purple)" }}
@@ -509,8 +556,20 @@ export default function ListPage() {
             </button>
           </div>
 
-          {showSuggestions && suggestions.length > 0 && (
-            <div className="absolute left-0 right-8 top-full mt-1 bg-white border border-gray-200 rounded-xl shadow-md z-20 overflow-hidden">
+          {showSuggestions && (tagCompletions.length > 0 || suggestions.length > 0) && (
+            <div className="absolute left-0 right-8 top-full mt-1 border border-gray-200 rounded-xl shadow-md z-20 overflow-hidden" style={{ background: "var(--surface)" }}>
+              {tagCompletions.map((tag) => {
+                const { bg, fg } = tagColor(tag.name);
+                return (
+                  <button
+                    key={tag.id}
+                    onMouseDown={() => applyTagCompletion(tag.name)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                  </button>
+                );
+              })}
               {suggestions.map((s) => (
                 <button
                   key={s.text}
