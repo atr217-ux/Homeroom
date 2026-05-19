@@ -105,13 +105,17 @@ export default function ListPage() {
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   const [allTags, setAllTags] = useState<Tag[]>([]);
-  const [tagFilter, setTagFilter] = useState<string | null>(null);
-  const [tagDebug, setTagDebug] = useState<string | null>(null);
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
+  const [tagsExpanded, setTagsExpanded] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editingTagName, setEditingTagName] = useState("");
 
   const editInputRef = useRef<HTMLInputElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
   const lastTap = useRef<{ id: string; time: number } | null>(null);
 
   // ── Swipe-to-delete ──────────────────────────────────────────────────────
@@ -263,6 +267,16 @@ export default function ListPage() {
     }
   }, [editingId]);
 
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
   // Detect if cursor is at end of a #word — for tag autocomplete
   const hashMatch = input.match(/#(\w*)$/);
   const tagQuery = hashMatch ? hashMatch[1] : null;
@@ -397,11 +411,11 @@ export default function ListPage() {
     const { data: found, error: selErr } = await supabase
       .from("tags").select("id, name")
       .eq("user_id", userId).ilike("name", normalized).maybeSingle();
-    if (selErr) { setTagDebug(`SELECT error: ${selErr.message} (uid=${userId})`); return null; }
+    if (selErr) return null;
     if (found) return { id: found.id, name: found.name };
     const { data: created, error: insErr } = await supabase
       .from("tags").insert({ user_id: userId, name: normalized }).select("id, name").single();
-    if (insErr) { setTagDebug(`INSERT error: ${insErr.message} (uid=${userId})`); return null; }
+    if (insErr) return null;
     return created ? { id: created.id, name: created.name } : null;
   }
 
@@ -416,6 +430,25 @@ export default function ListPage() {
     const supabase = createClient();
     await supabase.from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, tagIds: t.tagIds.filter(id => id !== tagId) } : t));
+  }
+
+  async function deleteTag(tagId: string) {
+    const supabase = createClient();
+    await supabase.from("task_tags").delete().eq("tag_id", tagId);
+    await supabase.from("tags").delete().eq("id", tagId);
+    setAllTags(prev => prev.filter(t => t.id !== tagId));
+    setTasks(prev => prev.map(t => ({ ...t, tagIds: t.tagIds.filter(id => id !== tagId) })));
+    setTagFilters(prev => prev.filter(id => id !== tagId));
+  }
+
+  async function saveTagEdit(tagId: string) {
+    const name = editingTagName.trim();
+    setEditingTagId(null);
+    setEditingTagName("");
+    if (!name) return;
+    const supabase = createClient();
+    await supabase.from("tags").update({ name }).eq("id", tagId);
+    setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t));
   }
 
 
@@ -465,8 +498,8 @@ export default function ListPage() {
         }
       });
 
-  const filteredSortedActive = tagFilter
-    ? sortedActive.filter(t => t.tagIds.includes(tagFilter))
+  const filteredSortedActive = tagFilters.length > 0
+    ? sortedActive.filter(t => tagFilters.every(id => t.tagIds.includes(id)))
     : sortedActive;
 
   const showScrollable = displayLimit === EXPANDED_LIMIT && filteredSortedActive.length > EXPANDED_LIMIT;
@@ -500,11 +533,6 @@ export default function ListPage() {
       </div>
 
       <div className="max-w-2xl mx-auto px-4">
-        {tagDebug && (
-          <div className="mt-3 px-3 py-2 rounded-xl text-xs font-mono break-all" style={{ background: "#fef2f2", color: "#dc2626" }}>
-            {tagDebug}
-          </div>
-        )}
         {/* Add task */}
         <div className="mt-4 relative">
           <div className="flex gap-2">
@@ -612,21 +640,50 @@ export default function ListPage() {
           </div>
         )}
 
-        {/* Tag filter chips */}
+        {/* Tag filter dropdown */}
         {allTags.length > 0 && (
-          <div className="flex flex-wrap gap-1.5 mt-2">
-            {allTags.map(tag => {
-              const { bg, fg } = tagColor(tag.name);
-              const active = tagFilter === tag.id;
-              return (
-                <button key={tag.id}
-                  onClick={() => setTagFilter(active ? null : tag.id)}
-                  className="text-xs px-2.5 py-1 rounded-full font-medium transition-colors"
-                  style={{ background: active ? fg : bg, color: active ? "white" : fg }}>
-                  #{tag.name}
-                </button>
-              );
-            })}
+          <div ref={tagDropdownRef} className="relative mt-2">
+            <button
+              onClick={() => setTagDropdownOpen(v => !v)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+              style={tagFilters.length > 0
+                ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
+              </svg>
+              {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""} selected` : "Filter by tag"}
+              {tagFilters.length > 0 && (
+                <span
+                  onClick={e => { e.stopPropagation(); setTagFilters([]); }}
+                  className="ml-1 opacity-70 hover:opacity-100"
+                >×</span>
+              )}
+            </button>
+            {tagDropdownOpen && (
+              <div className="absolute left-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                {allTags.map(tag => {
+                  const { bg, fg } = tagColor(tag.name);
+                  const checked = tagFilters.includes(tag.id);
+                  return (
+                    <button
+                      key={tag.id}
+                      onClick={() => setTagFilters(prev => checked ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                    >
+                      <span
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors"
+                        style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}
+                      >
+                        {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 6 5 9 10 3" /></svg>}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
           </div>
         )}
 
@@ -828,6 +885,70 @@ export default function ListPage() {
             </div>
           )}
         </div>
+
+        {/* Tag manager */}
+        {allTags.length > 0 && (
+          <div className="mt-6 mb-8">
+            <button
+              onClick={() => setTagsExpanded(v => !v)}
+              className="w-full flex items-center justify-between py-1.5"
+            >
+              <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide">Tags · {allTags.length}</p>
+              <svg
+                width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="var(--text-2)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"
+                style={{ transform: tagsExpanded ? "rotate(180deg)" : "rotate(0deg)", transition: "transform 0.2s" }}
+              >
+                <polyline points="6 9 12 15 18 9" />
+              </svg>
+            </button>
+            {tagsExpanded && (
+              <div className="mt-2 space-y-1.5">
+                {allTags.map(tag => {
+                  const { bg, fg } = tagColor(tag.name);
+                  const isEditingThis = editingTagId === tag.id;
+                  return (
+                    <div key={tag.id} className="flex items-center gap-2 px-3 py-2 rounded-xl border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                      {isEditingThis ? (
+                        <input
+                          autoFocus
+                          value={editingTagName}
+                          onChange={e => setEditingTagName(e.target.value)}
+                          onKeyDown={e => {
+                            if (e.key === "Enter") saveTagEdit(tag.id);
+                            if (e.key === "Escape") { setEditingTagId(null); setEditingTagName(""); }
+                          }}
+                          onBlur={() => saveTagEdit(tag.id)}
+                          className="flex-1 text-sm px-2 py-0.5 rounded-lg border focus:outline-none"
+                          style={{ borderColor: "var(--purple)", color: "var(--text)" }}
+                        />
+                      ) : (
+                        <span className="flex-1 text-xs px-2 py-0.5 rounded-full font-medium w-fit" style={{ background: bg, color: fg }}>
+                          #{tag.name}
+                        </span>
+                      )}
+                      <div className="flex items-center gap-1 ml-auto">
+                        {!isEditingThis && (
+                          <button
+                            onClick={() => { setEditingTagId(tag.id); setEditingTagName(tag.name); }}
+                            className="p-1 text-warm-gray hover:text-charcoal transition-colors"
+                          >
+                            <EditIcon />
+                          </button>
+                        )}
+                        <button
+                          onClick={() => deleteTag(tag.id)}
+                          className="p-1 text-warm-gray hover:text-red-400 transition-colors"
+                        >
+                          <TrashIcon />
+                        </button>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </div>
   );
