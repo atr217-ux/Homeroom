@@ -88,14 +88,6 @@ function Speedometer({ score }: { score: number }) {
       <circle cx={CX} cy={CY} r="8" fill="#111827" />
       <circle cx={CX} cy={CY} r="4" fill="white" />
 
-      {/* Score inside the arc */}
-      <text x={CX} y={CY - 24} textAnchor="middle" fontSize="48" fontWeight="800" letterSpacing="-2" fill="#111827">
-        {scoreLabel}
-      </text>
-      <text x={CX} y={CY - 6} textAnchor="middle" fontSize="13" fontWeight="600" fill="#9CA3AF">
-        {zone}
-      </text>
-
       {/* Scale markers */}
       <text x={CX - RADIUS} y={CY + 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">-100</text>
       <text x={CX}          y={CY + 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">0</text>
@@ -360,16 +352,22 @@ export default function ProgressPage() {
         style={{ borderColor: "var(--border-2)", boxShadow: "0 2px 14px rgba(0,0,0,0.07)", padding: "20px 20px 24px" }}
       >
         <Speedometer score={momentum.displayedScore} />
-        {momentum.trendDelta !== 0 && (
-          <div className="flex justify-center -mt-2 mb-1">
+        <div className="text-center mt-1">
+          <div className="font-bold" style={{ fontSize: 52, letterSpacing: "-3px", lineHeight: 1, color: "var(--text)" }}>
+            {momentum.displayedScore > 0 ? "+" : ""}{momentum.displayedScore}
+          </div>
+          <div className="text-sm font-semibold mt-1.5" style={{ color: "var(--text-2)" }}>
+            {getMomentumZone(momentum.displayedScore)}
+          </div>
+          {momentum.trendDelta !== 0 && (
             <div
-              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full"
+              className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-full mt-3"
               style={trendUp ? { background: "var(--green-bg)", color: "var(--green-text)" } : { background: "var(--yellow-bg)", color: "var(--yellow-text)" }}
             >
               {trendUp ? "↑" : "↓"} {Math.abs(momentum.trendDelta)} this week
             </div>
-          </div>
-        )}
+          )}
+        </div>
       </div>
 
       {/* ── Metric grid ─────────────────────────────────────────────────────── */}
