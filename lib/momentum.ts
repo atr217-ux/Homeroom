@@ -27,19 +27,19 @@ function getWeekStart(date: Date): Date {
 function taskAgeBurden(ageDays: number[]): number {
   let total = 0;
   for (const age of ageDays) {
-    if (age >= 31) total -= 3;
-    else if (age >= 15) total -= 2;
-    else if (age >= 8) total -= 1;
+    if (age >= 31) total -= 1.5;
+    else if (age >= 15) total -= 1;
+    else if (age >= 8) total -= 0.5;
   }
-  return Math.max(total, -15);
+  return Math.max(total, -10);
 }
 
 function attendanceScore(count: number): number {
-  if (count === 0) return -10;
-  if (count === 1) return -5;
-  if (count === 2) return 5;
-  if (count === 3) return 10;
-  return 15;
+  if (count === 0) return -8;
+  if (count === 1) return -2;
+  if (count === 2) return 8;
+  if (count === 3) return 14;
+  return 20;
 }
 
 function completionRateScore(sessions: { committed: number; completed: number }[]): number {
