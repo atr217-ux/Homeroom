@@ -532,7 +532,7 @@ export default function ListPage() {
         <div className="mt-4 relative">
           <div className="flex gap-2">
             {/* Input with hashtag color overlay */}
-            <div className="flex-1 relative rounded-xl transition-colors"
+            <div className="flex-1 relative rounded-xl overflow-hidden transition-colors"
               style={{ background: "var(--bg)", border: `1px solid ${inputFocused ? "var(--purple)" : "#E5E7EB"}` }}>
               {/* Color overlay — renders #tags in purple */}
               <div
