@@ -110,6 +110,7 @@ export default function ListPage() {
   const [inputFocused, setInputFocused] = useState(false);
   const [expandedHomeroomTaskId, setExpandedHomeroomTaskId] = useState<string | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
+  const [pendingRemoveTag, setPendingRemoveTag] = useState<{ taskId: string; tagId: string } | null>(null);
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
@@ -814,11 +815,23 @@ export default function ListPage() {
                                 const tag = allTags.find(x => x.id === tid);
                                 if (!tag) return null;
                                 const { bg, fg } = tagColor(tag.name);
-                                return (
+                                return pendingRemoveTag?.taskId === t.id && pendingRemoveTag?.tagId === tid ? (
+                                  <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
+                                    Remove?
+                                    <button
+                                      onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); setPendingRemoveTag(null); }}
+                                      className="font-bold hover:opacity-70 p-0.5"
+                                      style={{ color: fg }}>✓</button>
+                                    <button
+                                      onClick={e => { e.stopPropagation(); setPendingRemoveTag(null); }}
+                                      className="hover:opacity-70 p-0.5"
+                                      style={{ color: fg }}>✕</button>
+                                  </span>
+                                ) : (
                                   <span key={tid} className="group/tag text-xs px-1.5 py-0.5 rounded-full font-medium flex items-center gap-1" style={{ background: bg, color: fg }}>
                                     #{tag.name}
                                     <button
-                                      onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
+                                      onClick={e => { e.stopPropagation(); setPendingRemoveTag({ taskId: t.id, tagId: tid }); }}
                                       className={`${isTouch ? "opacity-50" : "opacity-0 group-hover/tag:opacity-100"} transition-opacity leading-none p-0.5 -mr-0.5`}
                                       style={{ color: fg }}>
                                       ×
