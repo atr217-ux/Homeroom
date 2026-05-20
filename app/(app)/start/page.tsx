@@ -6,7 +6,7 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 type Friend = { id: string; name: string; initials: string; color: string; username: string; userId: string };
-type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number; homeroomStatus?: string | null; scheduledForDate?: string | null; homeroomTitle?: string | null; tagIds: string[] };
+type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number; created_at: string; homeroomStatus?: string | null; scheduledForDate?: string | null; homeroomTitle?: string | null; tagIds: string[] };
 type Tag = { id: string; name: string };
 
 const TAG_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7"];
@@ -69,6 +69,8 @@ function StartPageInner() {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const [expandedHomeroomTaskId, setExpandedHomeroomTaskId] = useState<string | null>(null);
+  const [taskSearch, setTaskSearch] = useState("");
+  const [taskSortDir, setTaskSortDir] = useState<"none" | "asc" | "desc">("none");
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -154,7 +156,7 @@ function StartPageInner() {
 
       // Load my list tasks with homeroom status so badges are accurate
       supabase.from("tasks")
-        .select("id, text, done, homeroom_id, sort_order")
+        .select("id, text, done, homeroom_id, sort_order, created_at")
         .eq("user_id", user.id)
         .eq("done", false)
         .order("sort_order", { ascending: true })
@@ -183,7 +185,7 @@ function StartPageInner() {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
             return {
               id: t.id, text: t.text, done: t.done,
-              homeroom_id: t.homeroom_id, sort_order: t.sort_order,
+              homeroom_id: t.homeroom_id, sort_order: t.sort_order, created_at: t.created_at,
               homeroomStatus: hr?.status ?? null,
               homeroomTitle: hr?.title ?? null,
               scheduledForDate: hr?.status === "scheduled" && hr.scheduled_for && new Date(hr.scheduled_for) >= today
@@ -315,9 +317,18 @@ function StartPageInner() {
 
   const carryForwardIds = new Set(carryForward.map(t => t.id));
   const allSelectableTasks = myListTasks.filter(t => !t.done && !carryForwardIds.has(t.id));
-  const filteredSelectableTasks = tagFilters.length > 0
+  const tagFilteredTasks = tagFilters.length > 0
     ? allSelectableTasks.filter(t => tagFilters.every(id => t.tagIds.includes(id)))
     : allSelectableTasks;
+  const searchedTasks = taskSearch.trim()
+    ? tagFilteredTasks.filter(t => t.text.toLowerCase().includes(taskSearch.toLowerCase().trim()))
+    : tagFilteredTasks;
+  const filteredSelectableTasks = taskSortDir === "none"
+    ? searchedTasks
+    : [...searchedTasks].sort((a, b) => {
+        const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return taskSortDir === "asc" ? diff : -diff;
+      });
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
@@ -660,9 +671,25 @@ function StartPageInner() {
         <div className="mb-6">
           <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">From your list</p>
 
-          {/* Tag filter dropdown */}
+          {/* Search bar */}
+          <div className="relative mb-3">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
+              <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+            </svg>
+            <input
+              type="text"
+              value={taskSearch}
+              onChange={e => setTaskSearch(e.target.value)}
+              placeholder="Search tasks…"
+              className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
+              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)" }}
+            />
+          </div>
+
+          {/* Tag filter + sort row */}
+          <div className="flex items-center gap-2 mb-3">
           {allTags.length > 0 && (
-            <div ref={tagDropdownRef} className="relative mb-3">
+            <div ref={tagDropdownRef} className="relative">
               <button
                 onClick={() => setTagDropdownOpen(v => !v)}
                 className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
@@ -703,6 +730,16 @@ function StartPageInner() {
               )}
             </div>
           )}
+          <button
+            onClick={() => setTaskSortDir(d => d === "none" ? "desc" : d === "desc" ? "asc" : "none")}
+            className="ml-auto flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-medium transition-colors flex-shrink-0"
+            style={taskSortDir !== "none"
+              ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+              : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+          >
+            Date added {taskSortDir === "asc" ? "↑" : taskSortDir === "desc" ? "↓" : ""}
+          </button>
+          </div>
 
           <div className="space-y-2">
             {(showAllTasks ? filteredSelectableTasks : filteredSelectableTasks.slice(0, TASK_LIMIT)).map(t => {
@@ -720,6 +757,9 @@ function StartPageInner() {
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-charcoal leading-snug">{t.text}</span>
+                    <span className="block text-xs mt-0.5" style={{ color: "var(--text-3)" }}>
+                      {new Date(t.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                    </span>
                     {((t.homeroomStatus === "active" && t.homeroomTitle) || t.homeroom_id || t.tagIds.length > 0) && (
                       <div className="mt-1">
                         <div className="flex flex-wrap gap-1">

@@ -109,6 +109,7 @@ export default function ListPage() {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [inputFocused, setInputFocused] = useState(false);
   const [expandedHomeroomTaskId, setExpandedHomeroomTaskId] = useState<string | null>(null);
+  const [taskSearch, setTaskSearch] = useState("");
   const [tagsExpanded, setTagsExpanded] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
@@ -525,9 +526,9 @@ export default function ListPage() {
         }
       });
 
-  const filteredSortedActive = tagFilters.length > 0
-    ? sortedActive.filter(t => tagFilters.every(id => t.tagIds.includes(id)))
-    : sortedActive;
+  const filteredSortedActive = sortedActive
+    .filter(t => tagFilters.length === 0 || tagFilters.every(id => t.tagIds.includes(id)))
+    .filter(t => !taskSearch.trim() || t.text.toLowerCase().includes(taskSearch.toLowerCase().trim()));
 
   const showScrollable = displayLimit === EXPANDED_LIMIT && filteredSortedActive.length > EXPANDED_LIMIT;
   const visibleActive = showScrollable ? filteredSortedActive : filteredSortedActive.slice(0, displayLimit);
@@ -642,76 +643,93 @@ export default function ListPage() {
           )}
         </div>
 
-        {/* Sort controls */}
-        {active.length > 1 && (
-          <div className="flex items-center gap-2 mt-3">
-            <span className="text-xs text-warm-gray">Sort:</span>
-            {(["date", "time", "homeroom"] as const).map((field) => {
-              const isActive = sortField === field;
-              const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
-              return (
-                <button
-                  key={field}
-                  onClick={() => handleSort(field)}
-                  className="text-xs px-2.5 py-1 rounded-full border transition-colors"
-                  style={isActive
-                    ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
-                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
-                >
-                  {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
-                </button>
-              );
-            })}
-            {sortField && (
-              <button onClick={() => setSortField(null)} className="text-xs text-warm-gray hover:text-charcoal transition-colors">
-                Clear
-              </button>
-            )}
-          </div>
-        )}
-
-        {/* Tag filter dropdown */}
-        {allTags.length > 0 && (
-          <div ref={tagDropdownRef} className="relative mt-2">
-            <button
-              onClick={() => setTagDropdownOpen(v => !v)}
-              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
-              style={tagFilters.length > 0
-                ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
-                : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
-            >
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
+        {/* Search + Sort + Tag filter row */}
+        {active.length > 0 && (
+          <div className="flex items-center gap-2 mt-3 flex-wrap">
+            {/* Search — far left */}
+            <div className="relative flex-shrink-0">
+              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
+                <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
               </svg>
-              {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""} selected` : "Filter by tag"}
-              {tagFilters.length > 0 && (
-                <span
-                  onClick={e => { e.stopPropagation(); setTagFilters([]); }}
-                  className="ml-1 opacity-70 hover:opacity-100"
-                >×</span>
-              )}
-            </button>
-            {tagDropdownOpen && (
-              <div className="absolute left-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                {allTags.map(tag => {
-                  const { bg, fg } = tagColor(tag.name);
-                  const checked = tagFilters.includes(tag.id);
+              <input
+                type="text"
+                value={taskSearch}
+                onChange={e => setTaskSearch(e.target.value)}
+                placeholder="Search…"
+                className="text-xs rounded-full pl-6 pr-3 py-1.5 border focus:outline-none w-28 focus:w-40 transition-all"
+                style={{ background: "var(--surface)", borderColor: taskSearch ? "var(--purple)" : "var(--border-2)", color: "var(--text)" }}
+              />
+            </div>
+
+            {/* Sort buttons */}
+            {active.length > 1 && (
+              <>
+                <span className="text-xs flex-shrink-0" style={{ color: "var(--text-3)" }}>Sort:</span>
+                {(["date", "time", "homeroom"] as const).map((field) => {
+                  const isActive = sortField === field;
+                  const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
                   return (
                     <button
-                      key={tag.id}
-                      onClick={() => setTagFilters(prev => checked ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
-                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                      key={field}
+                      onClick={() => handleSort(field)}
+                      className="text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0"
+                      style={isActive
+                        ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                        : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
                     >
-                      <span
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors"
-                        style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}
-                      >
-                        {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 6 5 9 10 3" /></svg>}
-                      </span>
-                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                      {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
                     </button>
                   );
                 })}
+                {sortField && (
+                  <button onClick={() => setSortField(null)} className="text-xs transition-colors flex-shrink-0" style={{ color: "var(--text-3)" }}>
+                    Clear
+                  </button>
+                )}
+              </>
+            )}
+
+            {/* Tag filter — far right */}
+            {allTags.length > 0 && (
+              <div ref={tagDropdownRef} className="relative ml-auto flex-shrink-0">
+                <button
+                  onClick={() => setTagDropdownOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+                  style={tagFilters.length > 0
+                    ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
+                  </svg>
+                  {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""} selected` : "Filter by tag"}
+                  {tagFilters.length > 0 && (
+                    <span onClick={e => { e.stopPropagation(); setTagFilters([]); }} className="ml-1 opacity-70 hover:opacity-100">×</span>
+                  )}
+                </button>
+                {tagDropdownOpen && (
+                  <div className="absolute right-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                    {allTags.map(tag => {
+                      const { bg, fg } = tagColor(tag.name);
+                      const checked = tagFilters.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => setTagFilters(prev => checked ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <span
+                            className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors"
+                            style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}
+                          >
+                            {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 6 5 9 10 3" /></svg>}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
               </div>
             )}
           </div>
