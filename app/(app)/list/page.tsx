@@ -712,7 +712,7 @@ export default function ListPage() {
                     )}
                   </button>
                   {tagDropdownOpen && (
-                    <div className="absolute right-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                    <div className="absolute left-0 md:left-auto md:right-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
                       {allTags.map(tag => {
                         const { bg, fg } = tagColor(tag.name);
                         const checked = tagFilters.includes(tag.id);
