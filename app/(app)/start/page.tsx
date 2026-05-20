@@ -72,6 +72,7 @@ function StartPageInner() {
   const [taskSearch, setTaskSearch] = useState("");
   const [taskSortDir, setTaskSortDir] = useState<"none" | "asc" | "desc">("none");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const [isTouch, setIsTouch] = useState(false);
   const extraInputRef = useRef<HTMLInputElement>(null);
   const extraOverlayRef = useRef<HTMLDivElement>(null);
 
@@ -90,6 +91,8 @@ function StartPageInner() {
     if (extraOverlayRef.current && extraInputRef.current)
       extraOverlayRef.current.scrollLeft = extraInputRef.current.scrollLeft;
   }
+
+  useEffect(() => { setIsTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -639,24 +642,26 @@ function StartPageInner() {
         <div className="flex-1 relative">
           <div className="relative rounded-xl overflow-hidden transition-colors"
             style={{ background: "var(--bg)", border: "1px solid #E5E7EB" }}>
-            <div
-              ref={extraOverlayRef}
-              aria-hidden
-              className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
-              style={{ whiteSpace: "pre", fontFamily: "inherit" }}
-            >
-              {input.split(/(#\w+)/g).map((part, i) =>
-                /^#\w+/.test(part)
-                  ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
-                  : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
-              )}
-            </div>
+            {!isTouch && (
+              <div
+                ref={extraOverlayRef}
+                aria-hidden
+                className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
+                style={{ whiteSpace: "pre", fontFamily: "inherit" }}
+              >
+                {input.split(/(#\w+)/g).map((part, i) =>
+                  /^#\w+/.test(part)
+                    ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
+                    : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
+                )}
+              </div>
+            )}
             <input
               ref={extraInputRef}
               type="text"
               value={input}
-              onChange={e => { setInput(e.target.value); setShowTagSuggestions(true); requestAnimationFrame(syncExtraOverlay); }}
-              onScroll={syncExtraOverlay}
+              onChange={e => { setInput(e.target.value); setShowTagSuggestions(true); if (!isTouch) requestAnimationFrame(syncExtraOverlay); }}
+              onScroll={() => { if (!isTouch) syncExtraOverlay(); }}
               onKeyDown={e => {
                 if (e.key === "Enter") addExtra();
                 if (e.key === "Escape") setShowTagSuggestions(false);
@@ -670,7 +675,7 @@ function StartPageInner() {
               placeholder="Add a task just for this session…"
               autoCorrect="off" autoCapitalize="off" spellCheck={false}
               className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
-              style={{ color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
+              style={isTouch ? { color: "var(--text)" } : { color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
             />
           </div>
           {showTagSuggestions && extraTagCompletions.length > 0 && (

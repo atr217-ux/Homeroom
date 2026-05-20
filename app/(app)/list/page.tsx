@@ -586,25 +586,27 @@ export default function ListPage() {
             {/* Input with hashtag color overlay */}
             <div className="flex-1 relative rounded-xl overflow-hidden transition-colors"
               style={{ background: "var(--bg)", border: `1px solid ${inputFocused ? "var(--purple)" : "#E5E7EB"}` }}>
-              {/* Color overlay — renders #tags in purple */}
-              <div
-                ref={overlayRef}
-                aria-hidden
-                className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
-                style={{ whiteSpace: "pre", fontFamily: "inherit" }}
-              >
-                {input.split(/(#\w+)/g).map((part, i) =>
-                  /^#\w+/.test(part)
-                    ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
-                    : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
-                )}
-              </div>
+              {/* Color overlay — renders #tags in purple (desktop only; skip on touch to avoid cursor misalignment) */}
+              {!isTouch && (
+                <div
+                  ref={overlayRef}
+                  aria-hidden
+                  className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
+                  style={{ whiteSpace: "pre", fontFamily: "inherit" }}
+                >
+                  {input.split(/(#\w+)/g).map((part, i) =>
+                    /^#\w+/.test(part)
+                      ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
+                      : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
+                  )}
+                </div>
+              )}
               <input
                 ref={inputRef}
                 type="text"
                 value={input}
-                onChange={(e) => { setInput(e.target.value); setShowSuggestions(true); requestAnimationFrame(syncOverlay); }}
-                onScroll={syncOverlay}
+                onChange={(e) => { setInput(e.target.value); setShowSuggestions(true); if (!isTouch) requestAnimationFrame(syncOverlay); }}
+                onScroll={() => { if (!isTouch) syncOverlay(); }}
                 onKeyDown={(e) => {
                   if (e.key === "Enter") addTask();
                   if (e.key === "Escape") setShowSuggestions(false);
@@ -620,7 +622,7 @@ export default function ListPage() {
                 autoCapitalize="off"
                 spellCheck={false}
                 className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
-                style={{ color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
+                style={isTouch ? { color: "var(--text)" } : { color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
               />
             </div>
             <button
@@ -805,24 +807,26 @@ export default function ListPage() {
                         {editingId === t.id ? (
                           <div className="relative">
                             <div className="relative rounded-lg overflow-hidden" style={{ border: "1px solid var(--purple)" }}>
-                              <div
-                                ref={editOverlayRef}
-                                aria-hidden
-                                className="absolute inset-0 pointer-events-none text-sm flex items-center px-2 overflow-hidden"
-                                style={{ whiteSpace: "pre", fontFamily: "inherit" }}
-                              >
-                                {editingText.split(/(#\w+)/g).map((part, i) =>
-                                  /^#\w+/.test(part)
-                                    ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
-                                    : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
-                                )}
-                              </div>
+                              {!isTouch && (
+                                <div
+                                  ref={editOverlayRef}
+                                  aria-hidden
+                                  className="absolute inset-0 pointer-events-none text-sm flex items-center px-2 overflow-hidden"
+                                  style={{ whiteSpace: "pre", fontFamily: "inherit" }}
+                                >
+                                  {editingText.split(/(#\w+)/g).map((part, i) =>
+                                    /^#\w+/.test(part)
+                                      ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
+                                      : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
+                                  )}
+                                </div>
+                              )}
                               <input
                                 ref={editInputRef}
                                 type="text"
                                 value={editingText}
-                                onChange={e => { setEditingText(e.target.value); setShowEditTagSuggestions(true); requestAnimationFrame(syncEditOverlay); }}
-                                onScroll={syncEditOverlay}
+                                onChange={e => { setEditingText(e.target.value); setShowEditTagSuggestions(true); if (!isTouch) requestAnimationFrame(syncEditOverlay); }}
+                                onScroll={() => { if (!isTouch) syncEditOverlay(); }}
                                 onKeyDown={e => {
                                   if (e.key === "Enter") saveEdit();
                                   if (e.key === "Escape") cancelEdit();
@@ -832,7 +836,7 @@ export default function ListPage() {
                                 onBlur={() => { setTimeout(() => setShowEditTagSuggestions(false), 150); saveEdit(); }}
                                 autoCorrect="off" autoCapitalize="off" spellCheck={false}
                                 className="w-full text-sm py-0.5 px-2 focus:outline-none bg-transparent"
-                                style={{ color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
+                                style={isTouch ? { color: "var(--text)" } : { color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
                               />
                             </div>
                             {showEditTagSuggestions && editTagCompletions.length > 0 && (
