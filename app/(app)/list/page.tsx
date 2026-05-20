@@ -244,9 +244,9 @@ export default function ListPage() {
         .then(async ({ data: allTasks }) => {
           const homeroomIds = [...new Set((allTasks ?? []).filter(t => t.homeroom_id).map(t => t.homeroom_id as string))];
 
-          // Fetch homerooms, task-tags, and all user tags in parallel — all flat queries, no joins
+          // Fetch homerooms, task-tags, user tags, and user's homeroom participation in parallel
           const taskIds = (allTasks ?? []).map(t => t.id);
-          const [{ data: homeroomsData }, { data: ttRows }, { data: tagsData }] = await Promise.all([
+          const [{ data: homeroomsData }, { data: ttRows }, { data: tagsData }, { data: participantRows }] = await Promise.all([
             homeroomIds.length
               ? supabase.from("homerooms").select("id, title, scheduled_for, status").in("id", homeroomIds)
               : Promise.resolve({ data: [] }),
@@ -254,10 +254,14 @@ export default function ListPage() {
               ? supabase.from("task_tags").select("task_id, tag_id").in("task_id", taskIds)
               : Promise.resolve({ data: [] }),
             supabase.from("tags").select("id, name").eq("user_id", user.id),
+            homeroomIds.length
+              ? supabase.from("homeroom_participants").select("homeroom_id").eq("user_id", user.id).in("homeroom_id", homeroomIds)
+              : Promise.resolve({ data: [] }),
           ]);
 
           const hrMap = Object.fromEntries((homeroomsData ?? []).map(h => [h.id, h]));
           const tagById = Object.fromEntries((tagsData ?? []).map(t => [t.id, t]));
+          const participatingIds = new Set((participantRows ?? []).map(r => r.homeroom_id as string));
 
           // Build per-task tag index
           const taskTagIds: Record<string, string[]> = {};
@@ -267,7 +271,8 @@ export default function ListPage() {
           }
           setAllTags(Object.values(tagById));
 
-          // Clear homeroom_id for tasks linked to deleted, completed, done, cancelled, or past-scheduled rooms.
+          // Clear homeroom_id if: homeroom deleted, terminal status, past scheduled date,
+          // or user is no longer a participant in that homeroom.
           const TERMINAL_STATUSES = new Set(["completed", "done", "cancelled", "ended"]);
           const nowMs = Date.now();
           const staleIds = (allTasks ?? [])
@@ -276,8 +281,8 @@ export default function ListPage() {
               const hr = hrMap[t.homeroom_id];
               if (!hr) return true; // homeroom deleted
               if (TERMINAL_STATUSES.has(hr.status)) return true;
-              // Scheduled session whose date passed without ever going active
               if (hr.status === "scheduled" && hr.scheduled_for && new Date(hr.scheduled_for).getTime() < nowMs) return true;
+              if (!participatingIds.has(t.homeroom_id)) return true; // user not a participant
               return false;
             })
             .map(t => t.id);
