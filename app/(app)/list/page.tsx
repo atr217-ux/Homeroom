@@ -653,8 +653,8 @@ export default function ListPage() {
                 spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="off"
-                className="w-full text-sm px-3 py-2.5 focus:outline-none"
-                style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none" } as React.CSSProperties}
+                className="w-full px-3 py-2.5 focus:outline-none"
+                style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none", fontSize: "16px" } as React.CSSProperties}
               />
             </div>
             <button
@@ -864,8 +864,8 @@ export default function ListPage() {
                                 spellCheck={false}
                                 autoCorrect="off"
                                 autoCapitalize="off"
-                                className="w-full text-sm py-0.5 px-2 focus:outline-none"
-                                style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none" } as React.CSSProperties}
+                                className="w-full py-0.5 px-2 focus:outline-none"
+                                style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none", fontSize: "16px" } as React.CSSProperties}
                               />
                             </div>
                             {showEditTagSuggestions && editTagCompletions.length > 0 && (

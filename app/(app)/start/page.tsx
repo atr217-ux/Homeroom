@@ -697,8 +697,8 @@ function StartPageInner() {
               spellCheck={false}
               autoCorrect="off"
               autoCapitalize="off"
-              className="w-full text-sm px-3 py-2.5 focus:outline-none"
-              style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none" } as React.CSSProperties}
+              className="w-full px-3 py-2.5 focus:outline-none"
+              style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none", fontSize: "16px" } as React.CSSProperties}
             />
           </div>
           {showTagSuggestions && extraTagCompletions.length > 0 && (
