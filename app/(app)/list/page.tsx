@@ -267,16 +267,14 @@ export default function ListPage() {
           }
           setAllTags(Object.values(tagById));
 
-          // Only clear homeroom_id for completed/deleted rooms.
-          // leaveRoom() in the room page already handles the active-but-left case,
-          // so checking participant records here creates a race condition that wipes
-          // tasks mid-session when a new deployment loads or queries are slow.
+          // Clear homeroom_id for tasks linked to deleted, completed, done, or cancelled rooms.
+          const TERMINAL_STATUSES = new Set(["completed", "done", "cancelled", "ended"]);
           const staleIds = (allTasks ?? [])
             .filter(t => {
               if (!t.homeroom_id || t.done) return false;
               const hr = hrMap[t.homeroom_id];
               if (!hr) return true; // homeroom deleted
-              if (hr.status === "completed") return true; // session ended
+              if (TERMINAL_STATUSES.has(hr.status)) return true;
               return false;
             })
             .map(t => t.id);
@@ -288,8 +286,11 @@ export default function ListPage() {
             });
           }
 
+          const today = new Date();
+          today.setHours(0, 0, 0, 0);
           const mapped = (allTasks ?? []).map(t => {
             const hr = t.homeroom_id ? hrMap[t.homeroom_id] : null;
+            const isUpcomingScheduled = hr?.status === "scheduled" && !!hr.scheduled_for && new Date(hr.scheduled_for) >= today;
             return {
               id: t.id,
               text: t.text,
@@ -297,8 +298,8 @@ export default function ListPage() {
               addedAt: t.created_at,
               completedAt: t.completed_at ?? null,
               lastSessionTime: t.time_spent > 0 ? t.time_spent : undefined,
-              scheduledForTitle: hr ? hr.title : undefined,
-              scheduledForDate: hr?.scheduled_for ?? null,
+              scheduledForTitle: hr?.status === "active" || isUpcomingScheduled ? hr!.title : undefined,
+              scheduledForDate: isUpcomingScheduled ? hr!.scheduled_for : null,
               homeroomId: t.homeroom_id,
               homeroomStatus: hr?.status ?? null,
               // eslint-disable-next-line @typescript-eslint/no-explicit-any
