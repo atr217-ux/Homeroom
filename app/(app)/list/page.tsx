@@ -442,8 +442,40 @@ export default function ListPage() {
     setEditingTagName("");
     if (!name) return;
     const supabase = createClient();
-    await supabase.from("tags").update({ name }).eq("id", tagId);
-    setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t));
+
+    // Check if a tag with this name already exists (case-insensitive)
+    const existing = allTags.find(t => t.id !== tagId && t.name.toLowerCase() === name.toLowerCase());
+
+    if (existing) {
+      // Merge tagId into existing.id
+      // Tasks with only the old tag → reassign to existing
+      // Tasks with both tags already → just delete the old entry (avoid unique constraint violation)
+      const tasksWithOld  = tasks.filter(t => t.tagIds.includes(tagId));
+      const onlyOld       = tasksWithOld.filter(t => !t.tagIds.includes(existing.id)).map(t => t.id);
+      const haveBoth      = tasksWithOld.filter(t =>  t.tagIds.includes(existing.id)).map(t => t.id);
+
+      if (onlyOld.length > 0)
+        await supabase.from("task_tags").update({ tag_id: existing.id }).eq("tag_id", tagId).in("task_id", onlyOld);
+      if (haveBoth.length > 0)
+        await supabase.from("task_tags").delete().eq("tag_id", tagId).in("task_id", haveBoth);
+
+      await supabase.from("tags").delete().eq("id", tagId);
+
+      // Update local state
+      setAllTags(prev => prev.filter(t => t.id !== tagId));
+      setTasks(prev => prev.map(t => {
+        if (!t.tagIds.includes(tagId)) return t;
+        return { ...t, tagIds: [...new Set([...t.tagIds.filter(id => id !== tagId), existing.id])] };
+      }));
+      setTagFilters(prev => prev.includes(tagId)
+        ? [...new Set([...prev.filter(id => id !== tagId), existing.id])]
+        : prev
+      );
+    } else {
+      // Simple rename
+      await supabase.from("tags").update({ name }).eq("id", tagId);
+      setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t));
+    }
   }
 
 
