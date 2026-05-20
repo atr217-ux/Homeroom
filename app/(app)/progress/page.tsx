@@ -194,7 +194,11 @@ export default function ProgressPage() {
           Math.floor((now.getTime() - new Date(t.created_at).getTime()) / msDay)
         );
 
-        const momentum = calculateMomentum(stuckAgeDays, sessionStats, scheduledRes.data ?? []);
+        const momentum = calculateMomentum(stuckAgeDays, sessionStats, scheduledRes.data ?? [], {
+          closedThisWeek:  completedNowRes.count  ?? 0,
+          closedLastWeek:  completedPrevRes.count ?? 0,
+          openInboxCount:  stuckTasks.length,
+        });
 
         // Use completed homerooms as the authoritative session source
         const completedHomes = homesRes.data ?? [];
