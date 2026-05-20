@@ -26,6 +26,7 @@ type SessionHistoryEntry = {
   title: string;
   endedAt: string;
   durationMin: number;
+  durationApprox: boolean;
   participants: string[];
   tasksCompleted: number;
   tasksNotCompleted: number;
@@ -340,14 +341,18 @@ export default function ProfilePage() {
       .sort((a, b) => new Date(b.ended_at ?? b.started_at).getTime() - new Date(a.ended_at ?? a.started_at).getTime())
       .map(h => {
         let durationMin = h.duration ?? 0;
+        let durationApprox = false;
         if (h.started_at && h.ended_at) {
           durationMin = Math.round((new Date(h.ended_at).getTime() - new Date(h.started_at).getTime()) / 60000);
+        } else if (h.duration) {
+          durationApprox = true;
         }
         return {
           id: h.id,
           title: h.title ?? "Homeroom",
           endedAt: h.ended_at ?? h.started_at,
           durationMin,
+          durationApprox,
           participants: participantsByHomeroom[h.id] ?? [],
           tasksCompleted: tasksByHomeroom[h.id]?.done ?? 0,
           tasksNotCompleted: tasksByHomeroom[h.id]?.notDone ?? 0,
@@ -1145,7 +1150,7 @@ export default function ProfilePage() {
                   <div className="flex flex-wrap items-center gap-2">
                     {s.durationMin > 0 && (
                       <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--purple-bg-2)", color: "var(--purple)" }}>
-                        ⏱ {formatDuration(s.durationMin)}
+                        ⏱ {s.durationApprox ? "~" : ""}{formatDuration(s.durationMin)}
                       </span>
                     )}
                     <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
@@ -1293,7 +1298,7 @@ export default function ProfilePage() {
             <div className="flex items-start justify-between px-5 pt-5 pb-3 flex-shrink-0">
               <div className="flex-1 min-w-0 pr-3">
                 <h2 className="font-bold text-charcoal text-base leading-snug">{sessionDetailPopup.title}</h2>
-                <p className="text-xs text-warm-gray mt-0.5">{formatSessionDate(sessionDetailPopup.endedAt)}{sessionDetailPopup.durationMin > 0 ? ` · ${formatDuration(sessionDetailPopup.durationMin)}` : ""}</p>
+                <p className="text-xs text-warm-gray mt-0.5">{formatSessionDate(sessionDetailPopup.endedAt)}{sessionDetailPopup.durationMin > 0 ? ` · ${sessionDetailPopup.durationApprox ? "~" : ""}${formatDuration(sessionDetailPopup.durationMin)}` : ""}</p>
               </div>
               <button onClick={() => setSessionDetailPopup(null)} className="text-warm-gray hover:text-charcoal p-1 flex-shrink-0 mt-0.5"><XIcon /></button>
             </div>
