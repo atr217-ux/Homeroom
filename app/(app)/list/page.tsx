@@ -643,54 +643,56 @@ export default function ListPage() {
           )}
         </div>
 
-        {/* Search + Sort + Tag filter row */}
+        {/* Search + Sort + Tag filter */}
         {active.length > 0 && (
-          <div className="flex items-center gap-2 mt-3 flex-wrap">
-            {/* Search — far left */}
-            <div className="relative flex-shrink-0">
-              <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
+          <div className="mt-3 space-y-2">
+            {/* Search — full width */}
+            <div className="relative">
+              <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
                 <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
               </svg>
               <input
                 type="text"
                 value={taskSearch}
                 onChange={e => setTaskSearch(e.target.value)}
-                placeholder="Search…"
-                className="text-xs rounded-full pl-6 pr-3 py-1.5 border focus:outline-none w-28 focus:w-40 transition-all"
+                placeholder="Search tasks…"
+                className="w-full text-xs rounded-full pl-8 pr-3 py-1.5 border focus:outline-none"
                 style={{ background: "var(--surface)", borderColor: taskSearch ? "var(--purple)" : "var(--border-2)", color: "var(--text)" }}
               />
             </div>
 
-            {/* Sort buttons */}
-            {active.length > 1 && (
-              <>
-                <span className="text-xs flex-shrink-0" style={{ color: "var(--text-3)" }}>Sort:</span>
-                {(["date", "time", "homeroom"] as const).map((field) => {
-                  const isActive = sortField === field;
-                  const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
-                  return (
-                    <button
-                      key={field}
-                      onClick={() => handleSort(field)}
-                      className="text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0"
-                      style={isActive
-                        ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
-                        : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
-                    >
-                      {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
+            {/* Sort + Tag filter — single scrollable row */}
+            <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+              {/* Sort buttons */}
+              {active.length > 1 && (
+                <>
+                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-3)" }}>Sort:</span>
+                  {(["date", "time", "homeroom"] as const).map((field) => {
+                    const isActive = sortField === field;
+                    const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+                    return (
+                      <button
+                        key={field}
+                        onClick={() => handleSort(field)}
+                        className="text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0"
+                        style={isActive
+                          ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                          : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                      >
+                        {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
+                      </button>
+                    );
+                  })}
+                  {sortField && (
+                    <button onClick={() => setSortField(null)} className="text-xs transition-colors flex-shrink-0" style={{ color: "var(--text-3)" }}>
+                      Clear
                     </button>
-                  );
-                })}
-                {sortField && (
-                  <button onClick={() => setSortField(null)} className="text-xs transition-colors flex-shrink-0" style={{ color: "var(--text-3)" }}>
-                    Clear
-                  </button>
-                )}
-              </>
-            )}
+                  )}
+                </>
+              )}
 
-            {/* Tag filter — far right */}
-            {allTags.length > 0 && (
+              {/* Tag filter — pushed to right */}
+              {allTags.length > 0 && (
               <div ref={tagDropdownRef} className="relative ml-auto flex-shrink-0">
                 <button
                   onClick={() => setTagDropdownOpen(v => !v)}
@@ -732,6 +734,7 @@ export default function ListPage() {
                 )}
               </div>
             )}
+          </div>
           </div>
         )}
 

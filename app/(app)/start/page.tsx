@@ -669,7 +669,26 @@ function StartPageInner() {
 
       {allSelectableTasks.length > 0 && (
         <div className="mb-6">
-          <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide mb-2">From your list</p>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-xs font-semibold text-warm-gray uppercase tracking-wide">From your list</p>
+            {filteredSelectableTasks.length > 0 && (() => {
+              const allVisible = filteredSelectableTasks.every(t => selectedIds.has(t.id));
+              return (
+                <button
+                  onClick={() => setSelectedIds(prev => {
+                    const n = new Set(prev);
+                    if (allVisible) filteredSelectableTasks.forEach(t => n.delete(t.id));
+                    else filteredSelectableTasks.forEach(t => n.add(t.id));
+                    return n;
+                  })}
+                  className="text-xs font-medium transition-colors"
+                  style={{ color: "var(--purple)" }}
+                >
+                  {allVisible ? "Deselect all" : "Select all"}
+                </button>
+              );
+            })()}
+          </div>
 
           {/* Search bar */}
           <div className="relative mb-3">
