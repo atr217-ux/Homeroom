@@ -71,6 +71,25 @@ function StartPageInner() {
   const [expandedHomeroomTaskId, setExpandedHomeroomTaskId] = useState<string | null>(null);
   const [taskSearch, setTaskSearch] = useState("");
   const [taskSortDir, setTaskSortDir] = useState<"none" | "asc" | "desc">("none");
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
+  const extraInputRef = useRef<HTMLInputElement>(null);
+  const extraOverlayRef = useRef<HTMLDivElement>(null);
+
+  const extraTagQuery = input.match(/#(\w*)$/)?.[1] ?? null;
+  const extraTagCompletions = extraTagQuery !== null
+    ? allTags.filter(t => t.name.toLowerCase().startsWith(extraTagQuery.toLowerCase()))
+    : [];
+
+  function applyExtraTagCompletion(tagName: string) {
+    setInput(prev => prev.replace(/#\w*$/, `#${tagName} `));
+    setShowTagSuggestions(false);
+    extraInputRef.current?.focus();
+  }
+
+  function syncExtraOverlay() {
+    if (extraOverlayRef.current && extraInputRef.current)
+      extraOverlayRef.current.scrollLeft = extraInputRef.current.scrollLeft;
+  }
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -617,10 +636,61 @@ function StartPageInner() {
 
       {/* Add extra task */}
       <div className="flex gap-2 mb-4">
-        <input type="text" value={input} onChange={e => setInput(e.target.value)} onKeyDown={e => e.key === "Enter" && addExtra()}
-          placeholder="Add a task just for this session…"
-          className="flex-1 text-sm border border-gray-200 rounded-xl px-3 py-2.5 bg-cream text-charcoal placeholder:text-warm-gray focus:outline-none focus:border-sage transition-colors" />
-        <button onClick={addExtra} style={{ color: "var(--purple)" }} className="flex-shrink-0 hover:opacity-70 transition-opacity">
+        <div className="flex-1 relative">
+          <div className="relative rounded-xl overflow-hidden transition-colors"
+            style={{ background: "var(--bg)", border: "1px solid #E5E7EB" }}>
+            <div
+              ref={extraOverlayRef}
+              aria-hidden
+              className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
+              style={{ whiteSpace: "pre", fontFamily: "inherit" }}
+            >
+              {input.split(/(#\w+)/g).map((part, i) =>
+                /^#\w+/.test(part)
+                  ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
+                  : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
+              )}
+            </div>
+            <input
+              ref={extraInputRef}
+              type="text"
+              value={input}
+              onChange={e => { setInput(e.target.value); setShowTagSuggestions(true); requestAnimationFrame(syncExtraOverlay); }}
+              onScroll={syncExtraOverlay}
+              onKeyDown={e => {
+                if (e.key === "Enter") addExtra();
+                if (e.key === "Escape") setShowTagSuggestions(false);
+                if (e.key === "Tab" && extraTagCompletions.length > 0) {
+                  e.preventDefault();
+                  applyExtraTagCompletion(extraTagCompletions[0].name);
+                }
+              }}
+              onFocus={() => setShowTagSuggestions(true)}
+              onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
+              placeholder="Add a task just for this session…"
+              autoCorrect="off" autoCapitalize="off" spellCheck={false}
+              className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
+              style={{ color: "transparent", caretColor: "var(--text)" }}
+            />
+          </div>
+          {showTagSuggestions && extraTagCompletions.length > 0 && (
+            <div className="absolute left-0 right-0 top-full mt-1 border rounded-xl shadow-md z-20 overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              {extraTagCompletions.map(tag => {
+                const { bg, fg } = tagColor(tag.name);
+                return (
+                  <button
+                    key={tag.id}
+                    onMouseDown={() => applyExtraTagCompletion(tag.name)}
+                    className="w-full flex items-center gap-2 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0"
+                  >
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                  </button>
+                );
+              })}
+            </div>
+          )}
+        </div>
+        <button onClick={addExtra} style={{ color: "var(--purple)" }} className="flex-shrink-0 hover:opacity-70 transition-opacity self-start mt-1">
           <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
           </svg>

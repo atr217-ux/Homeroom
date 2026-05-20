@@ -116,6 +116,24 @@ export default function ListPage() {
   const [editingTagName, setEditingTagName] = useState("");
 
   const editInputRef = useRef<HTMLInputElement>(null);
+  const editOverlayRef = useRef<HTMLDivElement>(null);
+  const [showEditTagSuggestions, setShowEditTagSuggestions] = useState(false);
+
+  const editTagQuery = editingText.match(/#(\w*)$/)?.[1] ?? null;
+  const editTagCompletions = editTagQuery !== null
+    ? allTags.filter(t => t.name.toLowerCase().startsWith(editTagQuery.toLowerCase()))
+    : [];
+
+  function applyEditTagCompletion(tagName: string) {
+    setEditingText(prev => prev.replace(/#\w*$/, `#${tagName} `));
+    setShowEditTagSuggestions(false);
+    editInputRef.current?.focus();
+  }
+
+  function syncEditOverlay() {
+    if (editOverlayRef.current && editInputRef.current)
+      editOverlayRef.current.scrollLeft = editInputRef.current.scrollLeft;
+  }
   const inputRef = useRef<HTMLInputElement>(null);
   const overlayRef = useRef<HTMLDivElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
@@ -785,15 +803,52 @@ export default function ListPage() {
                       />
                       <div className="flex-1 min-w-0">
                         {editingId === t.id ? (
-                          <input
-                            ref={editInputRef}
-                            type="text"
-                            value={editingText}
-                            onChange={(e) => setEditingText(e.target.value)}
-                            onKeyDown={(e) => { if (e.key === "Enter") saveEdit(); if (e.key === "Escape") cancelEdit(); }}
-                            onBlur={saveEdit}
-                            className="w-full text-sm text-charcoal border border-sage rounded-lg px-2 py-0.5 focus:outline-none bg-white"
-                          />
+                          <div className="relative">
+                            <div className="relative rounded-lg overflow-hidden" style={{ border: "1px solid var(--purple)" }}>
+                              <div
+                                ref={editOverlayRef}
+                                aria-hidden
+                                className="absolute inset-0 pointer-events-none text-sm flex items-center px-2 overflow-hidden"
+                                style={{ whiteSpace: "pre", fontFamily: "inherit" }}
+                              >
+                                {editingText.split(/(#\w+)/g).map((part, i) =>
+                                  /^#\w+/.test(part)
+                                    ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
+                                    : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
+                                )}
+                              </div>
+                              <input
+                                ref={editInputRef}
+                                type="text"
+                                value={editingText}
+                                onChange={e => { setEditingText(e.target.value); setShowEditTagSuggestions(true); requestAnimationFrame(syncEditOverlay); }}
+                                onScroll={syncEditOverlay}
+                                onKeyDown={e => {
+                                  if (e.key === "Enter") saveEdit();
+                                  if (e.key === "Escape") cancelEdit();
+                                  if (e.key === "Tab" && editTagCompletions.length > 0) { e.preventDefault(); applyEditTagCompletion(editTagCompletions[0].name); }
+                                }}
+                                onFocus={() => setShowEditTagSuggestions(true)}
+                                onBlur={() => { setTimeout(() => setShowEditTagSuggestions(false), 150); saveEdit(); }}
+                                autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                                className="w-full text-sm py-0.5 px-2 focus:outline-none bg-transparent"
+                                style={{ color: "transparent", caretColor: "var(--text)" }}
+                              />
+                            </div>
+                            {showEditTagSuggestions && editTagCompletions.length > 0 && (
+                              <div className="absolute left-0 right-0 top-full mt-1 border rounded-xl shadow-md z-30 overflow-hidden" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                                {editTagCompletions.map(tag => {
+                                  const { bg, fg } = tagColor(tag.name);
+                                  return (
+                                    <button key={tag.id} onMouseDown={() => applyEditTagCompletion(tag.name)}
+                                      className="w-full flex items-center gap-2 px-3 py-2 text-left hover:bg-gray-50 transition-colors border-b border-gray-50 last:border-0">
+                                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                                    </button>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                         ) : (
                           <span className="text-sm text-charcoal select-none leading-snug">{t.text}</span>
                         )}
