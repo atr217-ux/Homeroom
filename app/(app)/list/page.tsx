@@ -564,6 +564,9 @@ export default function ListPage() {
                 onFocus={() => { setInputFocused(true); setShowSuggestions(true); }}
                 onBlur={() => { setInputFocused(false); setTimeout(() => setShowSuggestions(false), 150); }}
                 placeholder="Add a task… use #tag"
+                autoCorrect="off"
+                autoCapitalize="off"
+                spellCheck={false}
                 className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
                 style={{ color: "transparent", caretColor: "var(--text)" }}
               />
