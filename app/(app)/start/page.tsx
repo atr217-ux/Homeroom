@@ -68,6 +68,7 @@ function StartPageInner() {
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+  const [expandedHomeroomTaskId, setExpandedHomeroomTaskId] = useState<string | null>(null);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -706,44 +707,65 @@ function StartPageInner() {
           <div className="space-y-2">
             {(showAllTasks ? filteredSelectableTasks : filteredSelectableTasks.slice(0, TASK_LIMIT)).map(t => {
               const checked = selectedIds.has(t.id);
+              const calExpanded = expandedHomeroomTaskId === t.id;
               return (
-                <button key={t.id}
+                <div key={t.id}
+                  className="w-full rounded-xl border px-3 py-2.5 flex items-start gap-2 hover:shadow-sm transition-all cursor-pointer"
+                  style={{ background: "var(--surface)", borderColor: checked ? "var(--purple)" : "var(--border-2)" }}
                   onClick={() => setSelectedIds(prev => { const n = new Set(prev); n.has(t.id) ? n.delete(t.id) : n.add(t.id); return n; })}
-                  className="w-full bg-white rounded-xl border px-3 py-2.5 flex items-start gap-2 hover:shadow-sm transition-all text-left"
-                  style={{ borderColor: checked ? "var(--purple)" : "var(--border-2)" }}>
+                >
                   <div className="w-4 h-4 rounded flex-shrink-0 mt-0.5 flex items-center justify-center"
                     style={checked ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                     {checked && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
                   <div className="flex-1 min-w-0">
                     <span className="text-sm text-charcoal leading-snug">{t.text}</span>
-                    {((t.homeroomStatus === "active" && t.homeroomTitle) || (t.scheduledForDate && t.homeroomTitle) || t.tagIds.length > 0) && (
-                      <div className="flex flex-wrap gap-1 mt-1">
-                        {t.homeroomStatus === "active" && t.homeroomTitle && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
-                            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block" />
-                            {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle}
-                          </span>
-                        )}
-                        {t.scheduledForDate && t.homeroomTitle && (
-                          <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
-                            {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle} · {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}
-                          </span>
-                        )}
-                        {t.tagIds.map(tid => {
-                          const tag = allTags.find(x => x.id === tid);
-                          if (!tag) return null;
-                          const { bg, fg } = tagColor(tag.name);
-                          return (
-                            <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
-                              #{tag.name}
+                    {((t.homeroomStatus === "active" && t.homeroomTitle) || t.homeroom_id || t.tagIds.length > 0) && (
+                      <div className="mt-1">
+                        <div className="flex flex-wrap gap-1">
+                          {t.homeroomStatus === "active" && t.homeroomTitle && (
+                            <span className="text-xs px-1.5 py-0.5 rounded-full flex items-center gap-1" style={{ background: "var(--green-bg)", color: "var(--green-text)" }}>
+                              <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 flex-shrink-0 inline-block" />
+                              {t.homeroomTitle.length > 25 ? t.homeroomTitle.slice(0, 25) + "…" : t.homeroomTitle}
                             </span>
-                          );
-                        })}
+                          )}
+                          {t.tagIds.map(tid => {
+                            const tag = allTags.find(x => x.id === tid);
+                            if (!tag) return null;
+                            const { bg, fg } = tagColor(tag.name);
+                            return (
+                              <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                                #{tag.name}
+                              </span>
+                            );
+                          })}
+                        </div>
+                        {calExpanded && t.homeroom_id && t.homeroomTitle && t.homeroomStatus !== "active" && (
+                          <div className="mt-1.5 flex items-center gap-1.5 text-xs px-2 py-1.5 rounded-lg" style={{ background: "var(--yellow-bg)", color: "var(--yellow-text)" }}>
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                            </svg>
+                            <span className="font-medium">{t.homeroomTitle}</span>
+                            {t.scheduledForDate && (
+                              <span className="opacity-70">· {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}</span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                </button>
+                  {t.homeroom_id && t.homeroomStatus !== "active" && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setExpandedHomeroomTaskId(prev => prev === t.id ? null : t.id); }}
+                      className="flex-shrink-0 p-0.5 rounded transition-colors hover:opacity-70 mt-0.5"
+                      style={{ color: calExpanded ? "var(--purple)" : "var(--text-2)" }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               );
             })}
           </div>
