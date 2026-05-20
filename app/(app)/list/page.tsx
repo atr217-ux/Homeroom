@@ -7,6 +7,44 @@ import { createClient } from "@/lib/supabase/client";
 const INITIAL_LIMIT = 15;
 const EXPANDED_LIMIT = 25;
 
+function escapeHTML(s: string) {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+function buildColoredHTML(text: string) {
+  return text.split(/(#\w+)/g).map(part =>
+    /^#\w+/.test(part) ? `<span style="color:var(--purple);font-weight:500">${escapeHTML(part)}</span>` : escapeHTML(part)
+  ).join("");
+}
+function getCaretOffset(el: HTMLElement): number {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount) return 0;
+  const r = sel.getRangeAt(0).cloneRange();
+  r.selectNodeContents(el);
+  r.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+  return r.toString().length;
+}
+function setCaretToOffset(el: HTMLElement, offset: number) {
+  const sel = window.getSelection();
+  if (!sel) return;
+  const range = document.createRange();
+  let rem = offset;
+  function walk(node: Node): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.textContent?.length ?? 0;
+      if (rem <= len) { range.setStart(node, rem); range.setEnd(node, rem); return true; }
+      rem -= len;
+    } else { for (const c of Array.from(node.childNodes)) if (walk(c)) return true; }
+    return false;
+  }
+  if (!walk(el)) { range.selectNodeContents(el); range.collapse(false); }
+  sel.removeAllRanges(); sel.addRange(range);
+}
+function moveCursorToEnd(el: HTMLElement) {
+  const range = document.createRange();
+  range.selectNodeContents(el); range.collapse(false);
+  const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range);
+}
+
 type Task = {
   id: string;
   text: string;
@@ -115,8 +153,7 @@ export default function ListPage() {
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
 
-  const editInputRef = useRef<HTMLInputElement>(null);
-  const editOverlayRef = useRef<HTMLDivElement>(null);
+  const editInputRef = useRef<HTMLDivElement>(null);
   const [showEditTagSuggestions, setShowEditTagSuggestions] = useState(false);
 
   const editTagQuery = editingText.match(/#(\w*)$/)?.[1] ?? null;
@@ -125,17 +162,14 @@ export default function ListPage() {
     : [];
 
   function applyEditTagCompletion(tagName: string) {
-    setEditingText(prev => prev.replace(/#\w*$/, `#${tagName} `));
+    const newText = editingText.replace(/#\w*$/, `#${tagName} `);
+    setEditingText(newText);
     setShowEditTagSuggestions(false);
-    editInputRef.current?.focus();
+    const el = editInputRef.current;
+    if (el) { el.innerHTML = buildColoredHTML(newText); moveCursorToEnd(el); el.focus(); }
   }
 
-  function syncEditOverlay() {
-    if (editOverlayRef.current && editInputRef.current)
-      editOverlayRef.current.scrollLeft = editInputRef.current.scrollLeft;
-  }
-  const inputRef = useRef<HTMLInputElement>(null);
-  const overlayRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLDivElement>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
   const lastTap = useRef<{ id: string; time: number } | null>(null);
 
@@ -283,10 +317,15 @@ export default function ListPage() {
 
   useEffect(() => {
     if (editingId && editInputRef.current) {
-      editInputRef.current.focus();
-      editInputRef.current.select();
+      const el = editInputRef.current;
+      el.innerHTML = buildColoredHTML(editingText);
+      const range = document.createRange();
+      range.selectNodeContents(el);
+      window.getSelection()?.removeAllRanges();
+      window.getSelection()?.addRange(range);
+      el.focus();
     }
-  }, [editingId]);
+  }, [editingId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     function handleClickOutside(e: MouseEvent) {
@@ -314,14 +353,11 @@ export default function ListPage() {
     : [];
 
   function applyTagCompletion(tagName: string) {
-    setInput(prev => prev.replace(/#\w*$/, `#${tagName} `));
+    const newText = input.replace(/#\w*$/, `#${tagName} `);
+    setInput(newText);
     setShowSuggestions(false);
-    inputRef.current?.focus();
-  }
-
-  function syncOverlay() {
-    if (overlayRef.current && inputRef.current)
-      overlayRef.current.scrollLeft = inputRef.current.scrollLeft;
+    const el = inputRef.current;
+    if (el) { el.innerHTML = buildColoredHTML(newText); moveCursorToEnd(el); el.focus(); }
   }
 
   async function addTask(text?: string, lastSessionTime?: number) {
@@ -331,6 +367,7 @@ export default function ListPage() {
     const cleanText = raw.replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
     if (!cleanText) return;
     setInput("");
+    if (inputRef.current) inputRef.current.innerHTML = "";
     setShowSuggestions(false);
     const supabase = createClient();
     const { data } = await supabase.from("tasks").insert({
@@ -583,46 +620,41 @@ export default function ListPage() {
         {/* Add task */}
         <div className="mt-4 relative">
           <div className="flex gap-2">
-            {/* Input with hashtag color overlay */}
-            <div className="flex-1 relative rounded-xl overflow-hidden transition-colors"
+            {/* contentEditable input — hashtags colored inline, no overlay needed */}
+            <div className="flex-1 relative rounded-xl transition-colors"
               style={{ background: "var(--bg)", border: `1px solid ${inputFocused ? "var(--purple)" : "#E5E7EB"}` }}>
-              {/* Color overlay — renders #tags in purple (desktop only; skip on touch to avoid cursor misalignment) */}
-              {!isTouch && (
-                <div
-                  ref={overlayRef}
-                  aria-hidden
-                  className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
-                  style={{ whiteSpace: "pre", fontFamily: "inherit" }}
-                >
-                  {input.split(/(#\w+)/g).map((part, i) =>
-                    /^#\w+/.test(part)
-                      ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
-                      : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
-                  )}
-                </div>
+              {!input && (
+                <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none" style={{ color: "var(--warm-gray, #9CA3AF)" }}>
+                  Add a task… use #tag
+                </span>
               )}
-              <input
+              <div
                 ref={inputRef}
-                type="text"
-                value={input}
-                onChange={(e) => { setInput(e.target.value); setShowSuggestions(true); if (!isTouch) requestAnimationFrame(syncOverlay); }}
-                onScroll={() => { if (!isTouch) syncOverlay(); }}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter") addTask();
-                  if (e.key === "Escape") setShowSuggestions(false);
-                  if (e.key === "Tab" && tagCompletions.length > 0) {
-                    e.preventDefault();
-                    applyTagCompletion(tagCompletions[0].name);
-                  }
+                contentEditable
+                suppressContentEditableWarning
+                role="textbox"
+                onInput={() => {
+                  const el = inputRef.current!;
+                  const offset = getCaretOffset(el);
+                  const text = el.innerText.replace(/\n/g, "");
+                  setInput(text);
+                  setShowSuggestions(true);
+                  el.innerHTML = buildColoredHTML(text);
+                  setCaretToOffset(el, Math.min(offset, text.length));
                 }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); addTask(); }
+                  if (e.key === "Escape") setShowSuggestions(false);
+                  if (e.key === "Tab" && tagCompletions.length > 0) { e.preventDefault(); applyTagCompletion(tagCompletions[0].name); }
+                }}
+                onPaste={(e) => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }}
                 onFocus={() => { setInputFocused(true); setShowSuggestions(true); }}
                 onBlur={() => { setInputFocused(false); setTimeout(() => setShowSuggestions(false), 150); }}
-                placeholder="Add a task… use #tag"
+                spellCheck={false}
                 autoCorrect="off"
                 autoCapitalize="off"
-                spellCheck={false}
-                className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
-                style={isTouch ? { color: "var(--text)" } : { color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
+                className="w-full text-sm px-3 py-2.5 focus:outline-none"
+                style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none" } as React.CSSProperties}
               />
             </div>
             <button
@@ -806,37 +838,34 @@ export default function ListPage() {
                       <div className="flex-1 min-w-0">
                         {editingId === t.id ? (
                           <div className="relative">
-                            <div className="relative rounded-lg overflow-hidden" style={{ border: "1px solid var(--purple)" }}>
-                              {!isTouch && (
-                                <div
-                                  ref={editOverlayRef}
-                                  aria-hidden
-                                  className="absolute inset-0 pointer-events-none text-sm flex items-center px-2 overflow-hidden"
-                                  style={{ whiteSpace: "pre", fontFamily: "inherit" }}
-                                >
-                                  {editingText.split(/(#\w+)/g).map((part, i) =>
-                                    /^#\w+/.test(part)
-                                      ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
-                                      : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
-                                  )}
-                                </div>
-                              )}
-                              <input
+                            <div className="relative rounded-lg" style={{ border: "1px solid var(--purple)" }}>
+                              <div
                                 ref={editInputRef}
-                                type="text"
-                                value={editingText}
-                                onChange={e => { setEditingText(e.target.value); setShowEditTagSuggestions(true); if (!isTouch) requestAnimationFrame(syncEditOverlay); }}
-                                onScroll={() => { if (!isTouch) syncEditOverlay(); }}
+                                contentEditable
+                                suppressContentEditableWarning
+                                role="textbox"
+                                onInput={() => {
+                                  const el = editInputRef.current!;
+                                  const offset = getCaretOffset(el);
+                                  const text = el.innerText.replace(/\n/g, "");
+                                  setEditingText(text);
+                                  setShowEditTagSuggestions(true);
+                                  el.innerHTML = buildColoredHTML(text);
+                                  setCaretToOffset(el, Math.min(offset, text.length));
+                                }}
                                 onKeyDown={e => {
-                                  if (e.key === "Enter") saveEdit();
+                                  if (e.key === "Enter") { e.preventDefault(); saveEdit(); }
                                   if (e.key === "Escape") cancelEdit();
                                   if (e.key === "Tab" && editTagCompletions.length > 0) { e.preventDefault(); applyEditTagCompletion(editTagCompletions[0].name); }
                                 }}
+                                onPaste={(e) => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
                                 onFocus={() => setShowEditTagSuggestions(true)}
                                 onBlur={() => { setTimeout(() => setShowEditTagSuggestions(false), 150); saveEdit(); }}
-                                autoCorrect="off" autoCapitalize="off" spellCheck={false}
-                                className="w-full text-sm py-0.5 px-2 focus:outline-none bg-transparent"
-                                style={isTouch ? { color: "var(--text)" } : { color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
+                                spellCheck={false}
+                                autoCorrect="off"
+                                autoCapitalize="off"
+                                className="w-full text-sm py-0.5 px-2 focus:outline-none"
+                                style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none" } as React.CSSProperties}
                               />
                             </div>
                             {showEditTagSuggestions && editTagCompletions.length > 0 && (

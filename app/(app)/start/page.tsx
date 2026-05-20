@@ -5,6 +5,36 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
+function escapeHTML(s: string) { return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
+function buildColoredHTML(text: string) {
+  return text.split(/(#\w+)/g).map(part =>
+    /^#\w+/.test(part) ? `<span style="color:var(--purple);font-weight:500">${escapeHTML(part)}</span>` : escapeHTML(part)
+  ).join("");
+}
+function getCaretOffset(el: HTMLElement): number {
+  const sel = window.getSelection();
+  if (!sel?.rangeCount) return 0;
+  const r = sel.getRangeAt(0).cloneRange();
+  r.selectNodeContents(el); r.setEnd(sel.getRangeAt(0).endContainer, sel.getRangeAt(0).endOffset);
+  return r.toString().length;
+}
+function setCaretToOffset(el: HTMLElement, offset: number) {
+  const sel = window.getSelection(); if (!sel) return;
+  const range = document.createRange(); let rem = offset;
+  function walk(node: Node): boolean {
+    if (node.nodeType === Node.TEXT_NODE) {
+      const len = node.textContent?.length ?? 0;
+      if (rem <= len) { range.setStart(node, rem); range.setEnd(node, rem); return true; } rem -= len;
+    } else { for (const c of Array.from(node.childNodes)) if (walk(c)) return true; } return false;
+  }
+  if (!walk(el)) { range.selectNodeContents(el); range.collapse(false); }
+  sel.removeAllRanges(); sel.addRange(range);
+}
+function moveCursorToEnd(el: HTMLElement) {
+  const range = document.createRange(); range.selectNodeContents(el); range.collapse(false);
+  const sel = window.getSelection(); sel?.removeAllRanges(); sel?.addRange(range);
+}
+
 type Friend = { id: string; name: string; initials: string; color: string; username: string; userId: string };
 type ListTask = { id: string; text: string; done: boolean; homeroom_id: string | null; sort_order: number; created_at: string; homeroomStatus?: string | null; scheduledForDate?: string | null; homeroomTitle?: string | null; tagIds: string[] };
 type Tag = { id: string; name: string };
@@ -72,9 +102,7 @@ function StartPageInner() {
   const [taskSearch, setTaskSearch] = useState("");
   const [taskSortDir, setTaskSortDir] = useState<"none" | "asc" | "desc">("none");
   const [showTagSuggestions, setShowTagSuggestions] = useState(false);
-  const [isTouch, setIsTouch] = useState(false);
-  const extraInputRef = useRef<HTMLInputElement>(null);
-  const extraOverlayRef = useRef<HTMLDivElement>(null);
+  const extraInputRef = useRef<HTMLDivElement>(null);
 
   const extraTagQuery = input.match(/#(\w*)$/)?.[1] ?? null;
   const extraTagCompletions = extraTagQuery !== null
@@ -82,17 +110,13 @@ function StartPageInner() {
     : [];
 
   function applyExtraTagCompletion(tagName: string) {
-    setInput(prev => prev.replace(/#\w*$/, `#${tagName} `));
+    const newText = input.replace(/#\w*$/, `#${tagName} `);
+    setInput(newText);
     setShowTagSuggestions(false);
-    extraInputRef.current?.focus();
+    const el = extraInputRef.current;
+    if (el) { el.innerHTML = buildColoredHTML(newText); moveCursorToEnd(el); el.focus(); }
   }
 
-  function syncExtraOverlay() {
-    if (extraOverlayRef.current && extraInputRef.current)
-      extraOverlayRef.current.scrollLeft = extraInputRef.current.scrollLeft;
-  }
-
-  useEffect(() => { setIsTouch(window.matchMedia("(pointer: coarse)").matches); }, []);
 
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
@@ -248,6 +272,7 @@ function StartPageInner() {
     if (!text) return;
     setExtraTasks(prev => [...prev, { id: crypto.randomUUID(), text }]);
     setInput("");
+    if (extraInputRef.current) extraInputRef.current.innerHTML = "";
   }
 
   async function launch() {
@@ -640,42 +665,40 @@ function StartPageInner() {
       {/* Add extra task */}
       <div className="flex gap-2 mb-4">
         <div className="flex-1 relative">
-          <div className="relative rounded-xl overflow-hidden transition-colors"
+          <div className="relative rounded-xl transition-colors"
             style={{ background: "var(--bg)", border: "1px solid #E5E7EB" }}>
-            {!isTouch && (
-              <div
-                ref={extraOverlayRef}
-                aria-hidden
-                className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
-                style={{ whiteSpace: "pre", fontFamily: "inherit" }}
-              >
-                {input.split(/(#\w+)/g).map((part, i) =>
-                  /^#\w+/.test(part)
-                    ? <span key={i} style={{ color: "var(--purple)", fontWeight: 500 }}>{part}</span>
-                    : <span key={i} style={{ color: "var(--text)" }}>{part}</span>
-                )}
-              </div>
+            {!input && (
+              <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none" style={{ color: "var(--warm-gray, #9CA3AF)" }}>
+                Add a task just for this session…
+              </span>
             )}
-            <input
+            <div
               ref={extraInputRef}
-              type="text"
-              value={input}
-              onChange={e => { setInput(e.target.value); setShowTagSuggestions(true); if (!isTouch) requestAnimationFrame(syncExtraOverlay); }}
-              onScroll={() => { if (!isTouch) syncExtraOverlay(); }}
-              onKeyDown={e => {
-                if (e.key === "Enter") addExtra();
-                if (e.key === "Escape") setShowTagSuggestions(false);
-                if (e.key === "Tab" && extraTagCompletions.length > 0) {
-                  e.preventDefault();
-                  applyExtraTagCompletion(extraTagCompletions[0].name);
-                }
+              contentEditable
+              suppressContentEditableWarning
+              role="textbox"
+              onInput={() => {
+                const el = extraInputRef.current!;
+                const offset = getCaretOffset(el);
+                const text = el.innerText.replace(/\n/g, "");
+                setInput(text);
+                setShowTagSuggestions(true);
+                el.innerHTML = buildColoredHTML(text);
+                setCaretToOffset(el, Math.min(offset, text.length));
               }}
+              onKeyDown={e => {
+                if (e.key === "Enter") { e.preventDefault(); addExtra(); }
+                if (e.key === "Escape") setShowTagSuggestions(false);
+                if (e.key === "Tab" && extraTagCompletions.length > 0) { e.preventDefault(); applyExtraTagCompletion(extraTagCompletions[0].name); }
+              }}
+              onPaste={(e) => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
               onFocus={() => setShowTagSuggestions(true)}
               onBlur={() => setTimeout(() => setShowTagSuggestions(false), 150)}
-              placeholder="Add a task just for this session…"
-              autoCorrect="off" autoCapitalize="off" spellCheck={false}
-              className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
-              style={isTouch ? { color: "var(--text)" } : { color: "transparent", caretColor: "var(--text)", WebkitAppearance: "none" } as React.CSSProperties}
+              spellCheck={false}
+              autoCorrect="off"
+              autoCapitalize="off"
+              className="w-full text-sm px-3 py-2.5 focus:outline-none"
+              style={{ color: "var(--text)", whiteSpace: "nowrap", overflowX: "auto", outline: "none" } as React.CSSProperties}
             />
           </div>
           {showTagSuggestions && extraTagCompletions.length > 0 && (
