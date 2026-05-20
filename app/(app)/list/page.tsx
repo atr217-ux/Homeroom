@@ -819,7 +819,7 @@ export default function ListPage() {
                                     #{tag.name}
                                     <button
                                       onClick={e => { e.stopPropagation(); removeTagFromTask(t.id, tid); }}
-                                      className="opacity-0 group-hover/tag:opacity-100 transition-opacity leading-none"
+                                      className={`${isTouch ? "opacity-50" : "opacity-0 group-hover/tag:opacity-100"} transition-opacity leading-none p-0.5 -mr-0.5`}
                                       style={{ color: fg }}>
                                       ×
                                     </button>
