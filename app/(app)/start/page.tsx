@@ -666,9 +666,9 @@ function StartPageInner() {
       <div className="flex gap-2 mb-4">
         <div className="flex-1 relative">
           <div className="relative rounded-xl transition-colors"
-            style={{ background: "var(--bg)", border: "1px solid #E5E7EB" }}>
+            style={{ background: "var(--bg)", border: "2px solid rgba(139,92,246,0.45)" }}>
             {!input && (
-              <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none" style={{ color: "var(--warm-gray, #9CA3AF)" }}>
+              <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)" }}>
                 Add a task just for this session…
               </span>
             )}
