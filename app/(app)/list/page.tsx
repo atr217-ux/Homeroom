@@ -691,9 +691,11 @@ export default function ListPage() {
                 </>
               )}
 
-              {/* Tag filter — pushed to right */}
-              {allTags.length > 0 && (
-              <div ref={tagDropdownRef} className="relative ml-auto flex-shrink-0">
+            </div>
+
+            {/* Tag filter — own row */}
+            {allTags.length > 0 && (
+            <div ref={tagDropdownRef} className="relative flex-shrink-0 self-start">
                 <button
                   onClick={() => setTagDropdownOpen(v => !v)}
                   className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
@@ -734,7 +736,6 @@ export default function ListPage() {
                 )}
               </div>
             )}
-          </div>
           </div>
         )}
 
