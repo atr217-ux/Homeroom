@@ -538,7 +538,7 @@ export default function ListPage() {
               <div
                 ref={overlayRef}
                 aria-hidden
-                className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden"
+                className="absolute inset-0 pointer-events-none text-sm flex items-center px-3 overflow-hidden rounded-xl"
                 style={{ whiteSpace: "pre", fontFamily: "inherit" }}
               >
                 {input.split(/(#\w+)/g).map((part, i) =>
