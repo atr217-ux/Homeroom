@@ -82,11 +82,11 @@ function Speedometer({ score }: { score: number }) {
           transition: "transform 1.6s cubic-bezier(0.34, 1.56, 0.64, 1)",
         }}
       >
-        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 14} stroke="#111827" strokeWidth="3" strokeLinecap="round" />
+        <line x1={CX} y1={CY + 8} x2={CX} y2={CY - RADIUS + 14} stroke="var(--text)" strokeWidth="3" strokeLinecap="round" />
       </g>
       {/* Pivot */}
-      <circle cx={CX} cy={CY} r="8" fill="#111827" />
-      <circle cx={CX} cy={CY} r="4" fill="white" />
+      <circle cx={CX} cy={CY} r="8" fill="var(--text)" />
+      <circle cx={CX} cy={CY} r="4" fill="var(--surface)" />
 
       {/* Scale markers */}
       <text x={CX - RADIUS} y={CY + 22} textAnchor="middle" fontSize="8" fontWeight="600" fill="#C0BDB5">-100</text>
