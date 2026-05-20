@@ -267,14 +267,17 @@ export default function ListPage() {
           }
           setAllTags(Object.values(tagById));
 
-          // Clear homeroom_id for tasks linked to deleted, completed, done, or cancelled rooms.
+          // Clear homeroom_id for tasks linked to deleted, completed, done, cancelled, or past-scheduled rooms.
           const TERMINAL_STATUSES = new Set(["completed", "done", "cancelled", "ended"]);
+          const nowMs = Date.now();
           const staleIds = (allTasks ?? [])
             .filter(t => {
               if (!t.homeroom_id || t.done) return false;
               const hr = hrMap[t.homeroom_id];
               if (!hr) return true; // homeroom deleted
               if (TERMINAL_STATUSES.has(hr.status)) return true;
+              // Scheduled session whose date passed without ever going active
+              if (hr.status === "scheduled" && hr.scheduled_for && new Date(hr.scheduled_for).getTime() < nowMs) return true;
               return false;
             })
             .map(t => t.id);
@@ -938,6 +941,16 @@ export default function ListPage() {
                                 {t.scheduledForDate && (
                                   <span className="opacity-70">· {new Date(t.scheduledForDate).toLocaleDateString(undefined, { month: "numeric", day: "numeric" })}</span>
                                 )}
+                                <button
+                                  onClick={async e => {
+                                    e.stopPropagation();
+                                    await createClient().from("tasks").update({ homeroom_id: null }).eq("id", t.id);
+                                    setTasks(prev => prev.map(x => x.id === t.id ? { ...x, homeroomId: null, scheduledForTitle: undefined, scheduledForDate: null, homeroomStatus: null } : x));
+                                    setExpandedHomeroomTaskId(null);
+                                  }}
+                                  className="ml-auto opacity-60 hover:opacity-100 transition-opacity pl-1"
+                                  title="Remove homeroom link"
+                                >×</button>
                               </div>
                             )}
                           </div>
