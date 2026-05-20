@@ -662,39 +662,10 @@ export default function ListPage() {
               />
             </div>
 
-            {/* Sort + Tag filter — single scrollable row */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
-              {/* Sort buttons */}
-              {active.length > 1 && (
-                <>
-                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-3)" }}>Sort:</span>
-                  {(["date", "time", "homeroom"] as const).map((field) => {
-                    const isActive = sortField === field;
-                    const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
-                    return (
-                      <button
-                        key={field}
-                        onClick={() => handleSort(field)}
-                        className="text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0"
-                        style={isActive
-                          ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
-                          : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
-                      >
-                        {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
-                      </button>
-                    );
-                  })}
-                  {sortField && (
-                    <button onClick={() => setSortField(null)} className="text-xs transition-colors flex-shrink-0" style={{ color: "var(--text-3)" }}>
-                      Clear
-                    </button>
-                  )}
-                </>
-              )}
+            {/* Sort + Tag filter */}
+            <div className="flex flex-col md:flex-row md:items-center gap-2">
 
-            </div>
-
-            {/* Tag filter — own row */}
+            {/* Tag filter — left on desktop, own row on mobile */}
             {allTags.length > 0 && (
             <div ref={tagDropdownRef} className="relative flex-shrink-0 self-start">
                 <button
@@ -737,6 +708,35 @@ export default function ListPage() {
                 )}
               </div>
             )}
+
+              {/* Sort buttons */}
+              {active.length > 1 && (
+                <div className="flex items-center gap-2 overflow-x-auto pb-0.5" style={{ scrollbarWidth: "none" }}>
+                  <span className="text-xs flex-shrink-0" style={{ color: "var(--text-3)" }}>Sort:</span>
+                  {(["date", "time", "homeroom"] as const).map((field) => {
+                    const isActive = sortField === field;
+                    const arrow = isActive ? (sortDir === "asc" ? " ↑" : " ↓") : "";
+                    return (
+                      <button
+                        key={field}
+                        onClick={() => handleSort(field)}
+                        className="text-xs px-2.5 py-1 rounded-full border transition-colors flex-shrink-0"
+                        style={isActive
+                          ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                          : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                      >
+                        {field === "date" ? "Date added" : field === "time" ? "Time required" : "Homeroom"}{arrow}
+                      </button>
+                    );
+                  })}
+                  {sortField && (
+                    <button onClick={() => setSortField(null)} className="text-xs transition-colors flex-shrink-0" style={{ color: "var(--text-3)" }}>
+                      Clear
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           </div>
         )}
 
