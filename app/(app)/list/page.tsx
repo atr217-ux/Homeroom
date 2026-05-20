@@ -620,7 +620,7 @@ export default function ListPage() {
                 autoCapitalize="off"
                 spellCheck={false}
                 className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
-                style={{ color: "transparent", caretColor: "var(--text)" }}
+                style={{ color: "var(--text)", WebkitTextFillColor: "transparent", caretColor: "var(--text)" }}
               />
             </div>
             <button
@@ -832,7 +832,7 @@ export default function ListPage() {
                                 onBlur={() => { setTimeout(() => setShowEditTagSuggestions(false), 150); saveEdit(); }}
                                 autoCorrect="off" autoCapitalize="off" spellCheck={false}
                                 className="w-full text-sm py-0.5 px-2 focus:outline-none bg-transparent"
-                                style={{ color: "transparent", caretColor: "var(--text)" }}
+                                style={{ color: "var(--text)", WebkitTextFillColor: "transparent", caretColor: "var(--text)" }}
                               />
                             </div>
                             {showEditTagSuggestions && editTagCompletions.length > 0 && (

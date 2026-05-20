@@ -670,7 +670,7 @@ function StartPageInner() {
               placeholder="Add a task just for this session…"
               autoCorrect="off" autoCapitalize="off" spellCheck={false}
               className="w-full text-sm px-3 py-2.5 placeholder:text-warm-gray focus:outline-none bg-transparent"
-              style={{ color: "transparent", caretColor: "var(--text)" }}
+              style={{ color: "var(--text)", WebkitTextFillColor: "transparent", caretColor: "var(--text)" }}
             />
           </div>
           {showTagSuggestions && extraTagCompletions.length > 0 && (
