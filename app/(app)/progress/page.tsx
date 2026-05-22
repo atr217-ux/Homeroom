@@ -108,7 +108,7 @@ function circleStyle(n: number): { size: number; fill: string; border: boolean }
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 interface StuckTask { id: string; text: string; created_at: string }
-interface RecentWin { text: string; created_at: string; completed_at: string; ageDays: number }
+interface RecentWin { text: string; created_at: string; completed_at: string; ageDays: number; completedDaysAgo: number }
 
 interface ProgressData {
   momentum: MomentumResult;
@@ -230,6 +230,7 @@ export default function ProgressPage() {
             .map(h => new Date(h.ended_at as string).toDateString())
         );
 
+        const nowMs2 = Date.now();
         const recentWins: RecentWin[] = (winsRes.data ?? [])
           .map(t => ({
             text: t.text as string,
@@ -238,8 +239,11 @@ export default function ProgressPage() {
             ageDays: Math.floor(
               (new Date(t.completed_at as string).getTime() - new Date(t.created_at as string).getTime()) / msDay
             ),
+            completedDaysAgo: Math.floor(
+              (nowMs2 - new Date(t.completed_at as string).getTime()) / msDay
+            ),
           }))
-          .sort((a, b) => b.ageDays - a.ageDays)
+          .sort((a, b) => new Date(b.completed_at).getTime() - new Date(a.completed_at).getTime())
           .slice(0, 3);
 
         const total = completedHomes.length;
@@ -519,9 +523,10 @@ export default function ProgressPage() {
           <div className="space-y-3.5">
             {recentWins.map((win, i) => {
               const icon = win.ageDays >= 30 ? "🔥" : win.ageDays >= 14 ? "🎉" : "✅";
+              const whenLabel = win.completedDaysAgo === 0 ? "today" : win.completedDaysAgo === 1 ? "yesterday" : `${win.completedDaysAgo}d ago`;
               const subtitle = win.ageDays >= 14
-                ? `After ${win.ageDays} days — breakthrough!`
-                : `Completed ${win.ageDays === 0 ? "today" : `${win.ageDays}d ago`}`;
+                ? `After ${win.ageDays} days — breakthrough! (${whenLabel})`
+                : `Completed ${whenLabel}`;
               return (
                 <div key={i} className="flex items-start gap-3">
                   <span className="text-xl flex-shrink-0 mt-0.5">{icon}</span>
