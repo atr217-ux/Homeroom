@@ -57,6 +57,7 @@ export default function TodayPage() {
   // Setup flow
   const [setupPhase, setSetupPhase] = useState<"loading" | "tasks" | "blocks" | null>("loading");
   const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
+  const [setupSearch, setSetupSearch] = useState("");
   const [committedIds, setCommittedIds] = useState<Set<string>>(new Set());
   const [draftBlocks, setDraftBlocks] = useState<DraftBlock[]>([]);
   const [addingDraftBlock, setAddingDraftBlock] = useState(false);
@@ -142,43 +143,40 @@ export default function TodayPage() {
     const supabase = createClient();
     const todayDate = dateKey(new Date());
 
-    // My List tasks (unblocked, undone)
-    const { data: listTasks } = await supabase
+    // All undone tasks for this user
+    const { data: allTasks } = await supabase
       .from("tasks")
-      .select("id, text")
+      .select("id, text, block_id")
       .eq("user_id", userId)
       .eq("done", false)
-      .is("block_id", null)
       .order("sort_order", { ascending: true })
-      .limit(50);
+      .limit(100);
 
-    // Prior-day blocks (last 5 days)
-    const { data: priorBlocks } = await supabase
-      .from("blocks")
-      .select("id, name")
-      .eq("user_id", userId)
-      .lt("date", todayDate)
-      .order("date", { ascending: false })
-      .limit(5);
-
-    const priorTasksAll: SetupTask[] = [];
-    if (priorBlocks && priorBlocks.length > 0) {
-      const priorIds = priorBlocks.map(b => b.id);
-      const { data: priorTasks } = await supabase
-        .from("tasks")
-        .select("id, text, block_id")
-        .in("block_id", priorIds)
-        .eq("done", false);
-      if (priorTasks) {
-        const nameMap = Object.fromEntries(priorBlocks.map(b => [b.id, b.name]));
-        for (const t of priorTasks) {
-          priorTasksAll.push({ id: t.id, text: t.text, fromBlock: nameMap[t.block_id] ?? "Block" });
-        }
-      }
+    if (!allTasks || allTasks.length === 0) {
+      setSetupTasks([]);
+      setCommittedIds(new Set());
+      return;
     }
 
-    const myListTasks: SetupTask[] = (listTasks ?? []).map(t => ({ id: t.id, text: t.text }));
-    const combined = [...priorTasksAll, ...myListTasks];
+    // Look up block names for any tasks already in a block
+    const blockIds = [...new Set(allTasks.filter(t => t.block_id).map(t => t.block_id as string))];
+    let blockNameMap: Record<string, { name: string; date: string }> = {};
+    if (blockIds.length > 0) {
+      const { data: blocks } = await supabase
+        .from("blocks")
+        .select("id, name, date")
+        .in("id", blockIds);
+      blockNameMap = Object.fromEntries((blocks ?? []).map(b => [b.id, { name: b.name, date: b.date }]));
+    }
+
+    const combined: SetupTask[] = allTasks.map(t => {
+      if (!t.block_id) return { id: t.id, text: t.text };
+      const block = blockNameMap[t.block_id];
+      if (!block) return { id: t.id, text: t.text };
+      const label = block.date < todayDate ? `From: ${block.name}` : `In block: ${block.name}`;
+      return { id: t.id, text: t.text, fromBlock: label };
+    });
+
     setSetupTasks(combined);
     setCommittedIds(new Set(combined.map(t => t.id)));
   }
@@ -461,6 +459,10 @@ export default function TodayPage() {
 
   // ── JSX ────────────────────────────────────────────────────────────────────
 
+  const filteredSetupTasks = setupSearch
+    ? setupTasks.filter(t => t.text.toLowerCase().includes(setupSearch.toLowerCase()))
+    : setupTasks;
+
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
 
@@ -477,6 +479,21 @@ export default function TodayPage() {
           <div className="pt-10 pb-6">
             <h1 className="text-2xl font-bold text-charcoal">What are your tasks for today?</h1>
             <p className="text-sm text-warm-gray mt-1">Pick what you want to focus on.</p>
+          </div>
+
+          {/* Search bar */}
+          <div className="mb-4 relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
+              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+            </svg>
+            <input
+              type="text"
+              value={setupSearch}
+              onChange={e => setSetupSearch(e.target.value)}
+              placeholder="Search tasks…"
+              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm focus:outline-none"
+              style={{ background: "var(--surface)", border: "1px solid var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+            />
           </div>
 
           {setupTasks.length === 0 ? (
@@ -507,9 +524,12 @@ export default function TodayPage() {
                 >
                   Clear
                 </button>
+                {setupSearch && (
+                  <span className="text-xs ml-auto" style={{ color: "var(--text-2)" }}>{filteredSetupTasks.length} result{filteredSetupTasks.length !== 1 ? "s" : ""}</span>
+                )}
               </div>
               <div className="space-y-1.5 mb-8">
-                {setupTasks.map(task => {
+                {filteredSetupTasks.map(task => {
                   const checked = committedIds.has(task.id);
                   return (
                     <button
@@ -538,12 +558,15 @@ export default function TodayPage() {
                       <div className="flex-1 min-w-0">
                         <p className="text-sm text-charcoal">{task.text}</p>
                         {task.fromBlock && (
-                          <p className="text-xs mt-0.5" style={{ color: "var(--warm-gray)" }}>From: {task.fromBlock}</p>
+                          <p className="text-xs mt-0.5" style={{ color: "var(--text-2)" }}>{task.fromBlock}</p>
                         )}
                       </div>
                     </button>
                   );
                 })}
+                {filteredSetupTasks.length === 0 && setupSearch && (
+                  <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>No tasks match "{setupSearch}"</p>
+                )}
               </div>
             </>
           )}
