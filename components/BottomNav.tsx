@@ -7,43 +7,11 @@ import { createClient } from "@/lib/supabase/client";
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const roomActive = pathname.startsWith("/room");
-  const [roomHref, setRoomHref] = useState("/start");
+  const todayActive = pathname.startsWith("/today");
   const [homeNotif, setHomeNotif] = useState(false);
   const [profileNotif, setProfileNotif] = useState(false);
   const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const activeId = localStorage.getItem("homeroom-active-id");
-    if (activeId) { setRoomHref(`/room?id=${activeId}`); return; }
-    // No localStorage — check DB for an active session on this account
-    let cancelled = false;
-    const supabase = createClient();
-    (async () => {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user || cancelled) return;
-      const { data: rows } = await supabase
-        .from("homeroom_participants")
-        .select("homeroom_id")
-        .eq("user_id", user.id);
-      if (cancelled) return;
-      const ids = (rows ?? []).map(r => r.homeroom_id as string);
-      if (!ids.length) return;
-      const { data: h } = await supabase
-        .from("homerooms")
-        .select("id")
-        .in("id", ids)
-        .eq("status", "active")
-        .limit(1)
-        .maybeSingle();
-      if (!cancelled && h) {
-        localStorage.setItem("homeroom-active-id", h.id);
-        setRoomHref(`/room?id=${h.id}`);
-      }
-    })();
-    return () => { cancelled = true; };
-  }, [pathname]);
 
   useEffect(() => {
     const supabase = createClient();
@@ -115,7 +83,7 @@ export default function BottomNav() {
   const leftTabs = [
     {
       href: "/home",
-      label: "Home",
+      label: "Feed",
       notif: homeNotif,
       icon: (
         <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -186,13 +154,13 @@ export default function BottomNav() {
         );
       })}
 
-      {/* Centre Room button */}
+      {/* Centre Today button */}
       <div className="flex-1 flex flex-col items-center pb-3" style={{ marginTop: "-22px" }}>
-        <Link href={roomHref} className="flex flex-col items-center gap-1">
+        <Link href="/today" className="flex flex-col items-center gap-1">
           <div
             className="w-14 h-14 rounded-full flex items-center justify-center transition-all"
             style={{
-              background: roomActive ? "var(--purple-dark)" : "var(--purple)",
+              background: todayActive ? "var(--purple-dark)" : "var(--purple)",
               boxShadow: "0 4px 14px rgba(124,58,237,0.45)",
             }}
           >
@@ -201,8 +169,8 @@ export default function BottomNav() {
               <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
             </svg>
           </div>
-          <span className="text-xs font-medium" style={{ color: roomActive ? "var(--purple)" : "var(--text-2)" }}>
-            Live
+          <span className="text-xs font-medium" style={{ color: todayActive ? "var(--purple)" : "var(--text-2)" }}>
+            Today
           </span>
         </Link>
       </div>
