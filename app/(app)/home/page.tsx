@@ -491,6 +491,10 @@ export default function HomePage() {
   const [selectedImport, setSelectedImport] = useState<Set<string>>(new Set());
   const [addingBlock, setAddingBlock] = useState(false);
   const [newBlockName, setNewBlockName] = useState("");
+  const [editingBlockId, setEditingBlockId] = useState<string | null>(null);
+  const [editBlockName, setEditBlockName] = useState("");
+  const [editBlockStart, setEditBlockStart] = useState("");
+  const [editBlockEnd, setEditBlockEnd] = useState("");
 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
@@ -1001,6 +1005,29 @@ export default function HomePage() {
     setShowImportFor(blockId);
   }
 
+  function startEditBlock(block: Block) {
+    setEditingBlockId(block.id);
+    setEditBlockName(block.name);
+    setEditBlockStart(block.start_time ? block.start_time.slice(0, 5) : "");
+    setEditBlockEnd(block.end_time ? block.end_time.slice(0, 5) : "");
+  }
+
+  async function saveBlockEdit(blockId: string) {
+    const name = editBlockName.trim() || "Block";
+    const start_time = editBlockStart || null;
+    const end_time = editBlockEnd || null;
+    setTodayBlocks(prev => prev.map(b => b.id === blockId ? { ...b, name, start_time, end_time } : b));
+    setEditingBlockId(null);
+    await createClient().from("blocks").update({ name, start_time, end_time }).eq("id", blockId);
+  }
+
+  async function deleteBlock(blockId: string) {
+    setTodayBlocks(prev => prev.filter(b => b.id !== blockId));
+    setBlockTasks(prev => { const n = { ...prev }; delete n[blockId]; return n; });
+    setEditingBlockId(null);
+    await createClient().from("blocks").delete().eq("id", blockId);
+  }
+
   async function confirmImport() {
     if (!showImportFor || selectedImport.size === 0) { setShowImportFor(null); return; }
     await createClient().from("tasks").update({ block_id: showImportFor }).in("id", [...selectedImport]);
@@ -1384,19 +1411,65 @@ export default function HomePage() {
           return (
             <div key={block.id} className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
               {/* Block header */}
-              <div className="flex items-center justify-between mb-3">
-                <div>
-                  <h2 className="text-sm font-bold text-charcoal">{block.name}</h2>
-                  {block.start_time && (
-                    <p className="text-xs text-warm-gray mt-0.5">
-                      {block.start_time.slice(0, 5)}{block.end_time ? ` – ${block.end_time.slice(0, 5)}` : ""}
-                    </p>
-                  )}
+              {editingBlockId === block.id ? (
+                <div className="mb-3 space-y-2">
+                  <input
+                    autoFocus
+                    value={editBlockName}
+                    onChange={e => setEditBlockName(e.target.value)}
+                    onKeyDown={e => { if (e.key === "Enter") saveBlockEdit(block.id); if (e.key === "Escape") setEditingBlockId(null); }}
+                    placeholder="Block name"
+                    className="w-full text-sm font-semibold bg-transparent focus:outline-none text-charcoal placeholder:text-warm-gray border-b pb-1"
+                    style={{ borderColor: "var(--border-3)", fontSize: "16px" }}
+                  />
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="time"
+                      value={editBlockStart}
+                      onChange={e => setEditBlockStart(e.target.value)}
+                      className="text-xs bg-transparent focus:outline-none text-charcoal"
+                      style={{ fontSize: "16px" }}
+                    />
+                    <span className="text-xs text-warm-gray">–</span>
+                    <input
+                      type="time"
+                      value={editBlockEnd}
+                      onChange={e => setEditBlockEnd(e.target.value)}
+                      className="text-xs bg-transparent focus:outline-none text-charcoal"
+                      style={{ fontSize: "16px" }}
+                    />
+                  </div>
+                  <div className="flex items-center gap-2 pt-0.5">
+                    <button onClick={() => saveBlockEdit(block.id)} className="text-xs font-semibold px-3 py-1 rounded-lg text-white" style={{ background: "var(--purple)" }}>Save</button>
+                    <button onClick={() => setEditingBlockId(null)} className="text-xs text-warm-gray hover:text-charcoal transition-colors">Cancel</button>
+                    {todayBlocks.length > 1 && (
+                      <button onClick={() => deleteBlock(block.id)} className="ml-auto text-xs text-red-400 hover:text-red-600 transition-colors">Delete block</button>
+                    )}
+                  </div>
                 </div>
-                {tasks.length > 0 && (
-                  <span className="text-xs text-warm-gray">{doneCount}/{tasks.length} done</span>
-                )}
-              </div>
+              ) : (
+                <div className="flex items-center justify-between mb-3">
+                  <div>
+                    <h2 className="text-sm font-bold text-charcoal">{block.name}</h2>
+                    {block.start_time && (
+                      <p className="text-xs text-warm-gray mt-0.5">
+                        {block.start_time.slice(0, 5)}{block.end_time ? ` – ${block.end_time.slice(0, 5)}` : ""}
+                      </p>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {tasks.length > 0 && (
+                      <span className="text-xs text-warm-gray">{doneCount}/{tasks.length} done</span>
+                    )}
+                    <button onClick={() => startEditBlock(block)} className="text-warm-gray hover:text-charcoal transition-colors" aria-label="Edit block">
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              )}
 
               {/* Task list */}
               {tasks.length > 0 && (
