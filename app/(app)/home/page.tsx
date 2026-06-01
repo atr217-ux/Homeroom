@@ -495,6 +495,9 @@ export default function HomePage() {
   const [editBlockName, setEditBlockName] = useState("");
   const [editBlockStart, setEditBlockStart] = useState("");
   const [editBlockEnd, setEditBlockEnd] = useState("");
+  const [carryoverTasks, setCarryoverTasks] = useState<{ id: string; text: string; blockName: string }[]>([]);
+  const [selectedCarryover, setSelectedCarryover] = useState<Set<string>>(new Set());
+  const [showCarryover, setShowCarryover] = useState(false);
 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
@@ -945,6 +948,38 @@ export default function HomePage() {
       }
       setBlockTasks(grouped);
     }
+
+    // ── Carry-over check ────────────────────────────────────────────────────
+    const LS_KEY = "homeroom-last-open-date";
+    const lastDate = localStorage.getItem(LS_KEY);
+    localStorage.setItem(LS_KEY, todayDate);
+
+    if (lastDate && lastDate !== todayDate) {
+      // Find the most recent prior-day blocks with incomplete tasks
+      const { data: priorBlocks } = await supabase
+        .from("blocks")
+        .select("id, name")
+        .eq("user_id", userId)
+        .lt("date", todayDate)
+        .order("date", { ascending: false })
+        .limit(10);
+
+      if (priorBlocks && priorBlocks.length > 0) {
+        const priorIds = priorBlocks.map(b => b.id);
+        const { data: leftover } = await supabase
+          .from("tasks")
+          .select("id, text, block_id")
+          .in("block_id", priorIds)
+          .eq("done", false);
+
+        if (leftover && leftover.length > 0) {
+          const nameMap = Object.fromEntries(priorBlocks.map(b => [b.id, b.name]));
+          setCarryoverTasks(leftover.map(t => ({ id: t.id, text: t.text, blockName: nameMap[t.block_id] ?? "Block" })));
+          setSelectedCarryover(new Set(leftover.map(t => t.id)));
+          setShowCarryover(true);
+        }
+      }
+    }
   }
 
   async function addBlockTask(blockId: string) {
@@ -1026,6 +1061,19 @@ export default function HomePage() {
     setBlockTasks(prev => { const n = { ...prev }; delete n[blockId]; return n; });
     setEditingBlockId(null);
     await createClient().from("blocks").delete().eq("id", blockId);
+  }
+
+  async function confirmCarryover() {
+    setShowCarryover(false);
+    if (selectedCarryover.size === 0) return;
+    const targetBlockId = todayBlocks[0]?.id;
+    if (!targetBlockId) return;
+    const ids = [...selectedCarryover];
+    await createClient().from("tasks").update({ block_id: targetBlockId, done: false, completed_at: null }).in("id", ids);
+    const moved = carryoverTasks
+      .filter(t => selectedCarryover.has(t.id))
+      .map(t => ({ id: t.id, text: t.text, done: false, completed_at: null }));
+    setBlockTasks(prev => ({ ...prev, [targetBlockId]: [...(prev[targetBlockId] ?? []), ...moved] }));
   }
 
   async function confirmImport() {
@@ -1616,6 +1664,54 @@ export default function HomePage() {
             >
               Add {selectedImport.size > 0 ? `${selectedImport.size} task${selectedImport.size !== 1 ? "s" : ""}` : "tasks"}
             </button>
+          </div>
+        </div>
+      )}
+
+      {/* Carry-over modal */}
+      {showCarryover && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowCarryover(false)} />
+          <div className="relative w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-5 max-h-[70vh] flex flex-col" style={{ background: "var(--surface)" }}>
+            <div className="mb-4">
+              <h2 className="font-semibold text-charcoal">Pick up where you left off?</h2>
+              <p className="text-xs text-warm-gray mt-1">These tasks weren't finished yesterday. Select any to move to today.</p>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-1.5 mb-4">
+              {carryoverTasks.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedCarryover(prev => { const s = new Set(prev); s.has(t.id) ? s.delete(t.id) : s.add(t.id); return s; })}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                  style={{ background: selectedCarryover.has(t.id) ? "var(--purple-bg-2)" : "var(--bg)", border: `1px solid ${selectedCarryover.has(t.id) ? "var(--purple)" : "var(--border-2)"}` }}
+                >
+                  <div className="w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center" style={selectedCarryover.has(t.id) ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}>
+                    {selectedCarryover.has(t.id) && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9 10,3" /></svg>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm text-charcoal truncate">{t.text}</p>
+                    <p className="text-xs text-warm-gray">{t.blockName}</p>
+                  </div>
+                </button>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={confirmCarryover}
+                disabled={selectedCarryover.size === 0}
+                className="flex-1 py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+                style={{ background: "var(--purple)" }}
+              >
+                Carry over {selectedCarryover.size > 0 ? selectedCarryover.size : ""}
+              </button>
+              <button
+                onClick={() => setShowCarryover(false)}
+                className="px-4 py-2.5 rounded-xl text-sm font-medium text-warm-gray hover:text-charcoal transition-colors"
+                style={{ background: "var(--bg)" }}
+              >
+                Skip
+              </button>
+            </div>
           </div>
         </div>
       )}
