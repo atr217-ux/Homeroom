@@ -89,6 +89,8 @@ export default function TodayPage() {
   const [editBlockEnd, setEditBlockEnd] = useState("");
   const [liveBlockInviteFor, setLiveBlockInviteFor] = useState<string | null>(null);
   const [selectedInviteFriends, setSelectedInviteFriends] = useState<Set<string>>(new Set());
+  const [unassignedTasks, setUnassignedTasks] = useState<{ id: string; text: string }[]>([]);
+  const [unassignedSearch, setUnassignedSearch] = useState("");
   const [toast, setToast] = useState<string | null>(null);
 
   // ── Init ───────────────────────────────────────────────────────────────────
@@ -288,6 +290,17 @@ export default function TodayPage() {
       }
       setBlockTasks(grouped);
     }
+
+    // My List tasks not yet assigned to any block
+    const { data: loose } = await supabase
+      .from("tasks")
+      .select("id, text")
+      .eq("user_id", userId)
+      .eq("done", false)
+      .is("block_id", null)
+      .order("sort_order", { ascending: true })
+      .limit(100);
+    setUnassignedTasks(loose ?? []);
   }
 
   // ── Block task management ──────────────────────────────────────────────────
@@ -1088,6 +1101,64 @@ export default function TodayPage() {
               </button>
             )}
           </div>
+
+          {/* ── My List (unassigned tasks) ──────────────────────────────────── */}
+          {unassignedTasks.length > 0 && (
+            <div className="mt-6">
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-sm font-semibold text-charcoal">My List</h2>
+                <span className="text-xs" style={{ color: "var(--text-2)" }}>{unassignedTasks.length} task{unassignedTasks.length !== 1 ? "s" : ""} not in a block</span>
+              </div>
+              {/* Search */}
+              <div className="mb-3 relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
+                  <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+                </svg>
+                <input
+                  type="text"
+                  value={unassignedSearch}
+                  onChange={e => setUnassignedSearch(e.target.value)}
+                  placeholder="Search…"
+                  className="w-full pl-8 pr-4 py-2 rounded-xl text-sm focus:outline-none"
+                  style={{ background: "var(--surface)", border: "1px solid var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+                />
+              </div>
+              <div className="space-y-1.5">
+                {(unassignedSearch
+                  ? unassignedTasks.filter(t => t.text.toLowerCase().includes(unassignedSearch.toLowerCase()))
+                  : unassignedTasks
+                ).map(task => (
+                  <div
+                    key={task.id}
+                    className="flex items-center gap-3 rounded-xl px-3 py-2.5"
+                    style={{ background: "var(--surface)", border: "1px solid var(--border-2)" }}
+                  >
+                    <span className="text-sm flex-1 text-charcoal">{task.text}</span>
+                    {todayBlocks.length > 0 && (
+                      <select
+                        defaultValue=""
+                        onChange={async e => {
+                          const blockId = e.target.value;
+                          if (!blockId) return;
+                          await createClient().from("tasks").update({ block_id: blockId }).eq("id", task.id);
+                          setUnassignedTasks(prev => prev.filter(t => t.id !== task.id));
+                          setBlockTasks(prev => ({ ...prev, [blockId]: [...(prev[blockId] ?? []), { id: task.id, text: task.text, done: false, completed_at: null }] }));
+                        }}
+                        className="text-xs rounded-lg px-2 py-1 focus:outline-none"
+                        style={{ background: "var(--bg)", border: "1px solid var(--border-3)", color: "var(--text-2)", fontSize: "14px" }}
+                      >
+                        <option value="">Add to block…</option>
+                        {todayBlocks.map(b => <option key={b.id} value={b.id}>{b.name}</option>)}
+                      </select>
+                    )}
+                  </div>
+                ))}
+                {unassignedSearch && unassignedTasks.filter(t => t.text.toLowerCase().includes(unassignedSearch.toLowerCase())).length === 0 && (
+                  <p className="text-sm text-center py-4" style={{ color: "var(--text-2)" }}>No results for "{unassignedSearch}"</p>
+                )}
+              </div>
+            </div>
+          )}
         </div>
       )}
 
