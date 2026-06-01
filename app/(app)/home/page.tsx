@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
@@ -51,6 +51,22 @@ type ListTask = {
   text: string;
   done: boolean;
   homeroom_id?: string | null;
+};
+
+type Block = {
+  id: string;
+  name: string;
+  date: string;
+  start_time: string | null;
+  end_time: string | null;
+  position: number;
+};
+
+type BlockTask = {
+  id: string;
+  text: string;
+  done: boolean;
+  completed_at: string | null;
 };
 
 type ActiveSession = {
@@ -465,6 +481,17 @@ export default function HomePage() {
   const [prepopSearch, setPrepopSearch] = useState("");
   const [prepopNewTask, setPrepopNewTask] = useState("");
 
+  // ── Blocks ──────────────────────────────────────────────────────────────────
+  const [todayBlocks, setTodayBlocks] = useState<Block[]>([]);
+  const [blockTasks, setBlockTasks] = useState<Record<string, BlockTask[]>>({});
+  const [blockInputs, setBlockInputs] = useState<Record<string, string>>({});
+  const blockInputRefs = useRef<Record<string, HTMLDivElement | null>>({});
+  const [showImportFor, setShowImportFor] = useState<string | null>(null);
+  const [importableTasks, setImportableTasks] = useState<{ id: string; text: string }[]>([]);
+  const [selectedImport, setSelectedImport] = useState<Set<string>>(new Set());
+  const [addingBlock, setAddingBlock] = useState(false);
+  const [newBlockName, setNewBlockName] = useState("");
+
   const [friends, setFriends] = useState<Friend[]>([]);
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
   const [expandedRooms, setExpandedRooms] = useState<Set<string>>(new Set());
@@ -865,6 +892,123 @@ export default function HomePage() {
     return () => clearInterval(id);
   }, []);
 
+  // ── Blocks: load / create ────────────────────────────────────────────────────
+
+  useEffect(() => {
+    if (!myUserId) return;
+    loadTodayBlocks(myUserId);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [myUserId]);
+
+  async function loadTodayBlocks(userId: string) {
+    const supabase = createClient();
+    const todayDate = dateKey(new Date());
+
+    // Fetch existing blocks for today
+    let { data: blocks } = await supabase
+      .from("blocks")
+      .select("id, name, date, start_time, end_time, position")
+      .eq("user_id", userId)
+      .eq("date", todayDate)
+      .order("position", { ascending: true });
+
+    // Auto-create default "Today" block if none exists
+    if (!blocks || blocks.length === 0) {
+      const { data: created } = await supabase
+        .from("blocks")
+        .insert({ user_id: userId, date: todayDate, name: "Today", position: 0 })
+        .select("id, name, date, start_time, end_time, position")
+        .single();
+      blocks = created ? [created] : [];
+    }
+
+    setTodayBlocks((blocks ?? []) as Block[]);
+
+    // Load tasks for all blocks in one query
+    const blockIds = (blocks ?? []).map(b => b.id);
+    if (blockIds.length > 0) {
+      const { data: tasksWithBlock } = await supabase
+        .from("tasks")
+        .select("id, text, done, completed_at, block_id")
+        .in("block_id", blockIds)
+        .order("created_at", { ascending: true });
+      const grouped: Record<string, BlockTask[]> = {};
+      for (const b of blockIds) grouped[b] = [];
+      for (const t of (tasksWithBlock ?? [])) {
+        if (t.block_id && grouped[t.block_id]) {
+          grouped[t.block_id].push({ id: t.id, text: t.text, done: t.done, completed_at: t.completed_at });
+        }
+      }
+      setBlockTasks(grouped);
+    }
+  }
+
+  async function addBlockTask(blockId: string) {
+    const text = (blockInputs[blockId] ?? "").trim();
+    if (!text || !myUserId) return;
+    setBlockInputs(prev => ({ ...prev, [blockId]: "" }));
+    if (blockInputRefs.current[blockId]) blockInputRefs.current[blockId]!.innerHTML = "";
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .insert({ user_id: myUserId, text, done: false, block_id: blockId, sort_order: (blockTasks[blockId]?.length ?? 0) })
+      .select("id, text, done, completed_at")
+      .single();
+    if (data) {
+      setBlockTasks(prev => ({ ...prev, [blockId]: [...(prev[blockId] ?? []), { id: data.id, text: data.text, done: data.done, completed_at: data.completed_at }] }));
+    }
+  }
+
+  async function toggleBlockTask(blockId: string, taskId: string, currentDone: boolean) {
+    const nowDone = !currentDone;
+    setBlockTasks(prev => ({
+      ...prev,
+      [blockId]: (prev[blockId] ?? []).map(t => t.id === taskId ? { ...t, done: nowDone, completed_at: nowDone ? new Date().toISOString() : null } : t),
+    }));
+    await createClient().from("tasks").update({ done: nowDone, completed_at: nowDone ? new Date().toISOString() : null }).eq("id", taskId);
+  }
+
+  async function addBlock() {
+    const name = newBlockName.trim() || "New block";
+    if (!myUserId) return;
+    const supabase = createClient();
+    const todayDate = dateKey(new Date());
+    const { data } = await supabase
+      .from("blocks")
+      .insert({ user_id: myUserId, date: todayDate, name, position: todayBlocks.length })
+      .select("id, name, date, start_time, end_time, position")
+      .single();
+    if (data) {
+      setTodayBlocks(prev => [...prev, data as Block]);
+      setBlockTasks(prev => ({ ...prev, [data.id]: [] }));
+    }
+    setAddingBlock(false);
+    setNewBlockName("");
+  }
+
+  async function openImport(blockId: string) {
+    if (!myUserId) return;
+    const { data } = await createClient()
+      .from("tasks")
+      .select("id, text")
+      .eq("user_id", myUserId)
+      .eq("done", false)
+      .is("block_id", null)
+      .order("sort_order", { ascending: true })
+      .limit(50);
+    setImportableTasks(data ?? []);
+    setSelectedImport(new Set());
+    setShowImportFor(blockId);
+  }
+
+  async function confirmImport() {
+    if (!showImportFor || selectedImport.size === 0) { setShowImportFor(null); return; }
+    await createClient().from("tasks").update({ block_id: showImportFor }).in("id", [...selectedImport]);
+    const added = importableTasks.filter(t => selectedImport.has(t.id)).map(t => ({ id: t.id, text: t.text, done: false, completed_at: null }));
+    setBlockTasks(prev => ({ ...prev, [showImportFor!]: [...(prev[showImportFor!] ?? []), ...added] }));
+    setShowImportFor(null);
+  }
+
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   async function savePublicScheduled(session: PublicScheduledSession) {
@@ -1216,28 +1360,205 @@ export default function HomePage() {
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
       {/* Header */}
-      <div className="pt-8 pb-6">
+      <div className="pt-8 pb-4">
         <div className="flex items-center justify-between mb-1">
           <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
           <Link href="/profile" className="w-8 h-8 rounded-full flex items-center justify-center text-lg overflow-hidden" style={{ background: avatar ? "var(--border)" : "#7C9E87" }}>
             {avatar ?? <span className="text-white text-xs font-semibold">?</span>}
           </Link>
         </div>
-        <h1 className="text-2xl font-bold text-charcoal leading-snug">Find your Homeroom.</h1>
-        <p className="text-sm text-warm-gray mt-1">Better focus. Better company.</p>
-        <button
-          onClick={() => withJoinConfirm(() => router.push("/start"))}
-          className="mt-4 flex items-center gap-2 text-sm font-semibold transition-colors"
-          style={{ color: "var(--purple)" }}
-        >
-          <span
-            className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0"
-            style={{ background: "var(--purple-bg-2)" }}
+        <h1 className="text-2xl font-bold text-charcoal leading-snug">
+          {new Date().toLocaleDateString(undefined, { weekday: "long" })}
+        </h1>
+        <p className="text-sm text-warm-gray">
+          {new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+        </p>
+      </div>
+
+      {/* ── Today blocks ─────────────────────────────────────────────────────── */}
+      <div className="mb-6 space-y-4">
+        {todayBlocks.map(block => {
+          const tasks = blockTasks[block.id] ?? [];
+          const doneCount = tasks.filter(t => t.done).length;
+          const inputVal = blockInputs[block.id] ?? "";
+          return (
+            <div key={block.id} className="rounded-2xl border p-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              {/* Block header */}
+              <div className="flex items-center justify-between mb-3">
+                <div>
+                  <h2 className="text-sm font-bold text-charcoal">{block.name}</h2>
+                  {block.start_time && (
+                    <p className="text-xs text-warm-gray mt-0.5">
+                      {block.start_time.slice(0, 5)}{block.end_time ? ` – ${block.end_time.slice(0, 5)}` : ""}
+                    </p>
+                  )}
+                </div>
+                {tasks.length > 0 && (
+                  <span className="text-xs text-warm-gray">{doneCount}/{tasks.length} done</span>
+                )}
+              </div>
+
+              {/* Task list */}
+              {tasks.length > 0 && (
+                <div className="space-y-1.5 mb-3">
+                  {tasks.map(task => (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 rounded-xl px-3 py-2.5 transition-colors"
+                      style={{ background: "var(--bg)", border: "1px solid var(--border-2)" }}
+                    >
+                      <button
+                        onClick={() => toggleBlockTask(block.id, task.id, task.done)}
+                        className="w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors"
+                        style={task.done ? { background: "var(--sage)", borderColor: "var(--sage)" } : { borderColor: "#D1D5DB" }}
+                      >
+                        {task.done && (
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="2,6 5,9 10,3" />
+                          </svg>
+                        )}
+                      </button>
+                      <span className={`text-sm flex-1 ${task.done ? "line-through text-warm-gray" : "text-charcoal"}`}>
+                        {task.text}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* Add task input */}
+              <div className="flex gap-2">
+                <div
+                  className="flex-1 relative rounded-xl transition-colors"
+                  style={{ background: "var(--bg)", border: `2px solid ${inputVal ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}
+                >
+                  {!inputVal && (
+                    <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>
+                      Add a task…
+                    </span>
+                  )}
+                  <div
+                    ref={el => { blockInputRefs.current[block.id] = el; }}
+                    contentEditable
+                    suppressContentEditableWarning
+                    role="textbox"
+                    onInput={() => {
+                      const el = blockInputRefs.current[block.id];
+                      if (!el) return;
+                      const text = el.innerText.replace(/\n/g, "");
+                      setBlockInputs(prev => ({ ...prev, [block.id]: text }));
+                    }}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addBlockTask(block.id); } }}
+                    onPaste={e => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
+                    spellCheck={false}
+                    autoCorrect="off"
+                    autoCapitalize="off"
+                    className="w-full px-3 py-2.5 focus:outline-none"
+                    style={{ color: "var(--text)", outline: "none", fontSize: "16px" } as React.CSSProperties}
+                  />
+                </div>
+                <button
+                  onClick={() => addBlockTask(block.id)}
+                  style={{ color: "var(--purple)" }}
+                  className="flex-shrink-0 hover:opacity-70 transition-opacity"
+                >
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Import from list */}
+              <button
+                onClick={() => openImport(block.id)}
+                className="mt-2 text-xs font-medium transition-opacity hover:opacity-70"
+                style={{ color: "var(--text-2)" }}
+              >
+                + Add from My List
+              </button>
+            </div>
+          );
+        })}
+
+        {/* Add a block */}
+        {addingBlock ? (
+          <div className="rounded-2xl border p-4 flex gap-2 items-center" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            <input
+              autoFocus
+              value={newBlockName}
+              onChange={e => setNewBlockName(e.target.value)}
+              onKeyDown={e => { if (e.key === "Enter") addBlock(); if (e.key === "Escape") { setAddingBlock(false); setNewBlockName(""); } }}
+              placeholder="Block name…"
+              className="flex-1 text-sm bg-transparent focus:outline-none text-charcoal placeholder:text-warm-gray"
+            />
+            <button onClick={addBlock} className="text-xs font-semibold px-3 py-1.5 rounded-xl text-white" style={{ background: "var(--purple)" }}>Add</button>
+            <button onClick={() => { setAddingBlock(false); setNewBlockName(""); }} className="text-xs text-warm-gray hover:text-charcoal transition-colors">Cancel</button>
+          </div>
+        ) : (
+          <button
+            onClick={() => setAddingBlock(true)}
+            className="w-full text-xs font-medium py-2.5 rounded-2xl border border-dashed transition-colors hover:opacity-70 flex items-center justify-center gap-1.5"
+            style={{ borderColor: "var(--border-3)", color: "var(--text-2)" }}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#7C3AED" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
             </svg>
-          </span>
+            Add a block
+          </button>
+        )}
+      </div>
+
+      {/* Import from list modal */}
+      {showImportFor && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setShowImportFor(null)} />
+          <div className="relative bg-white w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-5 max-h-[70vh] flex flex-col">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-charcoal">Add from My List</h2>
+              <button onClick={() => setShowImportFor(null)} className="text-warm-gray hover:text-charcoal p-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-1.5 mb-4">
+              {importableTasks.length === 0 && <p className="text-sm text-warm-gray text-center py-6">No tasks in My List.</p>}
+              {importableTasks.map(t => (
+                <button
+                  key={t.id}
+                  onClick={() => setSelectedImport(prev => { const s = new Set(prev); s.has(t.id) ? s.delete(t.id) : s.add(t.id); return s; })}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                  style={{ background: selectedImport.has(t.id) ? "var(--purple-bg-2)" : "var(--bg)", border: `1px solid ${selectedImport.has(t.id) ? "var(--purple)" : "var(--border-2)"}` }}
+                >
+                  <div className="w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center transition-colors" style={selectedImport.has(t.id) ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}>
+                    {selectedImport.has(t.id) && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9 10,3" /></svg>}
+                  </div>
+                  <span className="text-sm text-charcoal">{t.text}</span>
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={confirmImport}
+              disabled={selectedImport.size === 0}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+              style={{ background: "var(--purple)" }}
+            >
+              Add {selectedImport.size > 0 ? `${selectedImport.size} task${selectedImport.size !== 1 ? "s" : ""}` : "tasks"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Divider before rooms/sessions */}
+      <div className="border-t mb-6" style={{ borderColor: "var(--border)" }} />
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-sm font-semibold text-charcoal">Rooms</h2>
+        <button
+          onClick={() => withJoinConfirm(() => router.push("/start"))}
+          className="flex items-center gap-1.5 text-xs font-semibold transition-colors"
+          style={{ color: "var(--purple)" }}
+        >
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+          </svg>
           Start a Homeroom
         </button>
       </div>
