@@ -202,7 +202,7 @@ export default function BottomNav() {
             </svg>
           </div>
           <span className="text-xs font-medium" style={{ color: roomActive ? "var(--purple)" : "var(--text-2)" }}>
-            Room
+            Live
           </span>
         </Link>
       </div>

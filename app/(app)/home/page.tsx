@@ -60,6 +60,16 @@ type Block = {
   start_time: string | null;
   end_time: string | null;
   position: number;
+  is_live: boolean;
+};
+
+type FriendLiveBlock = {
+  id: string;
+  name: string;
+  ownerName: string;
+  ownerColor: string;
+  tasksDone: number;
+  tasksTotal: number;
 };
 
 type BlockTask = {
@@ -498,6 +508,9 @@ export default function HomePage() {
   const [carryoverTasks, setCarryoverTasks] = useState<{ id: string; text: string; blockName: string }[]>([]);
   const [selectedCarryover, setSelectedCarryover] = useState<Set<string>>(new Set());
   const [showCarryover, setShowCarryover] = useState(false);
+  const [liveBlockInviteFor, setLiveBlockInviteFor] = useState<string | null>(null);
+  const [selectedInviteFriends, setSelectedInviteFriends] = useState<Set<string>>(new Set());
+  const [friendsLiveBlocks, setFriendsLiveBlocks] = useState<FriendLiveBlock[]>([]);
 
   const [friends, setFriends] = useState<Friend[]>([]);
   const [roomParticipants, setRoomParticipants] = useState<Record<string, string[]>>({});
@@ -904,6 +917,7 @@ export default function HomePage() {
   useEffect(() => {
     if (!myUserId) return;
     loadTodayBlocks(myUserId);
+    loadFriendsLiveBlocks(myUserId);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [myUserId]);
 
@@ -914,7 +928,7 @@ export default function HomePage() {
     // Fetch existing blocks for today
     let { data: blocks } = await supabase
       .from("blocks")
-      .select("id, name, date, start_time, end_time, position")
+      .select("id, name, date, start_time, end_time, position, is_live")
       .eq("user_id", userId)
       .eq("date", todayDate)
       .order("position", { ascending: true });
@@ -924,7 +938,7 @@ export default function HomePage() {
       const { data: created } = await supabase
         .from("blocks")
         .insert({ user_id: userId, date: todayDate, name: "Today", position: 0 })
-        .select("id, name, date, start_time, end_time, position")
+        .select("id, name, date, start_time, end_time, position, is_live")
         .single();
       blocks = created ? [created] : [];
     }
@@ -1051,7 +1065,7 @@ export default function HomePage() {
     const name = editBlockName.trim() || "Block";
     const start_time = editBlockStart || null;
     const end_time = editBlockEnd || null;
-    setTodayBlocks(prev => prev.map(b => b.id === blockId ? { ...b, name, start_time, end_time } : b));
+    setTodayBlocks(prev => prev.map(b => b.id === blockId ? { ...b, name, start_time, end_time: end_time } : b));
     setEditingBlockId(null);
     await createClient().from("blocks").update({ name, start_time, end_time }).eq("id", blockId);
   }
@@ -1074,6 +1088,67 @@ export default function HomePage() {
       .filter(t => selectedCarryover.has(t.id))
       .map(t => ({ id: t.id, text: t.text, done: false, completed_at: null }));
     setBlockTasks(prev => ({ ...prev, [targetBlockId]: [...(prev[targetBlockId] ?? []), ...moved] }));
+  }
+
+  async function toggleBlockLive(blockId: string, currentIsLive: boolean) {
+    const is_live = !currentIsLive;
+    const visibility = is_live ? "shared" : "private";
+    setTodayBlocks(prev => prev.map(b => b.id === blockId ? { ...b, is_live } : b));
+    await createClient().from("blocks").update({ is_live, visibility }).eq("id", blockId);
+  }
+
+  async function inviteFriendsToBlock() {
+    if (!liveBlockInviteFor || selectedInviteFriends.size === 0) { setLiveBlockInviteFor(null); return; }
+    const supabase = createClient();
+    const usernames = [...selectedInviteFriends];
+    const { data: profiles } = await supabase.from("profiles").select("id, username").in("username", usernames);
+    if (profiles && profiles.length > 0) {
+      await Promise.all(profiles.map(p =>
+        supabase.from("block_invites").upsert(
+          { block_id: liveBlockInviteFor, invited_user_id: p.id, status: "invited" },
+          { onConflict: "block_id,invited_user_id", ignoreDuplicates: true }
+        )
+      ));
+    }
+    setLiveBlockInviteFor(null);
+    setSelectedInviteFriends(new Set());
+  }
+
+  async function loadFriendsLiveBlocks(userId: string) {
+    const supabase = createClient();
+    const { data: invites } = await supabase
+      .from("block_invites")
+      .select("block_id")
+      .eq("invited_user_id", userId)
+      .in("status", ["invited", "joined"]);
+    const invitedIds = (invites ?? []).map(r => r.block_id as string);
+    if (!invitedIds.length) { setFriendsLiveBlocks([]); return; }
+
+    const { data: liveBlocks } = await supabase
+      .from("blocks")
+      .select("id, name, user_id")
+      .in("id", invitedIds)
+      .eq("is_live", true);
+    if (!liveBlocks || liveBlocks.length === 0) { setFriendsLiveBlocks([]); return; }
+
+    const ownerIds = [...new Set(liveBlocks.map(b => b.user_id as string))];
+    const { data: profiles } = await supabase.from("profiles").select("id, username").in("id", ownerIds);
+    const profileMap = Object.fromEntries((profiles ?? []).map(p => [p.id, p.username as string]));
+
+    const blockIds = liveBlocks.map(b => b.id);
+    const { data: taskRows } = await supabase
+      .from("tasks").select("block_id, done").in("block_id", blockIds);
+    const tasksByBlock: Record<string, { done: number; total: number }> = {};
+    for (const t of (taskRows ?? [])) {
+      if (!tasksByBlock[t.block_id]) tasksByBlock[t.block_id] = { done: 0, total: 0 };
+      tasksByBlock[t.block_id].total++;
+      if (t.done) tasksByBlock[t.block_id].done++;
+    }
+
+    setFriendsLiveBlocks(liveBlocks.map(b => {
+      const uname = profileMap[b.user_id] ?? "Someone";
+      return { id: b.id, name: b.name, ownerName: uname, ownerColor: colorFromUsername(uname), tasksDone: tasksByBlock[b.id]?.done ?? 0, tasksTotal: tasksByBlock[b.id]?.total ?? 0 };
+    }));
   }
 
   async function confirmImport() {
@@ -1496,25 +1571,64 @@ export default function HomePage() {
                   </div>
                 </div>
               ) : (
-                <div className="flex items-center justify-between mb-3">
-                  <div>
-                    <h2 className="text-sm font-bold text-charcoal">{block.name}</h2>
-                    {block.start_time && (
-                      <p className="text-xs text-warm-gray mt-0.5">
-                        {block.start_time.slice(0, 5)}{block.end_time ? ` – ${block.end_time.slice(0, 5)}` : ""}
-                      </p>
-                    )}
+                <div className="mb-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      {block.is_live && (
+                        <span className="inline-block w-2 h-2 rounded-full animate-pulse" style={{ background: "var(--red)" }} />
+                      )}
+                      <h2 className="text-sm font-bold text-charcoal">{block.name}</h2>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      {tasks.length > 0 && (
+                        <span className="text-xs text-warm-gray">{doneCount}/{tasks.length} done</span>
+                      )}
+                      <button onClick={() => startEditBlock(block)} className="text-warm-gray hover:text-charcoal transition-colors" aria-label="Edit block">
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
+                          <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
+                        </svg>
+                      </button>
+                    </div>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {tasks.length > 0 && (
-                      <span className="text-xs text-warm-gray">{doneCount}/{tasks.length} done</span>
-                    )}
-                    <button onClick={() => startEditBlock(block)} className="text-warm-gray hover:text-charcoal transition-colors" aria-label="Edit block">
-                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7" />
-                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z" />
-                      </svg>
+                  {block.start_time && (
+                    <p className="text-xs text-warm-gray mt-0.5 ml-4">
+                      {block.start_time.slice(0, 5)}{block.end_time ? ` – ${block.end_time.slice(0, 5)}` : ""}
+                    </p>
+                  )}
+                  <div className="flex items-center gap-2 mt-2">
+                    <button
+                      onClick={() => toggleBlockLive(block.id, block.is_live)}
+                      className="flex items-center gap-1.5 text-xs font-semibold px-2.5 py-1 rounded-lg transition-colors"
+                      style={block.is_live
+                        ? { background: "rgba(239,68,68,0.1)", color: "var(--red)" }
+                        : { background: "rgba(139,92,246,0.1)", color: "var(--purple)" }}
+                    >
+                      {block.is_live ? (
+                        <>
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                          End session
+                        </>
+                      ) : (
+                        <>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="currentColor" stroke="none"><polygon points="5,3 19,12 5,21" /></svg>
+                          Go Live
+                        </>
+                      )}
                     </button>
+                    {block.is_live && (
+                      <button
+                        onClick={() => { setLiveBlockInviteFor(block.id); setSelectedInviteFriends(new Set()); }}
+                        className="flex items-center gap-1 text-xs font-medium px-2.5 py-1 rounded-lg transition-colors"
+                        style={{ background: "var(--bg)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" />
+                          <line x1="19" y1="8" x2="19" y2="14" /><line x1="22" y1="11" x2="16" y2="11" />
+                        </svg>
+                        Invite
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
@@ -1668,6 +1782,46 @@ export default function HomePage() {
         </div>
       )}
 
+      {/* Invite friends to live block modal */}
+      {liveBlockInviteFor && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
+          <div className="absolute inset-0 bg-black/40" onClick={() => setLiveBlockInviteFor(null)} />
+          <div className="relative w-full max-w-sm rounded-t-3xl sm:rounded-3xl shadow-xl p-5 max-h-[70vh] flex flex-col" style={{ background: "var(--surface)" }}>
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="font-semibold text-charcoal">Invite to this block</h2>
+              <button onClick={() => setLiveBlockInviteFor(null)} className="text-warm-gray hover:text-charcoal p-1">
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M18 6L6 18M6 6l12 12" /></svg>
+              </button>
+            </div>
+            <div className="flex-1 overflow-y-auto space-y-1.5 mb-4">
+              {friends.length === 0 && <p className="text-sm text-warm-gray text-center py-6">No friends yet.</p>}
+              {friends.map(f => (
+                <button
+                  key={f.id}
+                  onClick={() => setSelectedInviteFriends(prev => { const s = new Set(prev); s.has(f.name) ? s.delete(f.name) : s.add(f.name); return s; })}
+                  className="w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                  style={{ background: selectedInviteFriends.has(f.name) ? "var(--purple-bg-2)" : "var(--bg)", border: `1px solid ${selectedInviteFriends.has(f.name) ? "var(--purple)" : "var(--border-2)"}` }}
+                >
+                  <div className="w-8 h-8 rounded-full flex items-center justify-center text-white text-xs font-semibold flex-shrink-0" style={{ background: f.color }}>{f.initials}</div>
+                  <span className="text-sm text-charcoal">{f.name}</span>
+                  {selectedInviteFriends.has(f.name) && (
+                    <svg className="ml-auto" width="14" height="14" viewBox="0 0 12 12" fill="none" stroke="var(--purple)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2,6 5,9 10,3" /></svg>
+                  )}
+                </button>
+              ))}
+            </div>
+            <button
+              onClick={inviteFriendsToBlock}
+              disabled={selectedInviteFriends.size === 0}
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-opacity disabled:opacity-40"
+              style={{ background: "var(--purple)" }}
+            >
+              Invite {selectedInviteFriends.size > 0 ? selectedInviteFriends.size : ""}
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* Carry-over modal */}
       {showCarryover && (
         <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center">
@@ -1712,6 +1866,32 @@ export default function HomePage() {
                 Skip
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* Friends' live blocks */}
+      {friendsLiveBlocks.length > 0 && (
+        <div className="mb-6">
+          <h2 className="text-sm font-semibold text-charcoal mb-3">Live now</h2>
+          <div className="space-y-2">
+            {friendsLiveBlocks.map(lb => (
+              <div key={lb.id} className="flex items-center gap-3 rounded-2xl px-4 py-3 border" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                <div className="w-9 h-9 rounded-full flex-shrink-0 flex items-center justify-center text-white text-xs font-semibold" style={{ background: lb.ownerColor }}>
+                  {lb.ownerName.slice(0, 2).toUpperCase()}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm text-charcoal font-medium leading-snug">{lb.ownerName}</p>
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-red-500 animate-pulse" />
+                    <span className="text-xs text-warm-gray">{lb.name}</span>
+                    {lb.tasksTotal > 0 && (
+                      <span className="text-xs text-warm-gray">· {lb.tasksDone}/{lb.tasksTotal} done</span>
+                    )}
+                  </div>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
       )}
