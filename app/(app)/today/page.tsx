@@ -145,40 +145,45 @@ export default function TodayPage() {
     const supabase = createClient();
     const todayDate = dateKey(new Date());
 
-    // All undone tasks for this user
-    const { data: allTasks } = await supabase
+    // Simple query — no optional columns so it can't fail due to missing migrations
+    const { data: allTasks, error } = await supabase
       .from("tasks")
-      .select("id, text, block_id")
+      .select("id, text")
       .eq("user_id", userId)
       .eq("done", false)
-      .order("sort_order", { ascending: true })
+      .order("created_at", { ascending: true })
       .limit(100);
 
-    if (!allTasks || allTasks.length === 0) {
+    if (error || !allTasks) {
       setSetupTasks([]);
       setCommittedIds(new Set());
       return;
     }
 
-    // Look up block names for any tasks already in a block
-    const blockIds = [...new Set(allTasks.filter(t => t.block_id).map(t => t.block_id as string))];
-    let blockNameMap: Record<string, { name: string; date: string }> = {};
-    if (blockIds.length > 0) {
-      const { data: blocks } = await supabase
+    // Optionally label tasks that came from prior-day blocks (best-effort, ignored if blocks table not yet migrated)
+    const blockLabels: Record<string, string> = {};
+    try {
+      const { data: priorBlocks } = await supabase
         .from("blocks")
-        .select("id, name, date")
-        .in("id", blockIds);
-      blockNameMap = Object.fromEntries((blocks ?? []).map(b => [b.id, { name: b.name, date: b.date }]));
-    }
+        .select("id, name")
+        .eq("user_id", userId)
+        .lt("date", todayDate)
+        .order("date", { ascending: false })
+        .limit(5);
+      if (priorBlocks && priorBlocks.length > 0) {
+        const nameMap = Object.fromEntries(priorBlocks.map(b => [b.id, b.name as string]));
+        const { data: priorTasks } = await supabase
+          .from("tasks")
+          .select("id, block_id")
+          .in("block_id", priorBlocks.map(b => b.id))
+          .eq("done", false);
+        for (const t of (priorTasks ?? [])) {
+          blockLabels[t.id] = `From: ${nameMap[t.block_id] ?? "Block"}`;
+        }
+      }
+    } catch { /* silently ignore if blocks haven't been migrated yet */ }
 
-    const combined: SetupTask[] = allTasks.map(t => {
-      if (!t.block_id) return { id: t.id, text: t.text };
-      const block = blockNameMap[t.block_id];
-      if (!block) return { id: t.id, text: t.text };
-      const label = block.date < todayDate ? `From: ${block.name}` : `In block: ${block.name}`;
-      return { id: t.id, text: t.text, fromBlock: label };
-    });
-
+    const combined: SetupTask[] = allTasks.map(t => ({ id: t.id, text: t.text, fromBlock: blockLabels[t.id] }));
     setSetupTasks(combined);
     setCommittedIds(new Set(combined.map(t => t.id)));
   }
@@ -291,16 +296,18 @@ export default function TodayPage() {
       setBlockTasks(grouped);
     }
 
-    // My List tasks not yet assigned to any block
-    const { data: loose } = await supabase
-      .from("tasks")
-      .select("id, text")
-      .eq("user_id", userId)
-      .eq("done", false)
-      .is("block_id", null)
-      .order("sort_order", { ascending: true })
-      .limit(100);
-    setUnassignedTasks(loose ?? []);
+    // My List tasks not yet assigned to any block (best-effort if block_id column exists)
+    try {
+      const { data: loose } = await supabase
+        .from("tasks")
+        .select("id, text")
+        .eq("user_id", userId)
+        .eq("done", false)
+        .is("block_id", null)
+        .order("created_at", { ascending: true })
+        .limit(100);
+      setUnassignedTasks(loose ?? []);
+    } catch { setUnassignedTasks([]); }
   }
 
   // ── Block task management ──────────────────────────────────────────────────
