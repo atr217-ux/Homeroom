@@ -21,7 +21,18 @@ type Block = {
 
 type BlockTask = { id: string; text: string; done: boolean; completed_at: string | null };
 
-type SetupTask = { id: string; text: string; fromBlock?: string };
+type Tag = { id: string; name: string };
+type SetupTask = { id: string; text: string; fromBlock?: string; tagIds: string[]; created_at: string };
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
+
+const TAG_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7"];
+function tagColor(name: string): { bg: string; fg: string } {
+  let h = 0;
+  for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
+  const c = TAG_COLORS[Math.abs(h) % TAG_COLORS.length];
+  return { bg: c + "22", fg: c };
+}
 
 type DraftBlock = {
   tempId: string;
@@ -58,6 +69,13 @@ export default function TodayPage() {
   const [setupPhase, setSetupPhase] = useState<"loading" | "tasks" | "blocks" | null>("loading");
   const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
   const [setupSearch, setSetupSearch] = useState("");
+  const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
+  const [taskSortDir, setTaskSortDir] = useState<"none" | "asc" | "desc">("none");
+  const [showAllTasks, setShowAllTasks] = useState(false);
+  const TASK_LIMIT = 10;
   const [committedIds, setCommittedIds] = useState<Set<string>>(new Set());
   const [draftBlocks, setDraftBlocks] = useState<DraftBlock[]>([]);
   const [addingDraftBlock, setAddingDraftBlock] = useState(false);
@@ -136,6 +154,14 @@ export default function TodayPage() {
     }
 
     init();
+
+    function onClickOutside(e: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onClickOutside);
+    return () => document.removeEventListener("mousedown", onClickOutside);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -148,7 +174,7 @@ export default function TodayPage() {
     // Simple query — no optional columns so it can't fail due to missing migrations
     const { data: allTasks, error } = await supabase
       .from("tasks")
-      .select("id, text")
+      .select("id, text, created_at")
       .eq("user_id", userId)
       .eq("done", false)
       .order("created_at", { ascending: true })
@@ -160,7 +186,23 @@ export default function TodayPage() {
       return;
     }
 
-    // Optionally label tasks that came from prior-day blocks (best-effort, ignored if blocks table not yet migrated)
+    const taskIds = allTasks.map(t => t.id);
+
+    // Load tags and task→tag mappings in parallel (best-effort)
+    const [tagsResult, taskTagsResult] = await Promise.allSettled([
+      supabase.from("tags").select("id, name").eq("user_id", userId),
+      taskIds.length > 0 ? supabase.from("task_tags").select("task_id, tag_id").in("task_id", taskIds) : Promise.resolve({ data: [] }),
+    ]);
+    const tagsData = tagsResult.status === "fulfilled" ? (tagsResult.value.data ?? []) : [];
+    const taskTagsData = taskTagsResult.status === "fulfilled" ? ((taskTagsResult.value as { data: { task_id: string; tag_id: string }[] | null }).data ?? []) : [];
+    setAllTags(tagsData as Tag[]);
+    const taskTagMap: Record<string, string[]> = {};
+    for (const r of taskTagsData) {
+      if (!taskTagMap[r.task_id]) taskTagMap[r.task_id] = [];
+      taskTagMap[r.task_id].push(r.tag_id);
+    }
+
+    // Optionally label tasks from prior-day blocks (best-effort)
     const blockLabels: Record<string, string> = {};
     try {
       const { data: priorBlocks } = await supabase
@@ -183,7 +225,13 @@ export default function TodayPage() {
       }
     } catch { /* silently ignore if blocks haven't been migrated yet */ }
 
-    const combined: SetupTask[] = allTasks.map(t => ({ id: t.id, text: t.text, fromBlock: blockLabels[t.id] }));
+    const combined: SetupTask[] = allTasks.map(t => ({
+      id: t.id,
+      text: t.text,
+      created_at: t.created_at as string,
+      tagIds: taskTagMap[t.id] ?? [],
+      fromBlock: blockLabels[t.id],
+    }));
     setSetupTasks(combined);
     setCommittedIds(new Set(combined.map(t => t.id)));
   }
@@ -479,9 +527,18 @@ export default function TodayPage() {
 
   // ── JSX ────────────────────────────────────────────────────────────────────
 
-  const filteredSetupTasks = setupSearch
-    ? setupTasks.filter(t => t.text.toLowerCase().includes(setupSearch.toLowerCase()))
+  const tagFilteredSetupTasks = tagFilters.length > 0
+    ? setupTasks.filter(t => tagFilters.every(id => t.tagIds.includes(id)))
     : setupTasks;
+  const searchedSetupTasks = setupSearch.trim()
+    ? tagFilteredSetupTasks.filter(t => t.text.toLowerCase().includes(setupSearch.toLowerCase().trim()))
+    : tagFilteredSetupTasks;
+  const filteredSetupTasks = taskSortDir === "none"
+    ? searchedSetupTasks
+    : [...searchedSetupTasks].sort((a, b) => {
+        const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return taskSortDir === "asc" ? diff : -diff;
+      });
 
   return (
     <div className="max-w-2xl mx-auto px-4 pb-24">
@@ -502,18 +559,71 @@ export default function TodayPage() {
           </div>
 
           {/* Search bar */}
-          <div className="mb-4 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
-              <circle cx="11" cy="11" r="8" /><line x1="21" y1="21" x2="16.65" y2="16.65" />
+          <div className="mb-3 relative">
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
+              <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
             </svg>
             <input
               type="text"
               value={setupSearch}
               onChange={e => setSetupSearch(e.target.value)}
               placeholder="Search tasks…"
-              className="w-full pl-9 pr-4 py-2.5 rounded-xl text-sm focus:outline-none"
-              style={{ background: "var(--surface)", border: "1px solid var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+              className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
+              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
             />
+          </div>
+
+          {/* Tag filter + sort row */}
+          <div className="flex items-center gap-2 mb-4">
+            {allTags.length > 0 && (
+              <div ref={tagDropdownRef} className="relative">
+                <button
+                  onClick={() => setTagDropdownOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+                  style={tagFilters.length > 0
+                    ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
+                  </svg>
+                  {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""} selected` : "Filter by tag"}
+                  {tagFilters.length > 0 && (
+                    <span onClick={e => { e.stopPropagation(); setTagFilters([]); }} className="ml-1 opacity-70 hover:opacity-100">×</span>
+                  )}
+                </button>
+                {tagDropdownOpen && (
+                  <div className="absolute left-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                    {allTags.map(tag => {
+                      const { bg, fg } = tagColor(tag.name);
+                      const checked = tagFilters.includes(tag.id);
+                      return (
+                        <button
+                          key={tag.id}
+                          onClick={() => setTagFilters(prev => checked ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
+                        >
+                          <span className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors"
+                            style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}>
+                            {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 6 5 9 10 3" /></svg>}
+                          </span>
+                          <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+            <button
+              onClick={() => setTaskSortDir(d => d === "none" ? "desc" : d === "desc" ? "asc" : "none")}
+              className="ml-auto flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-medium transition-colors flex-shrink-0"
+              style={taskSortDir !== "none"
+                ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+            >
+              Date added {taskSortDir === "asc" ? "↑" : taskSortDir === "desc" ? "↓" : ""}
+            </button>
           </div>
 
           {setupTasks.length === 0 ? (
@@ -548,8 +658,8 @@ export default function TodayPage() {
                   <span className="text-xs ml-auto" style={{ color: "var(--text-2)" }}>{filteredSetupTasks.length} result{filteredSetupTasks.length !== 1 ? "s" : ""}</span>
                 )}
               </div>
-              <div className="space-y-1.5 mb-8">
-                {filteredSetupTasks.map(task => {
+              <div className="space-y-2 mb-8">
+                {(showAllTasks ? filteredSetupTasks : filteredSetupTasks.slice(0, TASK_LIMIT)).map(task => {
                   const checked = committedIds.has(task.id);
                   return (
                     <button
@@ -559,33 +669,57 @@ export default function TodayPage() {
                         s.has(task.id) ? s.delete(task.id) : s.add(task.id);
                         return s;
                       })}
-                      className="w-full flex items-start gap-3 px-3 py-2.5 rounded-xl text-left transition-colors"
+                      className="w-full flex items-start gap-2 px-3 py-2.5 rounded-xl text-left transition-all"
                       style={{
-                        background: checked ? "var(--purple-bg-2)" : "var(--surface)",
+                        background: "var(--surface)",
                         border: `1px solid ${checked ? "var(--purple)" : "var(--border-2)"}`,
                       }}
                     >
                       <div
-                        className="w-4 h-4 rounded border-2 flex-shrink-0 flex items-center justify-center mt-0.5 transition-colors"
-                        style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5 transition-colors"
+                        style={checked ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}
                       >
                         {checked && (
-                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="2,6 5,9 10,3" />
+                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="20 6 9 17 4 12" />
                           </svg>
                         )}
                       </div>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm text-charcoal">{task.text}</p>
-                        {task.fromBlock && (
-                          <p className="text-xs mt-0.5" style={{ color: "var(--text-2)" }}>{task.fromBlock}</p>
+                        <span className="text-sm text-charcoal leading-snug">{task.text}</span>
+                        {task.created_at && (
+                          <span className="block text-xs mt-0.5" style={{ color: "var(--text-2)" }}>
+                            {new Date(task.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
+                          </span>
+                        )}
+                        {(task.fromBlock || task.tagIds.length > 0) && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {task.fromBlock && (
+                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--border-2)", color: "var(--text-2)" }}>{task.fromBlock}</span>
+                            )}
+                            {task.tagIds.map(tid => {
+                              const tag = allTags.find(t => t.id === tid);
+                              if (!tag) return null;
+                              const { bg, fg } = tagColor(tag.name);
+                              return <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>;
+                            })}
+                          </div>
                         )}
                       </div>
                     </button>
                   );
                 })}
-                {filteredSetupTasks.length === 0 && setupSearch && (
-                  <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>No tasks match "{setupSearch}"</p>
+                {filteredSetupTasks.length > TASK_LIMIT && (
+                  <button
+                    onClick={() => setShowAllTasks(v => !v)}
+                    className="w-full text-xs font-medium py-2 rounded-xl border transition-colors"
+                    style={{ color: "var(--text-2)", borderColor: "var(--border-2)", background: "var(--surface)" }}
+                  >
+                    {showAllTasks ? "Show less" : `Show all ${filteredSetupTasks.length} tasks`}
+                  </button>
+                )}
+                {filteredSetupTasks.length === 0 && (setupSearch || tagFilters.length > 0) && (
+                  <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>No tasks match your filters</p>
                 )}
               </div>
             </>
