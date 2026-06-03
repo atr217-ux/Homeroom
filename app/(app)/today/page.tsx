@@ -181,16 +181,28 @@ export default function TodayPage() {
     const supabase = createClient();
     const todayDate = dateKey(new Date());
 
-    const { data: todayBlock } = await supabase
+    const { data: todayBlock, error: blockError } = await supabase
       .from("blocks")
       .insert({ user_id: myUserId, date: todayDate, name: "Today", position: 0, visibility: "private" })
       .select("id")
       .single();
 
-    if (todayBlock && committedIds.size > 0) {
-      await supabase.from("tasks").update({ block_id: todayBlock.id }).in("id", [...committedIds]);
+    if (!todayBlock) {
+      console.error("Block creation failed:", blockError);
+      showToast(blockError?.message ?? "Could not save your day — try again");
+      setFinishing(false);
+      return;
     }
 
+    if (committedIds.size > 0) {
+      const { error: updateError } = await supabase
+        .from("tasks")
+        .update({ block_id: todayBlock.id })
+        .in("id", [...committedIds]);
+      if (updateError) console.error("Task update failed:", updateError);
+    }
+
+    // Only mark setup complete once the block exists
     localStorage.setItem("homeroom-today-setup-date", todayDate);
     await loadTodayBlocksData(myUserId);
     setSetupPhase(null);
@@ -203,31 +215,42 @@ export default function TodayPage() {
     const supabase = createClient();
     const todayDate = dateKey(new Date());
 
-    const { data: blocks } = await supabase
+    const { data: blocks, error: blocksError } = await supabase
       .from("blocks")
       .select("id, name, date, start_time, end_time, position, is_live, visibility")
       .eq("user_id", userId)
       .eq("date", todayDate)
       .order("position", { ascending: true });
 
-    setTodayBlocks((blocks ?? []) as Block[]);
+    if (blocksError) console.error("Blocks load failed:", blocksError);
 
-    const blockIds = (blocks ?? []).map(b => b.id);
-    if (blockIds.length > 0) {
-      const { data: tasksWithBlock } = await supabase
-        .from("tasks")
-        .select("id, text, done, completed_at, block_id")
-        .in("block_id", blockIds)
-        .order("created_at", { ascending: true });
-      const grouped: Record<string, BlockTask[]> = {};
-      for (const b of blockIds) grouped[b] = [];
-      for (const t of (tasksWithBlock ?? [])) {
-        if (t.block_id && grouped[t.block_id]) {
-          grouped[t.block_id].push({ id: t.id, text: t.text, done: t.done, completed_at: t.completed_at });
-        }
-      }
-      setBlockTasks(grouped);
+    // If no blocks exist the setup never completed — go back to setup
+    if (!blocks || blocks.length === 0) {
+      localStorage.removeItem("homeroom-today-setup-date");
+      await loadSetupTasks(userId);
+      setSetupPhase("tasks");
+      return;
     }
+
+    setTodayBlocks(blocks as Block[]);
+
+    const blockIds = blocks.map(b => b.id);
+    const { data: tasksWithBlock, error: tasksError } = await supabase
+      .from("tasks")
+      .select("id, text, done, completed_at, block_id")
+      .in("block_id", blockIds)
+      .order("created_at", { ascending: true });
+
+    if (tasksError) console.error("Tasks load failed:", tasksError);
+
+    const grouped: Record<string, BlockTask[]> = {};
+    for (const b of blockIds) grouped[b] = [];
+    for (const t of (tasksWithBlock ?? [])) {
+      if (t.block_id && grouped[t.block_id]) {
+        grouped[t.block_id].push({ id: t.id, text: t.text, done: t.done, completed_at: t.completed_at });
+      }
+    }
+    setBlockTasks(grouped);
   }
 
   // ── Task toggle ────────────────────────────────────────────────────────────
