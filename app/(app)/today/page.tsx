@@ -269,34 +269,58 @@ export default function TodayPage() {
     setUnassignedTasks((data ?? []).filter(t => !alreadyInToday.has(t.id)));
   }
 
+  async function getOrCreateTodayBlock(): Promise<string | null> {
+    if (todayBlocks.length > 0) return todayBlocks[0].id;
+    if (!myUserId) return null;
+    const { data } = await createClient()
+      .from("blocks")
+      .insert({ user_id: myUserId, date: dateKey(new Date()), name: "Today", position: 0, visibility: "private" })
+      .select("id, name, date, start_time, end_time, position, is_live, visibility")
+      .single();
+    if (data) {
+      setTodayBlocks([data as Block]);
+      setBlockTasks(prev => ({ ...prev, [data.id]: [] }));
+      return data.id;
+    }
+    return null;
+  }
+
   async function addNewTask(text: string) {
-    if (!text.trim() || !myUserId || todayBlocks.length === 0) return;
-    const blockId = todayBlocks[0].id;
-    const supabase = createClient();
-    const { data } = await supabase
+    if (!text.trim() || !myUserId) return;
+    const blockId = await getOrCreateTodayBlock();
+    if (!blockId) return;
+    // Optimistic: show immediately with a temp id
+    const tempId = crypto.randomUUID();
+    setBlockTasks(prev => ({
+      ...prev,
+      [blockId]: [...(prev[blockId] ?? []), { id: tempId, text: text.trim(), done: false, completed_at: null }],
+    }));
+    setNewTaskInput("");
+    if (newTaskInputRef.current) newTaskInputRef.current.innerHTML = "";
+    // Persist and swap in real id
+    const { data } = await createClient()
       .from("tasks")
       .insert({ user_id: myUserId, text: text.trim(), done: false, block_id: blockId })
-      .select("id, text, done, completed_at")
+      .select("id")
       .single();
     if (data) {
       setBlockTasks(prev => ({
         ...prev,
-        [blockId]: [...(prev[blockId] ?? []), { id: data.id, text: data.text, done: data.done, completed_at: data.completed_at }],
+        [blockId]: (prev[blockId] ?? []).map(t => t.id === tempId ? { ...t, id: data.id } : t),
       }));
-      setNewTaskInput("");
-      if (newTaskInputRef.current) newTaskInputRef.current.innerHTML = "";
     }
   }
 
   async function importTask(taskId: string, text: string) {
-    if (todayBlocks.length === 0) return;
-    const blockId = todayBlocks[0].id;
-    await createClient().from("tasks").update({ block_id: blockId }).eq("id", taskId);
+    const blockId = await getOrCreateTodayBlock();
+    if (!blockId) return;
+    // Optimistic: show immediately
     setBlockTasks(prev => ({
       ...prev,
       [blockId]: [...(prev[blockId] ?? []), { id: taskId, text, done: false, completed_at: null }],
     }));
     setUnassignedTasks(prev => prev.filter(t => t.id !== taskId));
+    await createClient().from("tasks").update({ block_id: blockId }).eq("id", taskId);
   }
 
   // ── Computed ───────────────────────────────────────────────────────────────
