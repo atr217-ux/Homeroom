@@ -60,6 +60,11 @@ export default function TodayPage() {
   const [todayBlocks, setTodayBlocks] = useState<Block[]>([]);
   const [blockTasks, setBlockTasks] = useState<Record<string, BlockTask[]>>({});
   const [toast, setToast] = useState<string | null>(null);
+  const [showAddMore, setShowAddMore] = useState(false);
+  const [addMoreSearch, setAddMoreSearch] = useState("");
+  const [unassignedTasks, setUnassignedTasks] = useState<{ id: string; text: string }[]>([]);
+  const [newTaskInput, setNewTaskInput] = useState("");
+  const newTaskInputRef = useRef<HTMLDivElement | null>(null);
 
   // ── Init ───────────────────────────────────────────────────────────────────
 
@@ -247,6 +252,51 @@ export default function TodayPage() {
   function showToast(msg: string) {
     setToast(msg);
     setTimeout(() => setToast(null), 2500);
+  }
+
+  async function loadUnassignedTasks() {
+    if (!myUserId) return;
+    try {
+      const { data } = await createClient()
+        .from("tasks")
+        .select("id, text")
+        .eq("user_id", myUserId)
+        .eq("done", false)
+        .is("block_id", null)
+        .order("created_at", { ascending: false })
+        .limit(100);
+      setUnassignedTasks(data ?? []);
+    } catch { setUnassignedTasks([]); }
+  }
+
+  async function addNewTask(text: string) {
+    if (!text.trim() || !myUserId || todayBlocks.length === 0) return;
+    const blockId = todayBlocks[0].id;
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .insert({ user_id: myUserId, text: text.trim(), done: false, block_id: blockId })
+      .select("id, text, done, completed_at")
+      .single();
+    if (data) {
+      setBlockTasks(prev => ({
+        ...prev,
+        [blockId]: [...(prev[blockId] ?? []), { id: data.id, text: data.text, done: data.done, completed_at: data.completed_at }],
+      }));
+      setNewTaskInput("");
+      if (newTaskInputRef.current) newTaskInputRef.current.innerHTML = "";
+    }
+  }
+
+  async function importTask(taskId: string, text: string) {
+    if (todayBlocks.length === 0) return;
+    const blockId = todayBlocks[0].id;
+    await createClient().from("tasks").update({ block_id: blockId }).eq("id", taskId);
+    setBlockTasks(prev => ({
+      ...prev,
+      [blockId]: [...(prev[blockId] ?? []), { id: taskId, text, done: false, completed_at: null }],
+    }));
+    setUnassignedTasks(prev => prev.filter(t => t.id !== taskId));
   }
 
   // ── Computed ───────────────────────────────────────────────────────────────
@@ -514,6 +564,113 @@ export default function TodayPage() {
               ))}
             </div>
           )}
+
+          {/* Add more tasks */}
+          <div className="mb-4">
+            <button
+              onClick={() => {
+                if (!showAddMore) loadUnassignedTasks();
+                setShowAddMore(v => !v);
+                setAddMoreSearch("");
+                setNewTaskInput("");
+                if (newTaskInputRef.current) newTaskInputRef.current.innerHTML = "";
+              }}
+              className="w-full text-sm font-medium py-3 rounded-2xl border transition-colors hover:opacity-80 flex items-center justify-center gap-1.5"
+              style={showAddMore
+                ? { borderColor: "var(--purple)", color: "var(--purple)", background: "rgba(139,92,246,0.06)" }
+                : { borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Add more tasks
+            </button>
+
+            {showAddMore && (
+              <div className="mt-2 rounded-2xl border p-4 space-y-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                {/* New task input */}
+                <div className="flex gap-2 items-center">
+                  <div
+                    className="flex-1 relative rounded-xl"
+                    style={{ background: "var(--bg)", border: `2px solid ${newTaskInput ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}
+                  >
+                    {!newTaskInput && (
+                      <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>
+                        New task…
+                      </span>
+                    )}
+                    <div
+                      ref={newTaskInputRef}
+                      contentEditable
+                      suppressContentEditableWarning
+                      role="textbox"
+                      onInput={() => {
+                        const el = newTaskInputRef.current;
+                        if (!el) return;
+                        setNewTaskInput(el.innerText.replace(/\n/g, ""));
+                      }}
+                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addNewTask(newTaskInput); } }}
+                      onPaste={e => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
+                      spellCheck={false}
+                      autoCorrect="off"
+                      autoCapitalize="off"
+                      className="w-full px-3 py-2.5 focus:outline-none"
+                      style={{ color: "var(--text)", outline: "none", fontSize: "16px" } as React.CSSProperties}
+                    />
+                  </div>
+                  <button
+                    onClick={() => addNewTask(newTaskInput)}
+                    style={{ color: "var(--purple)" }}
+                    className="flex-shrink-0 hover:opacity-70 transition-opacity"
+                  >
+                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* My List tasks to pull from */}
+                {unassignedTasks.length > 0 && (
+                  <>
+                    <div className="relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
+                        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                      </svg>
+                      <input
+                        type="text"
+                        value={addMoreSearch}
+                        onChange={e => setAddMoreSearch(e.target.value)}
+                        placeholder="Search My List…"
+                        className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
+                        style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+                      />
+                    </div>
+                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                      {(addMoreSearch
+                        ? unassignedTasks.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase()))
+                        : unassignedTasks
+                      ).map(task => (
+                        <button
+                          key={task.id}
+                          onClick={() => importTask(task.id, task.text)}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors hover:opacity-80"
+                          style={{ background: "var(--bg)", border: "1px solid var(--border-2)" }}
+                        >
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--purple)", flexShrink: 0 }}>
+                            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                          </svg>
+                          <span className="text-sm text-charcoal">{task.text}</span>
+                        </button>
+                      ))}
+                      {addMoreSearch && unassignedTasks.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase())).length === 0 && (
+                        <p className="text-xs text-center py-3" style={{ color: "var(--text-2)" }}>No results</p>
+                      )}
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
 
           {/* Add a block */}
           <button
