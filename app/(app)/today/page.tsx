@@ -256,17 +256,17 @@ export default function TodayPage() {
 
   async function loadUnassignedTasks() {
     if (!myUserId) return;
-    try {
-      const { data } = await createClient()
-        .from("tasks")
-        .select("id, text")
-        .eq("user_id", myUserId)
-        .eq("done", false)
-        .is("block_id", null)
-        .order("created_at", { ascending: false })
-        .limit(100);
-      setUnassignedTasks(data ?? []);
-    } catch { setUnassignedTasks([]); }
+    const alreadyInToday = new Set(
+      todayBlocks.flatMap(b => (blockTasks[b.id] ?? []).map(t => t.id))
+    );
+    const { data } = await createClient()
+      .from("tasks")
+      .select("id, text")
+      .eq("user_id", myUserId)
+      .eq("done", false)
+      .order("created_at", { ascending: false })
+      .limit(100);
+    setUnassignedTasks((data ?? []).filter(t => !alreadyInToday.has(t.id)));
   }
 
   async function addNewTask(text: string) {
