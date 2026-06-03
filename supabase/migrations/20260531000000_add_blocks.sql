@@ -1,23 +1,20 @@
 -- ── Blocks ───────────────────────────────────────────────────────────────────
--- A Block is a named container for tasks within a day.
--- The default block is called "Today"; users can add more (timed or themed).
 
 create table if not exists blocks (
   id           uuid primary key default gen_random_uuid(),
   user_id      uuid not null references auth.users(id) on delete cascade,
   date         date not null,
   name         text not null default 'Today',
-  start_time   time,                          -- nullable — many blocks are untimed
-  end_time     time,                          -- nullable
+  start_time   time,
+  end_time     time,
   visibility   text not null default 'private' check (visibility in ('private', 'shared')),
-  is_live      boolean not null default false, -- true when an active co-working session
-  position     integer not null default 0,    -- ordering within the day
+  is_live      boolean not null default false,
+  position     integer not null default 0,
   created_at   timestamptz not null default now()
 );
 
 create index if not exists blocks_user_date on blocks(user_id, date);
 
--- RLS
 alter table blocks enable row level security;
 
 create policy "Users manage own blocks"
@@ -25,19 +22,9 @@ create policy "Users manage own blocks"
   using (auth.uid() = user_id)
   with check (auth.uid() = user_id);
 
-create policy "Invited users can view shared blocks"
-  on blocks for select
-  using (
-    visibility = 'shared' and exists (
-      select 1 from block_invites
-      where block_invites.block_id = blocks.id
-        and block_invites.invited_user_id = auth.uid()
-        and block_invites.status in ('invited', 'joined')
-    )
-  );
-
 
 -- ── Block Invites ─────────────────────────────────────────────────────────────
+-- Must be created before the blocks policy that references it
 
 create table if not exists block_invites (
   id                uuid primary key default gen_random_uuid(),
@@ -67,12 +54,26 @@ create policy "Invited user can view and update own invite"
   with check (invited_user_id = auth.uid());
 
 
+-- ── blocks — RLS policy that references block_invites (added after that table exists)
+
+create policy "Invited users can view shared blocks"
+  on blocks for select
+  using (
+    visibility = 'shared' and exists (
+      select 1 from block_invites
+      where block_invites.block_id = blocks.id
+        and block_invites.invited_user_id = auth.uid()
+        and block_invites.status in ('invited', 'joined')
+    )
+  );
+
+
 -- ── Tasks — add block_id and shared-task fields ───────────────────────────────
 
 alter table tasks
-  add column if not exists block_id           uuid references blocks(id) on delete set null,
-  add column if not exists is_shared          boolean not null default false,
-  add column if not exists claimed_by_user_id uuid references auth.users(id) on delete set null,
+  add column if not exists block_id             uuid references blocks(id) on delete set null,
+  add column if not exists is_shared            boolean not null default false,
+  add column if not exists claimed_by_user_id   uuid references auth.users(id) on delete set null,
   add column if not exists completed_by_user_id uuid references auth.users(id) on delete set null;
 
 create index if not exists tasks_block_id on tasks(block_id) where block_id is not null;
