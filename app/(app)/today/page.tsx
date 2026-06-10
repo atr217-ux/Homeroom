@@ -1,420 +1,321 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type Block = {
-  id: string;
-  name: string;
-  date: string;
-  start_time: string | null;
-  end_time: string | null;
-  position: number;
-  is_live: boolean;
-  visibility: string;
-};
-
-type BlockTask = { id: string; text: string; done: boolean; completed_at: string | null };
-
+type SetupTask = { id: string; text: string; created_at: string; tagIds: string[] };
 type Tag = { id: string; name: string };
-type SetupTask = { id: string; text: string; fromBlock?: string; tagIds: string[]; created_at: string };
+type Task = { id: string; text: string; done: boolean; timeSpent: number; startedAt: number | null };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
+function dateKey(d: Date) {
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+}
+
+function formatTime(s: number) {
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+  if (h > 0) return `${h}:${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+  return `${m}:${String(sec).padStart(2, "0")}`;
+}
+
 const TAG_COLORS = ["#7C3AED","#0891B2","#059669","#D97706","#DC2626","#DB2777","#65A30D","#0284C7"];
-function tagColor(name: string): { bg: string; fg: string } {
+function tagColor(name: string) {
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
   const c = TAG_COLORS[Math.abs(h) % TAG_COLORS.length];
   return { bg: c + "22", fg: c };
 }
 
-function dateKey(d: Date): string {
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
-}
-
-// ── Main component ────────────────────────────────────────────────────────────
+// ── Component ─────────────────────────────────────────────────────────────────
 
 export default function TodayPage() {
-  const [myUserId, setMyUserId] = useState<string | null>(null);
-  const [avatar, setAvatar] = useState<string | null>(null);
+  const [userId, setUserId] = useState<string | null>(null);
+  const [phase, setPhase] = useState<"loading" | "setup" | "committed">("loading");
 
-  // Setup flow
-  const [setupPhase, setSetupPhase] = useState<"loading" | "tasks" | null>("loading");
+  // ── Setup state ──────────────────────────────────────────────────────────
   const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
-  const [setupSearch, setSetupSearch] = useState("");
   const [allTags, setAllTags] = useState<Tag[]>([]);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [search, setSearch] = useState("");
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
-  const [taskSortDir, setTaskSortDir] = useState<"none" | "asc" | "desc">("none");
-  const [showAllTasks, setShowAllTasks] = useState(false);
-  const TASK_LIMIT = 10;
-  const [committedIds, setCommittedIds] = useState<Set<string>>(new Set());
-  const [finishing, setFinishing] = useState(false);
+  const [sortDir, setSortDir] = useState<"none" | "asc" | "desc">("none");
+  const [showAll, setShowAll] = useState(false);
+  const [newTaskText, setNewTaskText] = useState("");
+  const newTaskRef = useRef<HTMLDivElement | null>(null);
+  const [committing, setCommitting] = useState(false);
+  const LIMIT = 10;
 
-  // Regular view
-  const [todayBlocks, setTodayBlocks] = useState<Block[]>([]);
-  const [blockTasks, setBlockTasks] = useState<Record<string, BlockTask[]>>({});
-  const [toast, setToast] = useState<string | null>(null);
-  const [showAddMore, setShowAddMore] = useState(false);
-  const [addMoreSearch, setAddMoreSearch] = useState("");
-  const [unassignedTasks, setUnassignedTasks] = useState<{ id: string; text: string }[]>([]);
-  const [newTaskInput, setNewTaskInput] = useState("");
-  const newTaskInputRef = useRef<HTMLDivElement | null>(null);
+  // ── Committed state ──────────────────────────────────────────────────────
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [blockId, setBlockId] = useState<string | null>(null);
+  const [tick, setTick] = useState(0);
 
-  // ── Init ───────────────────────────────────────────────────────────────────
+  // ── Init ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
-    const a = localStorage.getItem("homeroom-avatar");
-    if (a) setAvatar(a);
-
     async function init() {
       const supabase = createClient();
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
-      setMyUserId(user.id);
-
-      const todayDate = dateKey(new Date());
-      const setupDate = localStorage.getItem("homeroom-today-setup-date");
-      if (setupDate !== todayDate) {
-        await loadSetupTasks(user.id);
-        setSetupPhase("tasks");
+      setUserId(user.id);
+      const today = dateKey(new Date());
+      if (localStorage.getItem("homeroom-today-setup-date") === today) {
+        await loadCommittedTasks(user.id, today);
       } else {
-        await loadTodayBlocksData(user.id);
-        setSetupPhase(null);
+        await loadSetupTasks(user.id);
+        setPhase("setup");
       }
     }
-
     init();
 
-    function onClickOutside(e: MouseEvent) {
-      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+    const ticker = setInterval(() => setTick(t => t + 1), 1000);
+    function onOutside(e: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node))
         setTagDropdownOpen(false);
-      }
     }
-    document.addEventListener("mousedown", onClickOutside);
-    return () => document.removeEventListener("mousedown", onClickOutside);
+    document.addEventListener("mousedown", onOutside);
+    return () => { clearInterval(ticker); document.removeEventListener("mousedown", onOutside); };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // ── Setup: load tasks ──────────────────────────────────────────────────────
+  // ── Load setup tasks ──────────────────────────────────────────────────────
 
-  async function loadSetupTasks(userId: string) {
+  async function loadSetupTasks(uid: string) {
     const supabase = createClient();
-    const todayDate = dateKey(new Date());
+    const { data } = await supabase
+      .from("tasks").select("id, text, created_at")
+      .eq("user_id", uid).eq("done", false)
+      .order("created_at", { ascending: true }).limit(200);
+    if (!data) { setSetupTasks([]); return; }
 
-    const { data: allTasks, error } = await supabase
-      .from("tasks")
-      .select("id, text, created_at")
-      .eq("user_id", userId)
-      .eq("done", false)
-      .order("created_at", { ascending: true })
-      .limit(100);
-
-    if (error || !allTasks) {
-      setSetupTasks([]);
-      setCommittedIds(new Set());
-      return;
-    }
-
-    const taskIds = allTasks.map(t => t.id);
-
-    const [tagsResult, taskTagsResult] = await Promise.allSettled([
-      supabase.from("tags").select("id, name").eq("user_id", userId),
-      taskIds.length > 0
-        ? supabase.from("task_tags").select("task_id, tag_id").in("task_id", taskIds)
-        : Promise.resolve({ data: [] }),
+    const ids = data.map(t => t.id);
+    const [tagsRes, ttRes] = await Promise.allSettled([
+      supabase.from("tags").select("id, name").eq("user_id", uid),
+      ids.length > 0 ? supabase.from("task_tags").select("task_id, tag_id").in("task_id", ids) : Promise.resolve({ data: [] }),
     ]);
-    const tagsData = tagsResult.status === "fulfilled" ? (tagsResult.value.data ?? []) : [];
-    const taskTagsData = taskTagsResult.status === "fulfilled"
-      ? ((taskTagsResult.value as { data: { task_id: string; tag_id: string }[] | null }).data ?? [])
-      : [];
+    const tagsData = tagsRes.status === "fulfilled" ? (tagsRes.value.data ?? []) : [];
+    const ttData = ttRes.status === "fulfilled" ? ((ttRes.value as { data: { task_id: string; tag_id: string }[] | null }).data ?? []) : [];
     setAllTags(tagsData as Tag[]);
-    const taskTagMap: Record<string, string[]> = {};
-    for (const r of taskTagsData) {
-      if (!taskTagMap[r.task_id]) taskTagMap[r.task_id] = [];
-      taskTagMap[r.task_id].push(r.tag_id);
-    }
+    const tagMap: Record<string, string[]> = {};
+    for (const r of ttData) { if (!tagMap[r.task_id]) tagMap[r.task_id] = []; tagMap[r.task_id].push(r.tag_id); }
 
-    const blockLabels: Record<string, string> = {};
-    try {
-      const { data: priorBlocks } = await supabase
-        .from("blocks")
-        .select("id, name")
-        .eq("user_id", userId)
-        .lt("date", todayDate)
-        .order("date", { ascending: false })
-        .limit(5);
-      if (priorBlocks && priorBlocks.length > 0) {
-        const nameMap = Object.fromEntries(priorBlocks.map(b => [b.id, b.name as string]));
-        const { data: priorTasks } = await supabase
-          .from("tasks")
-          .select("id, block_id")
-          .in("block_id", priorBlocks.map(b => b.id))
-          .eq("done", false);
-        for (const t of (priorTasks ?? [])) {
-          blockLabels[t.id] = `From: ${nameMap[t.block_id] ?? "Block"}`;
-        }
-      }
-    } catch { /* blocks migration may not exist yet */ }
-
-    const combined: SetupTask[] = allTasks.map(t => ({
-      id: t.id,
-      text: t.text,
-      created_at: t.created_at as string,
-      tagIds: taskTagMap[t.id] ?? [],
-      fromBlock: blockLabels[t.id],
-    }));
-    setSetupTasks(combined);
-    setCommittedIds(new Set(combined.map(t => t.id)));
+    const tasks = data.map(t => ({ id: t.id, text: t.text, created_at: t.created_at as string, tagIds: tagMap[t.id] ?? [] }));
+    setSetupTasks(tasks);
+    setSelectedIds(new Set(tasks.map(t => t.id)));
   }
 
-  // ── Setup: commit ─────────────────────────────────────────────────────────
+  // ── Load committed tasks ──────────────────────────────────────────────────
 
-  async function finishSetup() {
-    if (!myUserId) return;
-    setFinishing(true);
+  async function loadCommittedTasks(uid: string, today: string) {
     const supabase = createClient();
-    const todayDate = dateKey(new Date());
+    const { data: blocks } = await supabase
+      .from("blocks").select("id")
+      .eq("user_id", uid).eq("date", today)
+      .order("position", { ascending: true }).limit(1);
 
-    const { data: todayBlock, error: blockError } = await supabase
-      .from("blocks")
-      .insert({ user_id: myUserId, date: todayDate, name: "Today", position: 0, visibility: "private" })
-      .select("id")
-      .single();
-
-    if (!todayBlock) {
-      console.error("Block creation failed:", blockError);
-      showToast(blockError?.message ?? "Could not save your day — try again");
-      setFinishing(false);
-      return;
-    }
-
-    if (committedIds.size > 0) {
-      const { error: updateError } = await supabase
-        .from("tasks")
-        .update({ block_id: todayBlock.id })
-        .in("id", [...committedIds]);
-      if (updateError) console.error("Task update failed:", updateError);
-    }
-
-    // Only mark setup complete once the block exists
-    localStorage.setItem("homeroom-today-setup-date", todayDate);
-    await loadTodayBlocksData(myUserId);
-    setSetupPhase(null);
-    setFinishing(false);
-  }
-
-  // ── Regular view: load blocks ──────────────────────────────────────────────
-
-  async function loadTodayBlocksData(userId: string) {
-    const supabase = createClient();
-    const todayDate = dateKey(new Date());
-
-    const { data: blocks, error: blocksError } = await supabase
-      .from("blocks")
-      .select("id, name, date, start_time, end_time, position, is_live, visibility")
-      .eq("user_id", userId)
-      .eq("date", todayDate)
-      .order("position", { ascending: true });
-
-    if (blocksError) console.error("Blocks load failed:", blocksError);
-
-    // If no blocks exist the setup never completed — go back to setup
     if (!blocks || blocks.length === 0) {
       localStorage.removeItem("homeroom-today-setup-date");
-      await loadSetupTasks(userId);
-      setSetupPhase("tasks");
+      await loadSetupTasks(uid);
+      setPhase("setup");
       return;
     }
 
-    setTodayBlocks(blocks as Block[]);
+    const bid = blocks[0].id;
+    setBlockId(bid);
+    const { data: taskData } = await supabase
+      .from("tasks").select("id, text, done, time_spent, timer_started_at")
+      .eq("block_id", bid).order("created_at", { ascending: true });
 
-    const blockIds = blocks.map(b => b.id);
-    const { data: tasksWithBlock, error: tasksError } = await supabase
-      .from("tasks")
-      .select("id, text, done, completed_at, block_id")
-      .in("block_id", blockIds)
-      .order("created_at", { ascending: true });
-
-    if (tasksError) console.error("Tasks load failed:", tasksError);
-
-    const grouped: Record<string, BlockTask[]> = {};
-    for (const b of blockIds) grouped[b] = [];
-    for (const t of (tasksWithBlock ?? [])) {
-      if (t.block_id && grouped[t.block_id]) {
-        grouped[t.block_id].push({ id: t.id, text: t.text, done: t.done, completed_at: t.completed_at });
-      }
-    }
-    setBlockTasks(grouped);
+    setTasks((taskData ?? []).map(t => ({
+      id: t.id, text: t.text, done: t.done,
+      timeSpent: t.time_spent ?? 0,
+      startedAt: t.timer_started_at ? new Date(t.timer_started_at).getTime() : null,
+    })));
+    setPhase("committed");
   }
 
-  // ── Task toggle ────────────────────────────────────────────────────────────
+  // ── Commit ────────────────────────────────────────────────────────────────
 
-  async function toggleTask(taskId: string, currentDone: boolean) {
-    const nowDone = !currentDone;
-    setBlockTasks(prev => {
-      const next = { ...prev };
-      for (const blockId of Object.keys(next)) {
-        next[blockId] = next[blockId].map(t =>
-          t.id === taskId ? { ...t, done: nowDone, completed_at: nowDone ? new Date().toISOString() : null } : t
-        );
-      }
-      return next;
-    });
-    await createClient()
-      .from("tasks")
-      .update({ done: nowDone, completed_at: nowDone ? new Date().toISOString() : null })
-      .eq("id", taskId);
-  }
-
-  function showToast(msg: string) {
-    setToast(msg);
-    setTimeout(() => setToast(null), 2500);
-  }
-
-  async function loadUnassignedTasks() {
-    if (!myUserId) return;
-    const alreadyInToday = new Set(
-      todayBlocks.flatMap(b => (blockTasks[b.id] ?? []).map(t => t.id))
-    );
-    const { data } = await createClient()
-      .from("tasks")
-      .select("id, text")
-      .eq("user_id", myUserId)
-      .eq("done", false)
-      .order("created_at", { ascending: false })
-      .limit(100);
-    setUnassignedTasks((data ?? []).filter(t => !alreadyInToday.has(t.id)));
-  }
-
-  async function getOrCreateTodayBlock(): Promise<string | null> {
-    if (todayBlocks.length > 0) return todayBlocks[0].id;
-    if (!myUserId) return null;
-    const { data } = await createClient()
+  async function commit() {
+    if (!userId) return;
+    setCommitting(true);
+    const supabase = createClient();
+    const today = dateKey(new Date());
+    const { data: block, error } = await supabase
       .from("blocks")
-      .insert({ user_id: myUserId, date: dateKey(new Date()), name: "Today", position: 0, visibility: "private" })
-      .select("id, name, date, start_time, end_time, position, is_live, visibility")
-      .single();
-    if (data) {
-      setTodayBlocks([data as Block]);
-      setBlockTasks(prev => ({ ...prev, [data.id]: [] }));
-      return data.id;
+      .insert({ user_id: userId, date: today, name: "Today", position: 0, visibility: "private" })
+      .select("id").single();
+    if (!block) {
+      console.error("Block creation failed:", error);
+      setCommitting(false);
+      return;
     }
-    return null;
+    const ids = [...selectedIds];
+    if (ids.length > 0) await supabase.from("tasks").update({ block_id: block.id }).in("id", ids);
+    localStorage.setItem("homeroom-today-setup-date", today);
+    await loadCommittedTasks(userId, today);
+    setCommitting(false);
   }
 
-  async function addNewTask(text: string) {
-    if (!text.trim() || !myUserId) return;
-    const blockId = await getOrCreateTodayBlock();
-    if (!blockId) return;
-    // Optimistic: show immediately with a temp id
-    const tempId = crypto.randomUUID();
-    setBlockTasks(prev => ({
-      ...prev,
-      [blockId]: [...(prev[blockId] ?? []), { id: tempId, text: text.trim(), done: false, completed_at: null }],
-    }));
-    setNewTaskInput("");
-    if (newTaskInputRef.current) newTaskInputRef.current.innerHTML = "";
-    // Persist and swap in real id
+  // ── Add task during setup ─────────────────────────────────────────────────
+
+  async function addSetupTask() {
+    if (!newTaskText.trim() || !userId) return;
     const { data } = await createClient()
-      .from("tasks")
-      .insert({ user_id: myUserId, text: text.trim(), done: false, block_id: blockId })
-      .select("id")
-      .single();
+      .from("tasks").insert({ user_id: userId, text: newTaskText.trim(), done: false })
+      .select("id, text, created_at").single();
     if (data) {
-      setBlockTasks(prev => ({
-        ...prev,
-        [blockId]: (prev[blockId] ?? []).map(t => t.id === tempId ? { ...t, id: data.id } : t),
-      }));
+      const t = { id: data.id, text: data.text, created_at: data.created_at as string, tagIds: [] };
+      setSetupTasks(prev => [...prev, t]);
+      setSelectedIds(prev => new Set([...prev, data.id]));
+      setNewTaskText("");
+      if (newTaskRef.current) newTaskRef.current.innerHTML = "";
     }
   }
 
-  async function importTask(taskId: string, text: string) {
-    const blockId = await getOrCreateTodayBlock();
-    if (!blockId) return;
-    // Optimistic: show immediately
-    setBlockTasks(prev => ({
-      ...prev,
-      [blockId]: [...(prev[blockId] ?? []), { id: taskId, text, done: false, completed_at: null }],
-    }));
-    setUnassignedTasks(prev => prev.filter(t => t.id !== taskId));
-    await createClient().from("tasks").update({ block_id: blockId }).eq("id", taskId);
+  // ── Timer helpers ─────────────────────────────────────────────────────────
+
+  function elapsed(t: Task) {
+    return t.startedAt === null ? t.timeSpent : t.timeSpent + Math.floor((Date.now() - t.startedAt) / 1000);
   }
 
-  // ── Computed ───────────────────────────────────────────────────────────────
+  async function startTimer(id: string) {
+    const now = Date.now();
+    const supabase = createClient();
+    const running = tasks.find(t => t.startedAt !== null && t.id !== id);
+    await Promise.all([
+      supabase.from("tasks").update({ timer_started_at: new Date(now).toISOString() }).eq("id", id),
+      running ? supabase.from("tasks").update({ timer_started_at: null, time_spent: elapsed(running) }).eq("id", running.id) : Promise.resolve(),
+    ]);
+    setTasks(prev => prev.map(t => {
+      if (t.id === id) return { ...t, startedAt: now };
+      if (t.startedAt !== null) return { ...t, timeSpent: elapsed(t), startedAt: null };
+      return t;
+    }));
+  }
 
-  const tagFilteredSetupTasks = tagFilters.length > 0
-    ? setupTasks.filter(t => tagFilters.every(id => t.tagIds.includes(id)))
-    : setupTasks;
-  const searchedSetupTasks = setupSearch.trim()
-    ? tagFilteredSetupTasks.filter(t => t.text.toLowerCase().includes(setupSearch.toLowerCase().trim()))
-    : tagFilteredSetupTasks;
-  const filteredSetupTasks = taskSortDir === "none"
-    ? searchedSetupTasks
-    : [...searchedSetupTasks].sort((a, b) => {
-        const diff = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
-        return taskSortDir === "asc" ? diff : -diff;
-      });
+  async function stopTimer(id: string) {
+    const t = tasks.find(t => t.id === id);
+    const spent = t ? elapsed(t) : 0;
+    await createClient().from("tasks").update({ timer_started_at: null, time_spent: spent }).eq("id", id);
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, timeSpent: elapsed(t), startedAt: null } : t));
+  }
 
-  const allTodayTasks = todayBlocks.flatMap(b => blockTasks[b.id] ?? []);
+  async function toggleTask(id: string) {
+    const t = tasks.find(t => t.id === id);
+    if (!t) return;
+    const spent = elapsed(t);
+    const nowDone = !t.done;
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, done: nowDone, timeSpent: spent, startedAt: null } : t));
+    await createClient().from("tasks").update({
+      done: nowDone, time_spent: spent,
+      timer_started_at: null,
+      completed_at: nowDone ? new Date().toISOString() : null,
+    }).eq("id", id);
+  }
 
-  // ── JSX ────────────────────────────────────────────────────────────────────
+  // ── Add task to committed view ────────────────────────────────────────────
+
+  const [showAddMore, setShowAddMore] = useState(false);
+  const [addMoreText, setAddMoreText] = useState("");
+  const addMoreRef = useRef<HTMLDivElement | null>(null);
+  const [addMoreSearch, setAddMoreSearch] = useState("");
+  const [unassigned, setUnassigned] = useState<{ id: string; text: string }[]>([]);
+
+  async function openAddMore() {
+    if (!userId) return;
+    const alreadyIn = new Set(tasks.map(t => t.id));
+    const { data } = await createClient()
+      .from("tasks").select("id, text")
+      .eq("user_id", userId).eq("done", false)
+      .order("created_at", { ascending: false }).limit(100);
+    setUnassigned((data ?? []).filter(t => !alreadyIn.has(t.id)));
+    setShowAddMore(true);
+  }
+
+  async function addNewCommittedTask() {
+    if (!addMoreText.trim() || !userId || !blockId) return;
+    const text = addMoreText.trim();
+    const tempId = crypto.randomUUID();
+    setTasks(prev => [...prev, { id: tempId, text, done: false, timeSpent: 0, startedAt: null }]);
+    setAddMoreText("");
+    if (addMoreRef.current) addMoreRef.current.innerHTML = "";
+    const { data } = await createClient()
+      .from("tasks").insert({ user_id: userId, text, done: false, block_id: blockId })
+      .select("id").single();
+    if (data) setTasks(prev => prev.map(t => t.id === tempId ? { ...t, id: data.id } : t));
+  }
+
+  async function importTask(id: string, text: string) {
+    if (!blockId) return;
+    setTasks(prev => [...prev, { id, text, done: false, timeSpent: 0, startedAt: null }]);
+    setUnassigned(prev => prev.filter(t => t.id !== id));
+    await createClient().from("tasks").update({ block_id: blockId }).eq("id", id);
+  }
+
+  // ── Computed ──────────────────────────────────────────────────────────────
+
+  const filtered = (() => {
+    let list = tagFilters.length > 0 ? setupTasks.filter(t => tagFilters.every(id => t.tagIds.includes(id))) : setupTasks;
+    if (search.trim()) list = list.filter(t => t.text.toLowerCase().includes(search.toLowerCase().trim()));
+    if (sortDir !== "none") list = [...list].sort((a, b) => {
+      const d = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return sortDir === "asc" ? d : -d;
+    });
+    return list;
+  })();
+
+  const done = tasks.filter(t => t.done);
+  const undone = tasks.filter(t => !t.done);
+
+  void tick;
+
+  // ── JSX ───────────────────────────────────────────────────────────────────
 
   return (
-    <div className="max-w-2xl mx-auto px-4 pb-24">
+    <div className="max-w-2xl mx-auto px-4 pb-28">
 
       {/* Loading */}
-      {setupPhase === "loading" && (
+      {phase === "loading" && (
         <div className="flex items-center justify-center pt-32">
           <div className="w-8 h-8 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "var(--purple)", borderTopColor: "transparent" }} />
         </div>
       )}
 
-      {/* ── Setup: Task Selection ──────────────────────────────────────────── */}
-      {setupPhase === "tasks" && (
+      {/* ── Setup ─────────────────────────────────────────────────────────── */}
+      {phase === "setup" && (
         <div>
           <div className="pt-10 pb-6">
-            <h1 className="text-2xl font-bold text-charcoal">What tasks are you committing to today?</h1>
+            <h1 className="text-2xl font-bold text-charcoal">What are you committing to accomplish today?</h1>
           </div>
 
-          {/* Search bar */}
+          {/* Search */}
           <div className="mb-3 relative">
-            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
+            <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
               <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
             </svg>
-            <input
-              type="text"
-              value={setupSearch}
-              onChange={e => setSetupSearch(e.target.value)}
-              placeholder="Search tasks…"
+            <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…"
               className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
-              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
-            />
+              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }} />
           </div>
 
-          {/* Tag filter + sort row */}
+          {/* Filters */}
           <div className="flex items-center gap-2 mb-4">
             {allTags.length > 0 && (
               <div ref={tagDropdownRef} className="relative">
-                <button
-                  onClick={() => setTagDropdownOpen(v => !v)}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+                <button onClick={() => setTagDropdownOpen(v => !v)}
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium"
                   style={tagFilters.length > 0
                     ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
-                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
-                >
-                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" />
-                  </svg>
-                  {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""} selected` : "Filter by tag"}
-                  {tagFilters.length > 0 && (
-                    <span onClick={e => { e.stopPropagation(); setTagFilters([]); }} className="ml-1 opacity-70 hover:opacity-100">×</span>
-                  )}
+                    : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
+                  {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""}` : "Filter by tag"}
+                  {tagFilters.length > 0 && <span onClick={e => { e.stopPropagation(); setTagFilters([]); }} className="ml-1 opacity-70">×</span>}
                 </button>
                 {tagDropdownOpen && (
                   <div className="absolute left-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
@@ -422,14 +323,11 @@ export default function TodayPage() {
                       const { bg, fg } = tagColor(tag.name);
                       const checked = tagFilters.includes(tag.id);
                       return (
-                        <button
-                          key={tag.id}
-                          onClick={() => setTagFilters(prev => checked ? prev.filter(id => id !== tag.id) : [...prev, tag.id])}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50 transition-colors"
-                        >
-                          <span className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2 transition-colors"
+                        <button key={tag.id} onClick={() => setTagFilters(prev => checked ? prev.filter(i => i !== tag.id) : [...prev, tag.id])}
+                          className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50">
+                          <span className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2"
                             style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}>
-                            {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="2 6 5 9 10 3" /></svg>}
+                            {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5"><polyline points="2 6 5 9 10 3" /></svg>}
                           </span>
                           <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
                         </button>
@@ -439,140 +337,101 @@ export default function TodayPage() {
                 )}
               </div>
             )}
-            <button
-              onClick={() => setTaskSortDir(d => d === "none" ? "desc" : d === "desc" ? "asc" : "none")}
-              className="ml-auto flex items-center gap-1 text-xs px-2.5 py-1.5 rounded-full border font-medium transition-colors flex-shrink-0"
-              style={taskSortDir !== "none"
+            <button onClick={() => setSortDir(d => d === "none" ? "desc" : d === "desc" ? "asc" : "none")}
+              className="ml-auto text-xs px-2.5 py-1.5 rounded-full border font-medium"
+              style={sortDir !== "none"
                 ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
-                : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
-            >
-              Date added {taskSortDir === "asc" ? "↑" : taskSortDir === "desc" ? "↓" : ""}
+                : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
+              Date added {sortDir === "asc" ? "↑" : sortDir === "desc" ? "↓" : ""}
             </button>
           </div>
 
-          {setupTasks.length === 0 ? (
-            <div className="mb-8">
-              <p className="text-sm text-warm-gray mb-4">Your list is empty — add tasks in My List first.</p>
+          {/* Select all / clear */}
+          {setupTasks.length > 0 && (
+            <div className="flex items-center gap-3 mb-3">
+              <button onClick={() => setSelectedIds(new Set(setupTasks.map(t => t.id)))} className="text-xs font-semibold" style={{ color: "var(--purple)" }}>Select all</button>
+              <button onClick={() => setSelectedIds(new Set())} className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>Clear</button>
+              {search && <span className="text-xs ml-auto" style={{ color: "var(--text-2)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>}
             </div>
-          ) : (
-            <>
-              <div className="flex items-center gap-3 mb-3">
-                <button
-                  onClick={() => setCommittedIds(new Set(setupTasks.map(t => t.id)))}
-                  className="text-xs font-semibold"
-                  style={{ color: "var(--purple)" }}
-                >
-                  Select all
-                </button>
-                <button
-                  onClick={() => setCommittedIds(new Set())}
-                  className="text-xs font-semibold"
-                  style={{ color: "var(--text-2)" }}
-                >
-                  Clear
-                </button>
-                {setupSearch && (
-                  <span className="text-xs ml-auto" style={{ color: "var(--text-2)" }}>
-                    {filteredSetupTasks.length} result{filteredSetupTasks.length !== 1 ? "s" : ""}
-                  </span>
-                )}
-              </div>
-              <div className="space-y-2 mb-8">
-                {(showAllTasks ? filteredSetupTasks : filteredSetupTasks.slice(0, TASK_LIMIT)).map(task => {
-                  const checked = committedIds.has(task.id);
-                  return (
-                    <button
-                      key={task.id}
-                      onClick={() => setCommittedIds(prev => {
-                        const s = new Set(prev);
-                        s.has(task.id) ? s.delete(task.id) : s.add(task.id);
-                        return s;
-                      })}
-                      className="w-full flex items-start gap-2 px-3 py-2.5 rounded-xl text-left transition-all"
-                      style={{
-                        background: "var(--surface)",
-                        border: `1px solid ${checked ? "var(--purple)" : "var(--border-2)"}`,
-                      }}
-                    >
-                      <div
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5 transition-colors"
-                        style={checked ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}
-                      >
-                        {checked && (
-                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm text-charcoal leading-snug">{task.text}</span>
-                        {task.created_at && (
-                          <span className="block text-xs mt-0.5" style={{ color: "var(--text-2)" }}>
-                            {new Date(task.created_at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}
-                          </span>
-                        )}
-                        {(task.fromBlock || task.tagIds.length > 0) && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {task.fromBlock && (
-                              <span className="text-xs px-1.5 py-0.5 rounded-full" style={{ background: "var(--border-2)", color: "var(--text-2)" }}>{task.fromBlock}</span>
-                            )}
-                            {task.tagIds.map(tid => {
-                              const tag = allTags.find(t => t.id === tid);
-                              if (!tag) return null;
-                              const { bg, fg } = tagColor(tag.name);
-                              return <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>;
-                            })}
-                          </div>
-                        )}
-                      </div>
-                    </button>
-                  );
-                })}
-                {filteredSetupTasks.length > TASK_LIMIT && (
-                  <button
-                    onClick={() => setShowAllTasks(v => !v)}
-                    className="w-full text-xs font-medium py-2 rounded-xl border transition-colors"
-                    style={{ color: "var(--text-2)", borderColor: "var(--border-2)", background: "var(--surface)" }}
-                  >
-                    {showAllTasks ? "Show less" : `Show all ${filteredSetupTasks.length} tasks`}
-                  </button>
-                )}
-                {filteredSetupTasks.length === 0 && (setupSearch || tagFilters.length > 0) && (
-                  <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>No tasks match your filters</p>
-                )}
-              </div>
-            </>
           )}
 
-          {/* Sticky Commit button */}
-          <div className="fixed bottom-20 left-0 right-0 px-4 max-w-2xl mx-auto">
-            <button
-              onClick={finishSetup}
-              disabled={finishing}
-              className="w-full py-3.5 rounded-xl text-sm font-semibold text-white shadow-lg flex items-center justify-center gap-2 transition-opacity disabled:opacity-60"
-              style={{ background: "var(--purple)" }}
-            >
-              {finishing && (
-                <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "white", borderTopColor: "transparent" }} />
+          {/* Task list */}
+          <div className="space-y-2 mb-4">
+            {(showAll ? filtered : filtered.slice(0, LIMIT)).map(task => {
+              const sel = selectedIds.has(task.id);
+              return (
+                <button key={task.id}
+                  onClick={() => setSelectedIds(prev => { const s = new Set(prev); s.has(task.id) ? s.delete(task.id) : s.add(task.id); return s; })}
+                  className="w-full flex items-start gap-2 px-3 py-2.5 rounded-xl text-left transition-all"
+                  style={{ background: "var(--surface)", border: `1px solid ${sel ? "var(--purple)" : "var(--border-2)"}` }}>
+                  <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5"
+                    style={sel ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
+                    {sel && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm text-charcoal leading-snug">{task.text}</span>
+                    {task.tagIds.length > 0 && (
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {task.tagIds.map(tid => {
+                          const tag = allTags.find(t => t.id === tid);
+                          if (!tag) return null;
+                          const { bg, fg } = tagColor(tag.name);
+                          return <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>;
+                        })}
+                      </div>
+                    )}
+                  </div>
+                </button>
+              );
+            })}
+            {filtered.length > LIMIT && (
+              <button onClick={() => setShowAll(v => !v)} className="w-full text-xs font-medium py-2 rounded-xl border"
+                style={{ color: "var(--text-2)", borderColor: "var(--border-2)", background: "var(--surface)" }}>
+                {showAll ? "Show less" : `Show all ${filtered.length} tasks`}
+              </button>
+            )}
+            {filtered.length === 0 && (search || tagFilters.length > 0) && (
+              <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>No tasks match your filters</p>
+            )}
+          </div>
+
+          {/* Add a task */}
+          <div className="flex gap-2 items-center mb-24">
+            <div className="flex-1 relative rounded-xl"
+              style={{ background: "var(--surface)", border: `2px solid ${newTaskText ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}>
+              {!newTaskText && (
+                <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>Add a task…</span>
               )}
-              Commit{committedIds.size > 0 ? ` (${committedIds.size})` : ""}
+              <div ref={newTaskRef} contentEditable suppressContentEditableWarning role="textbox"
+                onInput={() => { const el = newTaskRef.current; if (el) setNewTaskText(el.innerText.replace(/\n/g, "")); }}
+                onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addSetupTask(); } }}
+                onPaste={e => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
+                className="w-full px-3 py-2.5 focus:outline-none"
+                style={{ color: "var(--text)", fontSize: "16px" } as React.CSSProperties} />
+            </div>
+            <button onClick={addSetupTask} style={{ color: "var(--purple)" }} className="flex-shrink-0 hover:opacity-70 transition-opacity">
+              <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" /></svg>
+            </button>
+          </div>
+
+          {/* Commit button */}
+          <div className="fixed bottom-20 left-0 right-0 px-4 max-w-2xl mx-auto">
+            <button onClick={commit} disabled={committing}
+              className="w-full py-4 rounded-2xl text-base font-bold text-white shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
+              style={{ background: "var(--purple)" }}>
+              {committing && <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "white", borderTopColor: "transparent" }} />}
+              I&apos;m ready to commit{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
             </button>
           </div>
         </div>
       )}
 
-      {/* ── Regular view ─────────────────────────────────────────────────────── */}
-      {setupPhase === null && (
+      {/* ── Committed ─────────────────────────────────────────────────────── */}
+      {phase === "committed" && (
         <div>
           {/* Header */}
-          <div className="pt-8 pb-4">
-            <div className="flex items-center justify-between mb-1">
-              <span className="text-xs font-semibold tracking-widest text-sage uppercase">Homeroom</span>
-              <Link href="/profile" className="w-8 h-8 rounded-full flex items-center justify-center text-lg overflow-hidden" style={{ background: avatar ? "var(--border)" : "#7C9E87" }}>
-                {avatar ?? <span className="text-white text-xs font-semibold">?</span>}
-              </Link>
-            </div>
-            <h1 className="text-2xl font-bold text-charcoal leading-snug">
+          <div className="pt-8 pb-5">
+            <h1 className="text-2xl font-bold text-charcoal">
               {new Date().toLocaleDateString(undefined, { weekday: "long" })}
             </h1>
             <p className="text-sm text-warm-gray">
@@ -580,163 +439,119 @@ export default function TodayPage() {
             </p>
           </div>
 
-          {/* Committed task list */}
-          {allTodayTasks.length === 0 ? (
-            <p className="text-sm py-8 text-center" style={{ color: "var(--text-2)" }}>No tasks committed for today.</p>
-          ) : (
-            <div className="space-y-2 mb-6">
-              {allTodayTasks.map(task => (
-                <div
-                  key={task.id}
-                  className="flex items-center gap-3 rounded-xl px-3 py-2.5"
-                  style={{ background: "var(--surface)", border: "1px solid var(--border-2)" }}
-                >
-                  <button
-                    onClick={() => toggleTask(task.id, task.done)}
-                    className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
-                    style={task.done
-                      ? { background: "var(--purple)", border: "2px solid var(--purple)" }
-                      : { border: "2px solid var(--border-3)" }}
-                  >
-                    {task.done && (
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="20 6 9 17 4 12" />
-                      </svg>
-                    )}
-                  </button>
-                  <span className={`text-sm flex-1 break-words min-w-0 ${task.done ? "line-through text-warm-gray" : "text-charcoal"}`}>
-                    {task.text}
+          {/* Task block */}
+          <div className="rounded-2xl border p-4 mb-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+
+            {tasks.length === 0 && (
+              <p className="text-sm text-center py-4" style={{ color: "var(--text-2)" }}>No tasks yet — add some below.</p>
+            )}
+
+            {/* Undone tasks */}
+            {undone.map(t => {
+              const e = elapsed(t);
+              const running = t.startedAt !== null;
+              return (
+                <div key={t.id} className="flex items-center gap-2 px-1 py-2 rounded-lg" style={{ background: "var(--bg)" }}>
+                  <button onClick={() => toggleTask(t.id)}
+                    className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                    style={{ border: "2px solid var(--border-3)" }} />
+                  <span className="text-sm flex-1 break-words min-w-0 text-charcoal">{t.text}</span>
+                  <span className="text-xs font-mono w-10 text-right flex-shrink-0" style={{ color: running ? "var(--purple)" : "#A8A29E" }}>
+                    {e > 0 || running ? formatTime(e) : ""}
                   </span>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Add more tasks */}
-          <div className="mb-4">
-            <button
-              onClick={() => {
-                if (!showAddMore) loadUnassignedTasks();
-                setShowAddMore(v => !v);
-                setAddMoreSearch("");
-                setNewTaskInput("");
-                if (newTaskInputRef.current) newTaskInputRef.current.innerHTML = "";
-              }}
-              className="w-full text-sm font-medium py-3 rounded-2xl border transition-colors hover:opacity-80 flex items-center justify-center gap-1.5"
-              style={showAddMore
-                ? { borderColor: "var(--purple)", color: "var(--purple)", background: "rgba(139,92,246,0.06)" }
-                : { borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-              </svg>
-              Add more tasks
-            </button>
-
-            {showAddMore && (
-              <div className="mt-2 rounded-2xl border p-4 space-y-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-                {/* New task input */}
-                <div className="flex gap-2 items-center">
-                  <div
-                    className="flex-1 relative rounded-xl"
-                    style={{ background: "var(--bg)", border: `2px solid ${newTaskInput ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}
-                  >
-                    {!newTaskInput && (
-                      <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>
-                        New task…
-                      </span>
-                    )}
-                    <div
-                      ref={newTaskInputRef}
-                      contentEditable
-                      suppressContentEditableWarning
-                      role="textbox"
-                      onInput={() => {
-                        const el = newTaskInputRef.current;
-                        if (!el) return;
-                        setNewTaskInput(el.innerText.replace(/\n/g, ""));
-                      }}
-                      onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addNewTask(newTaskInput); } }}
-                      onPaste={e => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
-                      spellCheck={false}
-                      autoCorrect="off"
-                      autoCapitalize="off"
-                      className="w-full px-3 py-2.5 focus:outline-none"
-                      style={{ color: "var(--text)", outline: "none", fontSize: "16px" } as React.CSSProperties}
-                    />
-                  </div>
-                  <button
-                    onClick={() => addNewTask(newTaskInput)}
-                    style={{ color: "var(--purple)" }}
-                    className="flex-shrink-0 hover:opacity-70 transition-opacity"
-                  >
-                    <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" />
+                  <button onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
+                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+                    style={running ? { background: "var(--purple)" } : { background: "var(--border)" }}>
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "#78716C"} strokeWidth="2.5">
+                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                     </svg>
                   </button>
                 </div>
+              );
+            })}
 
-                {/* My List tasks to pull from */}
-                {unassignedTasks.length > 0 && (
-                  <>
-                    <div className="relative">
-                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
-                        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                      </svg>
-                      <input
-                        type="text"
-                        value={addMoreSearch}
-                        onChange={e => setAddMoreSearch(e.target.value)}
-                        placeholder="Search My List…"
-                        className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
-                        style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
-                      />
-                    </div>
-                    <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                      {(addMoreSearch
-                        ? unassignedTasks.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase()))
-                        : unassignedTasks
-                      ).map(task => (
-                        <button
-                          key={task.id}
-                          onClick={() => importTask(task.id, task.text)}
-                          className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left transition-colors hover:opacity-80"
-                          style={{ background: "var(--bg)", border: "1px solid var(--border-2)" }}
-                        >
-                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--purple)", flexShrink: 0 }}>
-                            <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-                          </svg>
-                          <span className="text-sm text-charcoal">{task.text}</span>
-                        </button>
-                      ))}
-                      {addMoreSearch && unassignedTasks.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase())).length === 0 && (
-                        <p className="text-xs text-center py-3" style={{ color: "var(--text-2)" }}>No results</p>
-                      )}
-                    </div>
-                  </>
-                )}
+            {/* Done tasks */}
+            {done.length > 0 && (
+              <div className="mt-2 pt-2 space-y-1 border-t" style={{ borderColor: "var(--border-2)" }}>
+                {done.map(t => (
+                  <div key={t.id} className="flex items-center gap-2 px-1 py-2 rounded-lg opacity-60">
+                    <button onClick={() => toggleTask(t.id)}
+                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                      style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}>
+                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
+                    </button>
+                    <span className="text-sm flex-1 min-w-0 line-through text-warm-gray">{t.text}</span>
+                    <span className="text-xs text-warm-gray flex-shrink-0">{formatTime(t.timeSpent)}</span>
+                  </div>
+                ))}
               </div>
             )}
           </div>
 
-          {/* Add a block */}
-          <button
-            onClick={() => showToast("Coming soon")}
-            className="w-full text-sm font-medium py-3 rounded-2xl border border-dashed transition-colors hover:opacity-70 flex items-center justify-center gap-1.5"
-            style={{ borderColor: "var(--border-3)", color: "var(--text-2)" }}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
-            </svg>
+          {/* Add more tasks */}
+          <button onClick={openAddMore}
+            className="w-full text-sm font-medium py-3 rounded-2xl border mb-3 flex items-center justify-center gap-1.5 transition-colors hover:opacity-80"
+            style={showAddMore
+              ? { borderColor: "var(--purple)", color: "var(--purple)", background: "rgba(139,92,246,0.06)" }
+              : { borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
+            Add more tasks
+          </button>
+
+          {showAddMore && (
+            <div className="rounded-2xl border p-4 space-y-3 mb-3" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+              {/* New task input */}
+              <div className="flex gap-2 items-center">
+                <div className="flex-1 relative rounded-xl"
+                  style={{ background: "var(--bg)", border: `2px solid ${addMoreText ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}>
+                  {!addMoreText && (
+                    <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>New task…</span>
+                  )}
+                  <div ref={addMoreRef} contentEditable suppressContentEditableWarning role="textbox"
+                    onInput={() => { const el = addMoreRef.current; if (el) setAddMoreText(el.innerText.replace(/\n/g, "")); }}
+                    onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addNewCommittedTask(); } }}
+                    onPaste={e => { e.preventDefault(); document.execCommand("insertText", false, e.clipboardData.getData("text/plain")); }} // eslint-disable-line
+                    className="w-full px-3 py-2.5 focus:outline-none"
+                    style={{ color: "var(--text)", fontSize: "16px" } as React.CSSProperties} />
+                </div>
+                <button onClick={addNewCommittedTask} style={{ color: "var(--purple)" }} className="flex-shrink-0 hover:opacity-70">
+                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" /></svg>
+                </button>
+              </div>
+              {/* My List */}
+              {unassigned.length > 0 && (
+                <>
+                  <div className="relative">
+                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
+                      <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                    </svg>
+                    <input type="text" value={addMoreSearch} onChange={e => setAddMoreSearch(e.target.value)} placeholder="Search My List…"
+                      className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
+                      style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }} />
+                  </div>
+                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                    {(addMoreSearch ? unassigned.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase())) : unassigned).map(t => (
+                      <button key={t.id} onClick={() => importTask(t.id, t.text)}
+                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:opacity-80"
+                        style={{ background: "var(--bg)", border: "1px solid var(--border-2)" }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0 }}>
+                          <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        <span className="text-sm text-charcoal">{t.text}</span>
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
+
+          {/* Add a block — behavior TBD */}
+          <button className="w-full text-sm font-medium py-3 rounded-2xl border border-dashed flex items-center justify-center gap-1.5 opacity-50"
+            style={{ borderColor: "var(--border-3)", color: "var(--text-2)" }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add a block
           </button>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 bg-charcoal text-white text-xs font-medium px-4 py-2.5 rounded-full shadow-lg pointer-events-none z-50">
-          {toast}
         </div>
       )}
     </div>
