@@ -158,7 +158,10 @@ export default function TodayPage() {
     const ids = [...selectedIds];
     if (ids.length > 0) await supabase.from("tasks").update({ block_id: block.id }).in("id", ids);
     localStorage.setItem("homeroom-today-setup-date", today);
-    await loadCommittedTasks(userId, today);
+    // Transition immediately using data we already have — no second roundtrip
+    setBlockId(block.id);
+    setTasks(setupTasks.filter(t => selectedIds.has(t.id)).map(t => ({ id: t.id, text: t.text, done: false, timeSpent: 0, startedAt: null })));
+    setPhase("committed");
     setCommitting(false);
   }
 
