@@ -33,7 +33,9 @@ function tagColor(name: string) {
 
 export default function TodayPage() {
   const [userId, setUserId] = useState<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
   const [phase, setPhase] = useState<"loading" | "setup" | "committed">("loading");
+  const [toast, setToast] = useState<string | null>(null);
 
   // ── Setup state ──────────────────────────────────────────────────────────
   const [setupTasks, setSetupTasks] = useState<SetupTask[]>([]);
@@ -63,6 +65,7 @@ export default function TodayPage() {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
       setUserId(user.id);
+      userIdRef.current = user.id;
       const today = dateKey(new Date());
       if (localStorage.getItem("homeroom-today-setup-date") === today) {
         await loadCommittedTasks(user.id, today);
@@ -141,28 +144,38 @@ export default function TodayPage() {
 
   // ── Commit ────────────────────────────────────────────────────────────────
 
+  function showToast(msg: string) {
+    setToast(msg);
+    setTimeout(() => setToast(null), 4000);
+  }
+
   async function commit() {
-    if (!userId) return;
+    const uid = userIdRef.current;
+    if (!uid) { showToast("Not logged in — please refresh"); return; }
     setCommitting(true);
-    const supabase = createClient();
-    const today = dateKey(new Date());
-    const { data: block, error } = await supabase
-      .from("blocks")
-      .insert({ user_id: userId, date: today, name: "Today", position: 0, visibility: "private" })
-      .select("id").single();
-    if (!block) {
-      console.error("Block creation failed:", error);
+    try {
+      const supabase = createClient();
+      const today = dateKey(new Date());
+      const { data: block, error } = await supabase
+        .from("blocks")
+        .insert({ user_id: uid, date: today, name: "Today", position: 0, visibility: "private" })
+        .select("id").single();
+      if (!block) {
+        showToast(error?.message ?? "Could not save — try again");
+        return;
+      }
+      const ids = [...selectedIds];
+      if (ids.length > 0) await supabase.from("tasks").update({ block_id: block.id }).in("id", ids);
+      localStorage.setItem("homeroom-today-setup-date", today);
+      setBlockId(block.id);
+      setTasks(setupTasks.filter(t => selectedIds.has(t.id)).map(t => ({ id: t.id, text: t.text, done: false, timeSpent: 0, startedAt: null })));
+      setPhase("committed");
+    } catch (e) {
+      console.error("Commit error:", e);
+      showToast("Something went wrong — try again");
+    } finally {
       setCommitting(false);
-      return;
     }
-    const ids = [...selectedIds];
-    if (ids.length > 0) await supabase.from("tasks").update({ block_id: block.id }).in("id", ids);
-    localStorage.setItem("homeroom-today-setup-date", today);
-    // Transition immediately using data we already have — no second roundtrip
-    setBlockId(block.id);
-    setTasks(setupTasks.filter(t => selectedIds.has(t.id)).map(t => ({ id: t.id, text: t.text, done: false, timeSpent: 0, startedAt: null })));
-    setPhase("committed");
-    setCommitting(false);
   }
 
   // ── Add task during setup ─────────────────────────────────────────────────
@@ -555,6 +568,15 @@ export default function TodayPage() {
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add a block
           </button>
+        </div>
+      )}
+
+      {/* Toast */}
+      {toast && (
+        <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
+          <div className="bg-charcoal text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg">
+            {toast}
+          </div>
         </div>
       )}
     </div>
