@@ -8,6 +8,7 @@ import { createClient } from "@/lib/supabase/client";
 type SetupTask = { id: string; text: string; created_at: string; tagIds: string[] };
 type Tag = { id: string; name: string };
 type Task = { id: string; text: string; done: boolean; timeSpent: number; startedAt: number | null };
+type UnassignedTask = { id: string; text: string; created_at: string; tagIds: string[] };
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -57,6 +58,17 @@ export default function TodayPage() {
   const [blockId, setBlockId] = useState<string | null>(null);
   const [tick, setTick] = useState(0);
 
+  // ── Add more state ───────────────────────────────────────────────────────
+  const [showAddMore, setShowAddMore] = useState(false);
+  const [addMoreText, setAddMoreText] = useState("");
+  const addMoreRef = useRef<HTMLDivElement | null>(null);
+  const [addMoreSearch, setAddMoreSearch] = useState("");
+  const [addMoreTagFilters, setAddMoreTagFilters] = useState<string[]>([]);
+  const [addMoreSortDir, setAddMoreSortDir] = useState<"none" | "asc" | "desc">("none");
+  const [addMoreTagDropdownOpen, setAddMoreTagDropdownOpen] = useState(false);
+  const addMoreTagDropdownRef = useRef<HTMLDivElement>(null);
+  const [unassigned, setUnassigned] = useState<UnassignedTask[]>([]);
+
   // ── Init ─────────────────────────────────────────────────────────────────
 
   useEffect(() => {
@@ -80,6 +92,8 @@ export default function TodayPage() {
     function onOutside(e: MouseEvent) {
       if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node))
         setTagDropdownOpen(false);
+      if (addMoreTagDropdownRef.current && !addMoreTagDropdownRef.current.contains(e.target as Node))
+        setAddMoreTagDropdownOpen(false);
     }
     document.addEventListener("mousedown", onOutside);
     return () => { clearInterval(ticker); document.removeEventListener("mousedown", onOutside); };
@@ -109,7 +123,8 @@ export default function TodayPage() {
 
     const tasks = data.map(t => ({ id: t.id, text: t.text, created_at: t.created_at as string, tagIds: tagMap[t.id] ?? [] }));
     setSetupTasks(tasks);
-    setSelectedIds(new Set(tasks.map(t => t.id)));
+    // Start with nothing selected — user picks their own tasks
+    setSelectedIds(new Set());
   }
 
   // ── Load committed tasks ──────────────────────────────────────────────────
@@ -188,7 +203,6 @@ export default function TodayPage() {
     if (data) {
       const t = { id: data.id, text: data.text, created_at: data.created_at as string, tagIds: [] };
       setSetupTasks(prev => [...prev, t]);
-      setSelectedIds(prev => new Set([...prev, data.id]));
       setNewTaskText("");
       if (newTaskRef.current) newTaskRef.current.innerHTML = "";
     }
@@ -235,22 +249,38 @@ export default function TodayPage() {
     }).eq("id", id);
   }
 
-  // ── Add task to committed view ────────────────────────────────────────────
-
-  const [showAddMore, setShowAddMore] = useState(false);
-  const [addMoreText, setAddMoreText] = useState("");
-  const addMoreRef = useRef<HTMLDivElement | null>(null);
-  const [addMoreSearch, setAddMoreSearch] = useState("");
-  const [unassigned, setUnassigned] = useState<{ id: string; text: string }[]>([]);
+  // ── Add more tasks ────────────────────────────────────────────────────────
 
   async function openAddMore() {
     if (!userId) return;
     const alreadyIn = new Set(tasks.map(t => t.id));
-    const { data } = await createClient()
-      .from("tasks").select("id, text")
-      .eq("user_id", userId).eq("done", false)
-      .order("created_at", { ascending: false }).limit(100);
-    setUnassigned((data ?? []).filter(t => !alreadyIn.has(t.id)));
+    const supabase = createClient();
+
+    const [tasksRes, tagsRes] = await Promise.allSettled([
+      supabase.from("tasks").select("id, text, created_at")
+        .eq("user_id", userId).eq("done", false)
+        .order("created_at", { ascending: false }).limit(100),
+      allTags.length === 0
+        ? supabase.from("tags").select("id, name").eq("user_id", userId)
+        : Promise.resolve({ data: allTags }),
+    ]);
+
+    const taskData = tasksRes.status === "fulfilled" ? (tasksRes.value.data ?? []) : [];
+    const tagsData = tagsRes.status === "fulfilled" ? ((tagsRes.value as { data: Tag[] | null }).data ?? []) : [];
+    if (allTags.length === 0 && tagsData.length > 0) setAllTags(tagsData);
+
+    const filtered = taskData.filter(t => !alreadyIn.has(t.id));
+    const ids = filtered.map(t => t.id);
+    const tagMap: Record<string, string[]> = {};
+    if (ids.length > 0) {
+      const { data: ttData } = await supabase.from("task_tags").select("task_id, tag_id").in("task_id", ids);
+      for (const r of (ttData ?? [])) {
+        if (!tagMap[r.task_id]) tagMap[r.task_id] = [];
+        tagMap[r.task_id].push(r.tag_id);
+      }
+    }
+
+    setUnassigned(filtered.map(t => ({ id: t.id, text: t.text, created_at: t.created_at as string, tagIds: tagMap[t.id] ?? [] })));
     setShowAddMore(true);
   }
 
@@ -286,6 +316,18 @@ export default function TodayPage() {
     return list;
   })();
 
+  const filteredUnassigned = (() => {
+    let list = addMoreTagFilters.length > 0
+      ? unassigned.filter(t => addMoreTagFilters.every(id => t.tagIds.includes(id)))
+      : unassigned;
+    if (addMoreSearch.trim()) list = list.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase().trim()));
+    if (addMoreSortDir !== "none") list = [...list].sort((a, b) => {
+      const d = new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+      return addMoreSortDir === "asc" ? d : -d;
+    });
+    return list;
+  })();
+
   const done = tasks.filter(t => t.done);
   const undone = tasks.filter(t => !t.done);
 
@@ -306,8 +348,15 @@ export default function TodayPage() {
       {/* ── Setup ─────────────────────────────────────────────────────────── */}
       {phase === "setup" && (
         <div>
+          {/* Header */}
           <div className="pt-10 pb-6">
-            <h1 className="text-2xl font-bold text-charcoal">What are you committing to accomplish today?</h1>
+            <span className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full mb-3"
+              style={{ background: "rgba(139,92,246,0.12)", color: "var(--purple)" }}>
+              Today&apos;s Commitment
+            </span>
+            <h1 className="text-2xl font-bold text-charcoal leading-snug">
+              What are you committing to accomplish today?
+            </h1>
           </div>
 
           {/* Search */}
@@ -316,8 +365,8 @@ export default function TodayPage() {
               <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
             </svg>
             <input type="text" value={search} onChange={e => setSearch(e.target.value)} placeholder="Search tasks…"
-              className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
-              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }} />
+              className="w-full text-sm rounded-xl pl-8 pr-3 py-2.5 focus:outline-none border transition-colors"
+              style={{ background: "var(--surface)", borderColor: search ? "var(--purple)" : "var(--border-2)", color: "var(--text)", fontSize: "16px" }} />
           </div>
 
           {/* Filters */}
@@ -325,7 +374,7 @@ export default function TodayPage() {
             {allTags.length > 0 && (
               <div ref={tagDropdownRef} className="relative">
                 <button onClick={() => setTagDropdownOpen(v => !v)}
-                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium"
+                  className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
                   style={tagFilters.length > 0
                     ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
                     : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
@@ -354,7 +403,7 @@ export default function TodayPage() {
               </div>
             )}
             <button onClick={() => setSortDir(d => d === "none" ? "desc" : d === "desc" ? "asc" : "none")}
-              className="ml-auto text-xs px-2.5 py-1.5 rounded-full border font-medium"
+              className="ml-auto text-xs px-2.5 py-1.5 rounded-full border font-medium transition-colors"
               style={sortDir !== "none"
                 ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
                 : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
@@ -367,7 +416,14 @@ export default function TodayPage() {
             <div className="flex items-center gap-3 mb-3">
               <button onClick={() => setSelectedIds(new Set(setupTasks.map(t => t.id)))} className="text-xs font-semibold" style={{ color: "var(--purple)" }}>Select all</button>
               <button onClick={() => setSelectedIds(new Set())} className="text-xs font-semibold" style={{ color: "var(--text-2)" }}>Clear</button>
-              {search && <span className="text-xs ml-auto" style={{ color: "var(--text-2)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>}
+              {selectedIds.size > 0 && (
+                <span className="text-xs font-medium ml-auto px-2 py-0.5 rounded-full" style={{ background: "rgba(139,92,246,0.1)", color: "var(--purple)" }}>
+                  {selectedIds.size} selected
+                </span>
+              )}
+              {selectedIds.size === 0 && search && (
+                <span className="text-xs ml-auto" style={{ color: "var(--text-2)" }}>{filtered.length} result{filtered.length !== 1 ? "s" : ""}</span>
+              )}
             </div>
           )}
 
@@ -378,16 +434,19 @@ export default function TodayPage() {
               return (
                 <button key={task.id}
                   onClick={() => setSelectedIds(prev => { const s = new Set(prev); s.has(task.id) ? s.delete(task.id) : s.add(task.id); return s; })}
-                  className="w-full flex items-start gap-2 px-3 py-2.5 rounded-xl text-left transition-all"
-                  style={{ background: "var(--surface)", border: `1px solid ${sel ? "var(--purple)" : "var(--border-2)"}` }}>
-                  <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5"
+                  className="w-full flex items-start gap-3 px-3 py-3 rounded-xl text-left transition-all"
+                  style={{
+                    background: sel ? "rgba(139,92,246,0.06)" : "var(--surface)",
+                    border: `1.5px solid ${sel ? "var(--purple)" : "var(--border-2)"}`,
+                  }}>
+                  <div className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5 transition-all"
                     style={sel ? { background: "var(--purple)", border: "2px solid var(--purple)" } : { border: "2px solid var(--border-3)" }}>
                     {sel && <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <span className="text-sm text-charcoal leading-snug">{task.text}</span>
+                    <span className="text-sm leading-snug" style={{ color: sel ? "var(--text)" : "var(--text-2)" }}>{task.text}</span>
                     {task.tagIds.length > 0 && (
-                      <div className="flex flex-wrap gap-1 mt-1">
+                      <div className="flex flex-wrap gap-1 mt-1.5">
                         {task.tagIds.map(tid => {
                           const tag = allTags.find(t => t.id === tid);
                           if (!tag) return null;
@@ -409,14 +468,17 @@ export default function TodayPage() {
             {filtered.length === 0 && (search || tagFilters.length > 0) && (
               <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>No tasks match your filters</p>
             )}
+            {filtered.length === 0 && !search && tagFilters.length === 0 && (
+              <p className="text-sm text-center py-6" style={{ color: "var(--text-2)" }}>Your list is empty — add a task below</p>
+            )}
           </div>
 
           {/* Add a task */}
           <div className="flex gap-2 items-center mb-24">
             <div className="flex-1 relative rounded-xl"
-              style={{ background: "var(--surface)", border: `2px solid ${newTaskText ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}>
+              style={{ background: "var(--surface)", border: `2px solid ${newTaskText ? "var(--purple)" : "rgba(139,92,246,0.3)"}` }}>
               {!newTaskText && (
-                <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>Add a task…</span>
+                <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.5 }}>Add a task…</span>
               )}
               <div ref={newTaskRef} contentEditable suppressContentEditableWarning role="textbox"
                 onInput={() => { const el = newTaskRef.current; if (el) setNewTaskText(el.innerText.replace(/\n/g, "")); }}
@@ -433,7 +495,7 @@ export default function TodayPage() {
           {/* Commit button */}
           <div className="fixed bottom-20 left-0 right-0 px-4 max-w-2xl mx-auto">
             <button onClick={commit} disabled={committing}
-              className="w-full py-4 rounded-2xl text-base font-bold text-white shadow-lg flex items-center justify-center gap-2 disabled:opacity-60"
+              className="w-full py-4 rounded-2xl text-base font-bold text-white shadow-lg flex items-center justify-center gap-2 disabled:opacity-60 transition-opacity"
               style={{ background: "var(--purple)" }}>
               {committing && <div className="w-4 h-4 rounded-full border-2 border-t-transparent animate-spin" style={{ borderColor: "white", borderTopColor: "transparent" }} />}
               I&apos;m ready to commit{selectedIds.size > 0 ? ` (${selectedIds.size})` : ""}
@@ -446,72 +508,93 @@ export default function TodayPage() {
       {phase === "committed" && (
         <div>
           {/* Header */}
-          <div className="pt-8 pb-5">
-            <h1 className="text-2xl font-bold text-charcoal">
-              {new Date().toLocaleDateString(undefined, { weekday: "long" })}
-            </h1>
-            <p className="text-sm text-warm-gray">
-              {new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" })}
-            </p>
+          <div className="pt-8 pb-5 flex items-end justify-between">
+            <div>
+              <h1 className="text-2xl font-bold text-charcoal">
+                {new Date().toLocaleDateString(undefined, { weekday: "long" })}
+              </h1>
+              <p className="text-sm mt-0.5" style={{ color: "var(--text-2)" }}>
+                {new Date().toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+              </p>
+            </div>
+            {tasks.length > 0 && (
+              <span className="text-sm font-semibold px-3 py-1 rounded-full mb-1"
+                style={{ background: done.length === tasks.length ? "rgba(139,92,246,0.15)" : "rgba(139,92,246,0.08)", color: "var(--purple)" }}>
+                {done.length}/{tasks.length} done
+              </span>
+            )}
           </div>
 
           {/* Task block */}
-          <div className="rounded-2xl border p-4 mb-4" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+          <div className="rounded-2xl border overflow-hidden mb-4"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+            {/* Purple top accent */}
+            <div className="h-1 w-full" style={{ background: "var(--purple)" }} />
 
-            {tasks.length === 0 && (
-              <p className="text-sm text-center py-4" style={{ color: "var(--text-2)" }}>No tasks yet — add some below.</p>
-            )}
+            <div className="p-4">
+              {tasks.length === 0 && (
+                <p className="text-sm text-center py-4" style={{ color: "var(--text-2)" }}>No tasks yet — add some below.</p>
+              )}
 
-            {/* Undone tasks */}
-            {undone.map(t => {
-              const e = elapsed(t);
-              const running = t.startedAt !== null;
-              return (
-                <div key={t.id} className="flex items-center gap-2 px-1 py-2 rounded-lg" style={{ background: "var(--bg)" }}>
-                  <button onClick={() => toggleTask(t.id)}
-                    className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                    style={{ border: "2px solid var(--border-3)" }} />
-                  <span className="text-sm flex-1 break-words min-w-0 text-charcoal">{t.text}</span>
-                  <span className="text-xs font-mono w-10 text-right flex-shrink-0" style={{ color: running ? "var(--purple)" : "#A8A29E" }}>
-                    {e > 0 || running ? formatTime(e) : ""}
-                  </span>
-                  <button onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
-                    className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
-                    style={running ? { background: "var(--purple)" } : { background: "var(--border)" }}>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "#78716C"} strokeWidth="2.5">
-                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                    </svg>
-                  </button>
-                </div>
-              );
-            })}
-
-            {/* Done tasks */}
-            {done.length > 0 && (
-              <div className="mt-2 pt-2 space-y-1 border-t" style={{ borderColor: "var(--border-2)" }}>
-                {done.map(t => (
-                  <div key={t.id} className="flex items-center gap-2 px-1 py-2 rounded-lg opacity-60">
-                    <button onClick={() => toggleTask(t.id)}
-                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                      style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}>
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
-                    </button>
-                    <span className="text-sm flex-1 min-w-0 line-through text-warm-gray">{t.text}</span>
-                    <span className="text-xs text-warm-gray flex-shrink-0">{formatTime(t.timeSpent)}</span>
-                  </div>
-                ))}
+              {/* Undone tasks */}
+              <div className="space-y-0.5">
+                {undone.map(t => {
+                  const e = elapsed(t);
+                  const running = t.startedAt !== null;
+                  return (
+                    <div key={t.id} className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl transition-colors"
+                      style={{ background: running ? "rgba(139,92,246,0.05)" : "transparent" }}>
+                      <button onClick={() => toggleTask(t.id)}
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+                        style={{ border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }} />
+                      <span className="text-sm flex-1 break-words min-w-0" style={{ color: "var(--text)" }}>{t.text}</span>
+                      <span className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
+                        style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}>
+                        {formatTime(e)}
+                      </span>
+                      <button onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
+                        className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+                        style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}>
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
+                          <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+                        </svg>
+                      </button>
+                    </div>
+                  );
+                })}
               </div>
-            )}
+
+              {/* Done tasks */}
+              {done.length > 0 && (
+                <div className={`space-y-0.5 border-t pt-2 mt-2`} style={{ borderColor: "var(--border-2)" }}>
+                  {done.map(t => (
+                    <div key={t.id} className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl opacity-55">
+                      <button onClick={() => toggleTask(t.id)}
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                        style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}>
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
+                      </button>
+                      <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-2)" }}>{t.text}</span>
+                      <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>{formatTime(t.timeSpent)}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* Add more tasks */}
-          <button onClick={openAddMore}
-            className="w-full text-sm font-medium py-3 rounded-2xl border mb-3 flex items-center justify-center gap-1.5 transition-colors hover:opacity-80"
+          {/* Add more tasks toggle */}
+          <button onClick={showAddMore ? () => setShowAddMore(false) : openAddMore}
+            className="w-full text-sm font-medium py-3 rounded-2xl border mb-3 flex items-center justify-center gap-1.5 transition-all"
             style={showAddMore
               ? { borderColor: "var(--purple)", color: "var(--purple)", background: "rgba(139,92,246,0.06)" }
               : { borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
-            Add more tasks
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+              {showAddMore
+                ? <path d="M18 12H6" />
+                : <><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></>}
+            </svg>
+            {showAddMore ? "Close" : "Add more tasks"}
           </button>
 
           {showAddMore && (
@@ -519,9 +602,9 @@ export default function TodayPage() {
               {/* New task input */}
               <div className="flex gap-2 items-center">
                 <div className="flex-1 relative rounded-xl"
-                  style={{ background: "var(--bg)", border: `2px solid ${addMoreText ? "var(--purple)" : "rgba(139,92,246,0.35)"}` }}>
+                  style={{ background: "var(--bg)", border: `2px solid ${addMoreText ? "var(--purple)" : "rgba(139,92,246,0.3)"}` }}>
                   {!addMoreText && (
-                    <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.6 }}>New task…</span>
+                    <span className="absolute inset-0 flex items-center px-3 text-sm pointer-events-none font-medium" style={{ color: "var(--purple)", opacity: 0.5 }}>New task…</span>
                   )}
                   <div ref={addMoreRef} contentEditable suppressContentEditableWarning role="textbox"
                     onInput={() => { const el = addMoreRef.current; if (el) setAddMoreText(el.innerText.replace(/\n/g, "")); }}
@@ -534,37 +617,101 @@ export default function TodayPage() {
                   <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><circle cx="12" cy="12" r="10" /><path d="M12 8v8M8 12h8" /></svg>
                 </button>
               </div>
-              {/* My List */}
+
+              {/* My List — search, tag filter, sort */}
               {unassigned.length > 0 && (
                 <>
-                  <div className="relative">
-                    <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
-                      <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
-                    </svg>
-                    <input type="text" value={addMoreSearch} onChange={e => setAddMoreSearch(e.target.value)} placeholder="Search My List…"
-                      className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
-                      style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }} />
+                  <div className="flex items-center gap-2">
+                    {/* Search */}
+                    <div className="flex-1 relative">
+                      <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
+                        <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                      </svg>
+                      <input type="text" value={addMoreSearch} onChange={e => setAddMoreSearch(e.target.value)} placeholder="Search My List…"
+                        className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
+                        style={{ background: "var(--bg)", borderColor: addMoreSearch ? "var(--purple)" : "var(--border-2)", color: "var(--text)", fontSize: "16px" }} />
+                    </div>
+                    {/* Tag filter */}
+                    {allTags.length > 0 && (
+                      <div ref={addMoreTagDropdownRef} className="relative flex-shrink-0">
+                        <button onClick={() => setAddMoreTagDropdownOpen(v => !v)}
+                          className="flex items-center gap-1 text-xs px-2.5 py-2 rounded-xl border font-medium"
+                          style={addMoreTagFilters.length > 0
+                            ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                            : { background: "var(--bg)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
+                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="4" y1="6" x2="20" y2="6" /><line x1="8" y1="12" x2="16" y2="12" /><line x1="11" y1="18" x2="13" y2="18" /></svg>
+                          {addMoreTagFilters.length > 0 ? `${addMoreTagFilters.length}` : "Tags"}
+                          {addMoreTagFilters.length > 0 && <span onClick={e => { e.stopPropagation(); setAddMoreTagFilters([]); }} className="ml-0.5 opacity-70">×</span>}
+                        </button>
+                        {addMoreTagDropdownOpen && (
+                          <div className="absolute right-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[160px]" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
+                            {allTags.map(tag => {
+                              const { bg, fg } = tagColor(tag.name);
+                              const checked = addMoreTagFilters.includes(tag.id);
+                              return (
+                                <button key={tag.id} onClick={() => setAddMoreTagFilters(prev => checked ? prev.filter(i => i !== tag.id) : [...prev, tag.id])}
+                                  className="w-full flex items-center gap-2.5 px-3 py-2 text-left hover:bg-gray-50">
+                                  <span className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2"
+                                    style={checked ? { background: "var(--purple)", borderColor: "var(--purple)" } : { borderColor: "#D1D5DB" }}>
+                                    {checked && <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5"><polyline points="2 6 5 9 10 3" /></svg>}
+                                  </span>
+                                  <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    )}
+                    {/* Sort */}
+                    <button onClick={() => setAddMoreSortDir(d => d === "none" ? "desc" : d === "desc" ? "asc" : "none")}
+                      className="flex-shrink-0 text-xs px-2.5 py-2 rounded-xl border font-medium"
+                      style={addMoreSortDir !== "none"
+                        ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                        : { background: "var(--bg)", color: "var(--text-2)", borderColor: "var(--border-2)" }}>
+                      {addMoreSortDir === "asc" ? "↑" : addMoreSortDir === "desc" ? "↓" : "Date"}
+                    </button>
                   </div>
-                  <div className="space-y-1.5 max-h-48 overflow-y-auto">
-                    {(addMoreSearch ? unassigned.filter(t => t.text.toLowerCase().includes(addMoreSearch.toLowerCase())) : unassigned).map(t => (
+
+                  <div className="space-y-1.5 max-h-56 overflow-y-auto">
+                    {filteredUnassigned.length === 0 && (
+                      <p className="text-xs text-center py-3" style={{ color: "var(--text-2)" }}>No tasks match</p>
+                    )}
+                    {filteredUnassigned.map(t => (
                       <button key={t.id} onClick={() => importTask(t.id, t.text)}
-                        className="w-full flex items-center gap-2.5 px-3 py-2 rounded-xl text-left hover:opacity-80"
+                        className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left hover:opacity-80 transition-opacity"
                         style={{ background: "var(--bg)", border: "1px solid var(--border-2)" }}>
-                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0 }}>
+                        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0, marginTop: 2 }}>
                           <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
                         </svg>
-                        <span className="text-sm text-charcoal">{t.text}</span>
+                        <div className="flex-1 min-w-0">
+                          <span className="text-sm" style={{ color: "var(--text)" }}>{t.text}</span>
+                          {t.tagIds.length > 0 && (
+                            <div className="flex flex-wrap gap-1 mt-1">
+                              {t.tagIds.map(tid => {
+                                const tag = allTags.find(tg => tg.id === tid);
+                                if (!tag) return null;
+                                const { bg, fg } = tagColor(tag.name);
+                                return <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>#{tag.name}</span>;
+                              })}
+                            </div>
+                          )}
+                        </div>
                       </button>
                     ))}
                   </div>
                 </>
               )}
+
+              {unassigned.length === 0 && (
+                <p className="text-xs text-center py-2" style={{ color: "var(--text-2)" }}>All your tasks are already in today&apos;s list</p>
+              )}
             </div>
           )}
 
           {/* Add a block — behavior TBD */}
-          <button className="w-full text-sm font-medium py-3 rounded-2xl border border-dashed flex items-center justify-center gap-1.5 opacity-50"
-            style={{ borderColor: "var(--border-3)", color: "var(--text-2)" }}>
+          <button className="w-full text-sm font-medium py-3 rounded-2xl border border-dashed flex items-center justify-center gap-1.5 opacity-40"
+            style={{ borderColor: "var(--purple)", color: "var(--purple)" }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" /></svg>
             Add a block
           </button>
@@ -574,7 +721,7 @@ export default function TodayPage() {
       {/* Toast */}
       {toast && (
         <div className="fixed bottom-28 left-1/2 -translate-x-1/2 z-50 pointer-events-none">
-          <div className="bg-charcoal text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg">
+          <div className="bg-charcoal text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg whitespace-nowrap">
             {toast}
           </div>
         </div>
