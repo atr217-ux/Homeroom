@@ -1,12 +1,18 @@
 import BottomNav from "@/components/BottomNav";
 import SessionSync from "@/components/SessionSync";
+import { ThemeProvider } from "@/lib/theme";
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
   return (
-    <div className="min-h-screen pb-20">
-      <SessionSync />
-      {children}
-      <BottomNav />
-    </div>
+    <ThemeProvider>
+      <div
+        className="min-h-screen pb-24"
+        style={{ background: "var(--bg)", color: "var(--text)" }}
+      >
+        <SessionSync />
+        {children}
+        <BottomNav />
+      </div>
+    </ThemeProvider>
   );
 }

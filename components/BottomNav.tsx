@@ -2,198 +2,121 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useState, useEffect, useRef } from "react";
-import { createClient } from "@/lib/supabase/client";
+
+type Tab = {
+  href: string;
+  label: string;
+  icon: (active: boolean) => React.ReactNode;
+};
+
+const TABS: Tab[] = [
+  {
+    href: "/home",
+    label: "Home",
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 9.5L12 3l9 6.5V20a1 1 0 0 1-1 1h-5v-7h-6v7H4a1 1 0 0 1-1-1V9.5z" />
+      </svg>
+    ),
+  },
+  {
+    href: "/tasks",
+    label: "Tasks",
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 2} strokeLinecap="round" strokeLinejoin="round">
+        <polyline points="9 11 12 14 22 4" />
+        <path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11" />
+      </svg>
+    ),
+  },
+  {
+    href: "/progress",
+    label: "Progress",
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={active ? 2.5 : 2} strokeLinecap="round" strokeLinejoin="round">
+        <path d="M3 3v18h18" />
+        <polyline points="7 14 11 10 15 13 21 7" />
+      </svg>
+    ),
+  },
+  {
+    href: "/profile",
+    label: "Profile",
+    icon: (active) => (
+      <svg width="22" height="22" viewBox="0 0 24 24" fill={active ? "currentColor" : "none"} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="8" r="4" />
+        <path d="M4 21c0-4.4 3.6-8 8-8s8 3.6 8 8" />
+      </svg>
+    ),
+  },
+];
 
 export default function BottomNav() {
   const pathname = usePathname();
-  const todayActive = pathname.startsWith("/today");
-  const [homeNotif, setHomeNotif] = useState(false);
-  const [profileNotif, setProfileNotif] = useState(false);
-  const channelRef = useRef<ReturnType<ReturnType<typeof createClient>["channel"]> | null>(null);
-  const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  useEffect(() => {
-    const supabase = createClient();
-
-    async function fetchCounts(userId: string, username: string) {
-      // Fetch pending invites with homeroom status so we can exclude completed rooms
-      const { data: inviteRows } = await supabase
-        .from("homeroom_invites")
-        .select("id, homerooms(status)")
-        .eq("to_user", userId)
-        .eq("status", "pending");
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const validInviteCount = (inviteRows ?? []).filter(r => {
-        const h = Array.isArray((r as any).homerooms) ? (r as any).homerooms[0] : (r as any).homerooms;
-        return h && h.status !== "completed";
-      }).length;
-      setHomeNotif(validInviteCount > 0);
-
-      if (username) {
-        const [{ count: frCount }, { count: sqCount }] = await Promise.all([
-          supabase.from("friend_requests").select("id", { count: "exact", head: true }).eq("to_username", username).eq("status", "pending"),
-          supabase.from("squad_invites").select("id", { count: "exact", head: true }).eq("to_username", username).eq("status", "pending"),
-        ]);
-        setProfileNotif((frCount ?? 0) + (sqCount ?? 0) > 0);
-      }
-    }
-
-    supabase.auth.getUser().then(async ({ data: { user } }) => {
-      if (!user) return;
-      const username = localStorage.getItem("homeroom-username") ?? "";
-
-      // Presence heartbeat
-      const pingPresence = () =>
-        supabase.from("profiles").update({ last_seen: new Date().toISOString() }).eq("id", user.id).then();
-      pingPresence();
-      heartbeatRef.current = setInterval(pingPresence, 90_000);
-
-      await fetchCounts(user.id, username);
-
-      let ch = supabase
-        .channel("bottom-nav-notifs")
-        .on("postgres_changes", { event: "INSERT", schema: "public", table: "homeroom_invites", filter: `to_user=eq.${user.id}` }, () => fetchCounts(user.id, username))
-        .on("postgres_changes", { event: "UPDATE", schema: "public", table: "homeroom_invites", filter: `to_user=eq.${user.id}` }, () => fetchCounts(user.id, username));
-
-      if (username) {
-        ch = ch
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "friend_requests", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username))
-          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "friend_requests", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username))
-          .on("postgres_changes", { event: "INSERT", schema: "public", table: "squad_invites", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username))
-          .on("postgres_changes", { event: "UPDATE", schema: "public", table: "squad_invites", filter: `to_username=eq.${username}` }, () => fetchCounts(user.id, username));
-      }
-
-      channelRef.current = ch.subscribe();
-
-      const userId = user.id;
-      function onVisibility() {
-        if (document.visibilityState === "visible") fetchCounts(userId, username);
-      }
-      document.addEventListener("visibilitychange", onVisibility);
-    });
-
-    return () => {
-      if (channelRef.current) supabase.removeChannel(channelRef.current);
-      if (heartbeatRef.current) clearInterval(heartbeatRef.current);
-    };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const leftTabs = [
-    {
-      href: "/home",
-      label: "Feed",
-      notif: homeNotif,
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z" />
-          <polyline points="9 22 9 12 15 12 15 22" />
-        </svg>
-      ),
-    },
-    {
-      href: "/list",
-      label: "My List",
-      notif: false,
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <line x1="8" y1="6" x2="21" y2="6" /><line x1="8" y1="12" x2="21" y2="12" />
-          <line x1="8" y1="18" x2="21" y2="18" /><line x1="3" y1="6" x2="3.01" y2="6" />
-          <line x1="3" y1="12" x2="3.01" y2="12" /><line x1="3" y1="18" x2="3.01" y2="18" />
-        </svg>
-      ),
-    },
-  ];
-
-  const rightTabs = [
-    {
-      href: "/progress",
-      label: "Progress",
-      notif: false,
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M5 19a9 9 0 1 1 14 0" />
-          <line x1="12" y1="19" x2="16.5" y2="10" />
-          <circle cx="12" cy="19" r="1.2" fill="currentColor" stroke="none" />
-        </svg>
-      ),
-    },
-    {
-      href: "/profile",
-      label: "Profile",
-      notif: profileNotif,
-      icon: (
-        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-          <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-      ),
-    },
-  ];
+  const todayActive = pathname?.startsWith("/today");
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-30 border-t flex items-end" style={{ background: "var(--surface)", borderColor: "var(--border)" }}>
-      {leftTabs.map((tab) => {
-        const active = pathname.startsWith(tab.href);
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors relative"
-            style={{ color: active ? "var(--purple)" : "var(--text-2)" }}
-          >
-            <div className="relative">
-              {tab.icon}
-              {tab.notif && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg)]" style={{ background: "var(--red)" }} />
-              )}
-            </div>
-            {tab.label}
-          </Link>
-        );
-      })}
+    <nav
+      className="fixed bottom-0 left-0 right-0 z-40 border-t"
+      style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+    >
+      <div className="max-w-2xl mx-auto px-2 pt-2 pb-3 flex items-end justify-around relative">
+        {TABS.slice(0, 2).map((t) => (
+          <TabLink key={t.href} tab={t} active={pathname?.startsWith(t.href) ?? false} />
+        ))}
 
-      {/* Centre Today button */}
-      <div className="flex-1 flex flex-col items-center pb-3" style={{ marginTop: "-22px" }}>
-        <Link href="/today" className="flex flex-col items-center gap-1">
-          <div
-            className="w-14 h-14 rounded-full flex items-center justify-center transition-all"
+        {/* Center: Today */}
+        <Link
+          href="/today"
+          className="flex flex-col items-center justify-center -mt-7"
+          aria-label="Today"
+        >
+          <span
+            className="w-14 h-14 rounded-full flex items-center justify-center shadow-lg"
             style={{
-              background: todayActive ? "var(--purple-dark)" : "var(--purple)",
-              boxShadow: "0 4px 14px rgba(124,58,237,0.45)",
+              background: "var(--purple)",
+              boxShadow: todayActive
+                ? "0 4px 16px rgba(124,58,237,0.45)"
+                : "0 2px 10px rgba(124,58,237,0.3)",
             }}
           >
             <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="3" width="7" height="7" /><rect x="14" y="3" width="7" height="7" />
-              <rect x="14" y="14" width="7" height="7" /><rect x="3" y="14" width="7" height="7" />
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="12" y1="14" x2="12" y2="18" />
+              <line x1="10" y1="16" x2="14" y2="16" />
             </svg>
-          </div>
-          <span className="text-xs font-medium" style={{ color: todayActive ? "var(--purple)" : "var(--text-2)" }}>
+          </span>
+          <span
+            className="text-[10px] font-semibold mt-1"
+            style={{ color: todayActive ? "var(--purple)" : "var(--text-2)" }}
+          >
             Today
           </span>
         </Link>
-      </div>
 
-      {rightTabs.map((tab) => {
-        const active = pathname.startsWith(tab.href);
-        return (
-          <Link
-            key={tab.href}
-            href={tab.href}
-            className="flex-1 flex flex-col items-center gap-1 py-3 text-xs font-medium transition-colors"
-            style={{ color: active ? "var(--purple)" : "var(--text-2)" }}
-          >
-            <div className="relative">
-              {tab.icon}
-              {tab.notif && (
-                <span className="absolute -top-1 -right-1 w-2.5 h-2.5 rounded-full border-2 border-[var(--bg)]" style={{ background: "var(--red)" }} />
-              )}
-            </div>
-            {tab.label}
-          </Link>
-        );
-      })}
+        {TABS.slice(2).map((t) => (
+          <TabLink key={t.href} tab={t} active={pathname?.startsWith(t.href) ?? false} />
+        ))}
+      </div>
     </nav>
+  );
+}
+
+function TabLink({ tab, active }: { tab: Tab; active: boolean }) {
+  return (
+    <Link
+      href={tab.href}
+      className="flex flex-col items-center justify-center py-1 px-3 transition-colors"
+      style={{ color: active ? "var(--purple)" : "var(--text-2)" }}
+    >
+      {tab.icon(active)}
+      <span
+        className="text-[10px] mt-0.5 font-medium"
+        style={{ color: active ? "var(--purple)" : "var(--text-2)" }}
+      >
+        {tab.label}
+      </span>
+    </Link>
   );
 }

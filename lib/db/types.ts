@@ -5,40 +5,9 @@ export type Profile = {
   avatar: string | null;
 };
 
-export type HomeroomStatus = "scheduled" | "active" | "completed";
-
-export type Homeroom = {
+export type Tag = {
   id: string;
-  created_by: string;
-  title: string;
-  is_private: boolean;
-  duration: number;
-  status: HomeroomStatus;
-  scheduled_for: string | null;
-  started_at: string | null;
-  ended_at: string | null;
-  squad_tags: string[];
-  created_at: string;
-  // Joined fields
-  profiles?: { username: string; avatar: string | null };
-};
-
-export type HomeroomParticipant = {
-  homeroom_id: string;
-  user_id: string;
-  joined_at: string;
-  profiles?: { username: string; avatar: string | null };
-};
-
-export type HomeroomInvite = {
-  id: string;
-  homeroom_id: string;
-  from_user: string;
-  to_user: string;
-  status: "pending" | "accepted" | "declined";
-  created_at: string;
-  homerooms?: Homeroom;
-  from_profile?: { username: string; avatar: string | null };
+  name: string;
 };
 
 export type Task = {
@@ -46,9 +15,65 @@ export type Task = {
   user_id: string;
   text: string;
   done: boolean;
-  time_spent: number; // seconds
-  homeroom_id: string | null;
-  sort_order: number;
-  created_at: string;
+  is_private: boolean;
+  time_spent: number;             // seconds
+  timer_started_at: string | null;
+  block_id: string | null;
+  is_shared: boolean;
+  claimed_by_user_id: string | null;
+  completed_by_user_id: string | null;
   completed_at: string | null;
+  committed_for_date: string | null; // YYYY-MM-DD
+  created_at: string;
+};
+
+export type TaskWithTags = Task & {
+  task_tags?: { tag_id: string; tags: { id: string; name: string } | null }[];
+};
+
+export type BlockVisibility = "private" | "shared" | "public";
+
+export type Block = {
+  id: string;
+  user_id: string;
+  date: string;                  // YYYY-MM-DD
+  name: string;
+  start_time: string | null;     // "HH:MM:SS"
+  end_time: string | null;
+  visibility: BlockVisibility;
+  is_live: boolean;
+  position: number;
+  created_at: string;
+};
+
+export type BlockInviteStatus = "invited" | "joined" | "declined";
+
+export type BlockInvite = {
+  id: string;
+  block_id: string;
+  invited_user_id: string;
+  status: BlockInviteStatus;
+  created_at: string;
+};
+
+export type Squad = {
+  id: string;
+  name: string;
+  emoji: string | null;
+  description: string | null;
+  is_public: boolean;
+  member_count: number;
+  created_by: string;
+};
+
+export type Friendship = {
+  user_a: string;
+  user_b: string;
+  created_at: string;
+};
+
+// Row shape emitted by the home/feed query
+export type FeedEventRow = Task & {
+  profiles?: { username: string; avatar: string | null };
+  blocks?: { id: string; name: string; start_time: string | null; end_time: string | null } | null;
 };
