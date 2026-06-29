@@ -12,6 +12,7 @@ type LiveTask = {
   user_id: string;
   text: string;
   done: boolean;
+  isPrivate: boolean;
   isShared: boolean;
   claimedBy: string | null;
   timeSpent: number;
@@ -43,7 +44,7 @@ export default function BlockLiveView({ block, userId }: Props) {
       const [tasksRes, invitesRes, ownerRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, user_id, text, done, is_shared, claimed_by_user_id, time_spent, timer_started_at, task_tags(tag_id)")
+          .select("id, user_id, text, done, is_private, is_shared, claimed_by_user_id, time_spent, timer_started_at, task_tags(tag_id)")
           .eq("block_id", block.id),
         supabase
           .from("block_invites")
@@ -87,6 +88,7 @@ export default function BlockLiveView({ block, userId }: Props) {
         user_id: string;
         text: string;
         done: boolean;
+        is_private: boolean | null;
         is_shared: boolean;
         claimed_by_user_id: string | null;
         time_spent: number;
@@ -97,6 +99,7 @@ export default function BlockLiveView({ block, userId }: Props) {
         user_id: r.user_id,
         text: r.text,
         done: r.done,
+        isPrivate: r.is_private ?? false,
         isShared: r.is_shared ?? false,
         claimedBy: r.claimed_by_user_id,
         timeSpent: r.time_spent ?? 0,
@@ -169,6 +172,14 @@ export default function BlockLiveView({ block, userId }: Props) {
     setTasks((prev) => prev.map((t) => t.id === id ? { ...t, text: next } : t));
     setEditingId(null);
     await createClient().from("tasks").update({ text: next }).eq("id", id);
+  }
+
+  async function togglePrivate(id: string) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    const next = !t.isPrivate;
+    setTasks((prev) => prev.map((x) => x.id === id ? { ...x, isPrivate: next } : x));
+    await createClient().from("tasks").update({ is_private: next }).eq("id", id);
   }
 
   async function toggleShared(id: string) {
@@ -313,6 +324,7 @@ export default function BlockLiveView({ block, userId }: Props) {
             onUnclaim={unclaim}
             onEdit={(id, current) => { setEditingId(id); setEditingText(current); }}
             onToggleShared={toggleShared}
+            onTogglePrivate={togglePrivate}
             onRemoveFromBlock={removeFromBlock}
             onSaveEdit={saveEdit}
             onCancelEdit={() => setEditingId(null)}
@@ -368,6 +380,7 @@ function TaskSection({
   onUnclaim,
   onEdit,
   onToggleShared,
+  onTogglePrivate,
   onRemoveFromBlock,
   onSaveEdit,
   onCancelEdit,
@@ -387,6 +400,7 @@ function TaskSection({
   onUnclaim?: (id: string) => void;
   onEdit?: (id: string, currentText: string) => void;
   onToggleShared?: (id: string) => void;
+  onTogglePrivate?: (id: string) => void;
   onRemoveFromBlock?: (id: string) => void;
   onSaveEdit?: (id: string) => void;
   onCancelEdit?: () => void;
@@ -508,6 +522,28 @@ function TaskSection({
           <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
             {formatTime(t.timeSpent)}
           </span>
+        )}
+
+        {!isEditing && !readonly && onTogglePrivate && (
+          <button
+            onClick={() => onTogglePrivate(t.id)}
+            className="p-1 rounded flex-shrink-0 transition-opacity hover:opacity-100"
+            style={{ color: t.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: t.isPrivate ? 1 : 0.5 }}
+            title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+            aria-label={t.isPrivate ? "Make public" : "Make private"}
+          >
+            {t.isPrivate ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+              </svg>
+            )}
+          </button>
         )}
       </div>
     );

@@ -162,6 +162,14 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     setTasks((prev) => prev.map((x) => x.id === id ? { ...x, timeSpent: spent, startedAt: null } : x));
   }
 
+  async function togglePrivate(id: string) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    const next = !t.isPrivate;
+    setTasks((prev) => prev.map((x) => x.id === id ? { ...x, isPrivate: next } : x));
+    await createClient().from("tasks").update({ is_private: next }).eq("id", id);
+  }
+
   // Remove from today only — task stays in your master list
   async function removeFromToday(id: string) {
     const t = tasks.find((x) => x.id === id);
@@ -350,17 +358,9 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         </>
                       ) : (
                         <>
-                          <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                            <span className="text-sm break-words" style={{ color: "var(--text)" }}>
-                              {t.text}
-                            </span>
-                            {t.isPrivate && (
-                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0 }}>
-                                <rect x="3" y="11" width="18" height="11" rx="2" />
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                              </svg>
-                            )}
-                          </div>
+                          <span className="text-sm break-words flex-1 min-w-0" style={{ color: "var(--text)" }}>
+                            {t.text}
+                          </span>
                           <span
                             className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
                             style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
@@ -376,6 +376,25 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
                               <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                             </svg>
+                          </button>
+                          <button
+                            onClick={() => togglePrivate(t.id)}
+                            className="p-1 rounded flex-shrink-0 transition-opacity hover:opacity-100"
+                            style={{ color: t.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: t.isPrivate ? 1 : 0.5 }}
+                            title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+                            aria-label={t.isPrivate ? "Make public" : "Make private"}
+                          >
+                            {t.isPrivate ? (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                              </svg>
+                            ) : (
+                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                              </svg>
+                            )}
                           </button>
                         </>
                       )}
