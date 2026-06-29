@@ -24,6 +24,19 @@ export function stripHashtags(raw: string): string {
   return raw.replace(/#\w+/g, "").replace(/\s+/g, " ").trim();
 }
 
+function escapeHTML(s: string): string {
+  return s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
+}
+
+// Wraps every #hashtag in a purple span. For use as contenteditable innerHTML.
+export function buildColoredHTML(text: string): string {
+  return text.split(/(#\w+)/g).map(part =>
+    /^#\w+/.test(part)
+      ? `<span style="color:var(--purple);font-weight:500">${escapeHTML(part)}</span>`
+      : escapeHTML(part)
+  ).join("");
+}
+
 // Returns existing tag for (userId, name) or creates one. Case-insensitive on name.
 export async function getOrCreateTag(
   name: string,
