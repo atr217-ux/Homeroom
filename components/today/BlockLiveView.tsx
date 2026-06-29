@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatTime, isWithinTimeRange } from "@/lib/utils/date";
 import { tagColor } from "@/lib/utils/tags";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
+import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Block, Tag } from "@/lib/db/types";
 
 type LiveTask = {
@@ -411,6 +412,8 @@ function TaskSection({
   currentUserId: string;
   readonly?: boolean;
 }) {
+  const hasHover = useHasHover();
+
   if (tasks.length === 0) {
     return (
       <p className="text-xs px-3 py-3 rounded-xl border text-center" style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text-2)" }}>
@@ -493,6 +496,57 @@ function TaskSection({
             style={{ background: "var(--surface-2)", color: "var(--text-2)", opacity: 0.7 }}
           >
             Release
+          </button>
+        )}
+
+        {!isEditing && !readonly && hasHover && onEdit && (
+          <button
+            onClick={() => onEdit(t.id, t.text)}
+            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{ color: "var(--text-2)", opacity: 0.5 }}
+            title="Edit"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+            </svg>
+          </button>
+        )}
+        {!isEditing && !readonly && hasHover && onToggleShared && (
+          <button
+            onClick={() => onToggleShared(t.id)}
+            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{ color: t.isShared ? "#059669" : "var(--text-2)", opacity: t.isShared ? 1 : 0.5 }}
+            title={t.isShared ? "Currently shared — tap to unshare" : "Make shareable"}
+          >
+            {t.isShared ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="12" r="3" />
+                <line x1="5" y1="5" x2="19" y2="19" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="12" r="3" />
+                <circle cx="17" cy="6" r="3" />
+                <circle cx="17" cy="18" r="3" />
+                <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
+                <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
+              </svg>
+            )}
+          </button>
+        )}
+        {!isEditing && !readonly && hasHover && onRemoveFromBlock && (
+          <button
+            onClick={() => onRemoveFromBlock(t.id)}
+            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{ color: "var(--text-2)", opacity: 0.5 }}
+            title="Remove from block"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="9" y1="16" x2="15" y2="16" />
+            </svg>
           </button>
         )}
 
