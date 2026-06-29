@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { dateKey, formatTime } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
+import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
 import type { Tag } from "@/lib/db/types";
 
 type CommittedTask = {
@@ -106,10 +107,16 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     setTasks((prev) => prev.map((x) => x.id === id ? { ...x, timeSpent: spent, startedAt: null } : x));
   }
 
+  // Remove from today only — task stays in your master list
+  async function removeFromToday(id: string) {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    await createClient().from("tasks").update({ committed_for_date: null }).eq("id", id);
+  }
+
+  // Hard delete — removes from DB entirely
   async function deleteTask(id: string) {
     setTasks((prev) => prev.filter((t) => t.id !== id));
-    // Don't delete from DB — just unset committed_for_date so it goes back to the master list
-    await createClient().from("tasks").update({ committed_for_date: null }).eq("id", id);
+    await createClient().from("tasks").delete().eq("id", id);
   }
 
   async function saveEdit(id: string) {
@@ -220,128 +227,136 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             )}
 
             {/* Undone */}
-            <div className="space-y-0.5">
+            <div className="space-y-1">
               {undone.map((t) => {
                 const e = elapsed(t);
                 const running = t.startedAt !== null;
                 const isEditing = editingId === t.id;
                 return (
-                  <div
+                  <SwipeableRow
                     key={t.id}
-                    className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl transition-colors"
-                    style={{ background: running ? "rgba(124,58,237,0.05)" : "transparent" }}
+                    leftActions={isEditing ? [] : [{
+                      label: "Edit",
+                      icon: SwipeIcons.Edit,
+                      bg: SwipeColors.edit,
+                      onClick: () => { setEditingId(t.id); setEditingText(t.text); },
+                    }]}
+                    rightActions={isEditing ? [] : [
+                      {
+                        label: "Off today",
+                        icon: SwipeIcons.RemoveFromDay,
+                        bg: SwipeColors.remove,
+                        onClick: () => removeFromToday(t.id),
+                      },
+                      {
+                        label: "Delete",
+                        icon: SwipeIcons.Trash,
+                        bg: SwipeColors.delete,
+                        onClick: () => deleteTask(t.id),
+                      },
+                    ]}
                   >
-                    <button
-                      onClick={() => toggleDone(t.id)}
-                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
-                      style={{ border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }}
-                      aria-label="Mark done"
-                    />
-                    {isEditing ? (
-                      <>
-                        <input
-                          ref={editInputRef}
-                          autoFocus
-                          className="flex-1 text-sm bg-transparent focus:outline-none border-b"
-                          style={{ borderColor: "var(--purple)", color: "var(--text)" }}
-                          value={editingText}
-                          onChange={(e) => setEditingText(e.target.value)}
-                          onKeyDown={(e) => {
-                            if (e.key === "Enter") { e.preventDefault(); saveEdit(t.id); }
-                            if (e.key === "Escape") { e.preventDefault(); setEditingId(null); }
-                          }}
-                          onBlur={() => saveEdit(t.id)}
-                        />
-                        <button onClick={() => setEditingId(null)} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
-                          ✕
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <div className="flex-1 min-w-0 flex items-center gap-1.5">
-                          <span className="text-sm break-words" style={{ color: "var(--text)" }}>
-                            {t.text}
+                    <div
+                      className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
+                      style={{ background: running ? "rgba(124,58,237,0.05)" : "var(--surface)" }}
+                    >
+                      <button
+                        onClick={() => toggleDone(t.id)}
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+                        style={{ border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }}
+                        aria-label="Mark done"
+                      />
+                      {isEditing ? (
+                        <>
+                          <input
+                            ref={editInputRef}
+                            autoFocus
+                            className="flex-1 text-sm bg-transparent focus:outline-none border-b"
+                            style={{ borderColor: "var(--purple)", color: "var(--text)" }}
+                            value={editingText}
+                            onChange={(e) => setEditingText(e.target.value)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") { e.preventDefault(); saveEdit(t.id); }
+                              if (e.key === "Escape") { e.preventDefault(); setEditingId(null); }
+                            }}
+                            onBlur={() => saveEdit(t.id)}
+                          />
+                          <button onClick={() => setEditingId(null)} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
+                            ✕
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+                            <span className="text-sm break-words" style={{ color: "var(--text)" }}>
+                              {t.text}
+                            </span>
+                            {t.isPrivate && (
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0 }}>
+                                <rect x="3" y="11" width="18" height="11" rx="2" />
+                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                              </svg>
+                            )}
+                          </div>
+                          <span
+                            className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
+                            style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
+                          >
+                            {formatTime(e)}
                           </span>
-                          {t.isPrivate && (
-                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0 }}>
-                              <rect x="3" y="11" width="18" height="11" rx="2" />
-                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                          <button
+                            onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
+                            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+                            style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
+                            title={running ? "Stop timer" : "Start timer"}
+                          >
+                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
+                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                             </svg>
-                          )}
-                        </div>
-                        <button
-                          onClick={() => { setEditingId(t.id); setEditingText(t.text); }}
-                          className="p-1 rounded transition-opacity hover:opacity-100"
-                          style={{ color: "var(--text-2)", opacity: 0.6 }}
-                          title="Edit"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                          </svg>
-                        </button>
-                        <button
-                          onClick={() => deleteTask(t.id)}
-                          className="p-1 rounded transition-opacity hover:opacity-100"
-                          style={{ color: "var(--text-2)", opacity: 0.6 }}
-                          title="Remove from today"
-                        >
-                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                            <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                          </svg>
-                        </button>
-                        <span
-                          className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
-                          style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
-                        >
-                          {formatTime(e)}
-                        </span>
-                        <button
-                          onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
-                          className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
-                          style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
-                          title={running ? "Stop timer" : "Start timer"}
-                        >
-                          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
-                            <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                          </svg>
-                        </button>
-                      </>
-                    )}
-                  </div>
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </SwipeableRow>
                 );
               })}
             </div>
 
             {/* Done */}
             {done.length > 0 && (
-              <div className="space-y-0.5 border-t pt-2 mt-2" style={{ borderColor: "var(--border-2)" }}>
+              <div className="space-y-1 border-t pt-2 mt-2" style={{ borderColor: "var(--border-2)" }}>
                 {done.map((t) => (
-                  <div key={t.id} className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl opacity-55">
-                    <button
-                      onClick={() => toggleDone(t.id)}
-                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                      style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}
-                    >
-                      <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
-                    </button>
-                    <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-2)" }}>{t.text}</span>
-                    <span className="text-xs font-mono flex-shrink-0 tabular-nums mr-1" style={{ color: "var(--text-2)" }}>
-                      {formatTime(t.timeSpent)}
-                    </span>
-                    <button
-                      onClick={() => deleteTask(t.id)}
-                      className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                      style={{ color: "var(--text-2)", opacity: 0.6 }}
-                      title="Remove from today"
-                    >
-                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                        <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                      </svg>
-                    </button>
-                  </div>
+                  <SwipeableRow
+                    key={t.id}
+                    rightActions={[
+                      {
+                        label: "Off today",
+                        icon: SwipeIcons.RemoveFromDay,
+                        bg: SwipeColors.remove,
+                        onClick: () => removeFromToday(t.id),
+                      },
+                      {
+                        label: "Delete",
+                        icon: SwipeIcons.Trash,
+                        bg: SwipeColors.delete,
+                        onClick: () => deleteTask(t.id),
+                      },
+                    ]}
+                  >
+                    <div className="flex items-center gap-2.5 px-2 py-2.5 opacity-55" style={{ background: "var(--surface)" }}>
+                      <button
+                        onClick={() => toggleDone(t.id)}
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                        style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}
+                      >
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
+                      </button>
+                      <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-2)" }}>{t.text}</span>
+                      <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
+                        {formatTime(t.timeSpent)}
+                      </span>
+                    </div>
+                  </SwipeableRow>
                 ))}
               </div>
             )}

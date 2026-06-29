@@ -1,9 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { formatTime, isWithinTimeRange } from "@/lib/utils/date";
 import { tagColor } from "@/lib/utils/tags";
+import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
 import type { Block, Tag } from "@/lib/db/types";
 
 type LiveTask = {
@@ -31,6 +32,9 @@ export default function BlockLiveView({ block, userId }: Props) {
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tick, setTick] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editingText, setEditingText] = useState("");
+  const editInputRef = useRef<HTMLInputElement>(null);
 
   // ── Load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -159,6 +163,30 @@ export default function BlockLiveView({ block, userId }: Props) {
     setTasks((prev) => prev.map((x) => x.id === id ? { ...x, timeSpent: spent, startedAt: null } : x));
   }
 
+  async function saveEdit(id: string) {
+    const next = editingText.trim();
+    if (!next) { setEditingId(null); return; }
+    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, text: next } : t));
+    setEditingId(null);
+    await createClient().from("tasks").update({ text: next }).eq("id", id);
+  }
+
+  async function toggleShared(id: string) {
+    const t = tasks.find((x) => x.id === id);
+    if (!t) return;
+    const next = !t.isShared;
+    setTasks((prev) => prev.map((x) => x.id === id ? { ...x, isShared: next, claimedBy: next ? x.claimedBy : null } : x));
+    await createClient()
+      .from("tasks")
+      .update({ is_shared: next, claimed_by_user_id: next ? t.claimedBy : null })
+      .eq("id", id);
+  }
+
+  async function removeFromBlock(id: string) {
+    setTasks((prev) => prev.filter((t) => t.id !== id));
+    await createClient().from("tasks").update({ block_id: null, is_shared: false, claimed_by_user_id: null }).eq("id", id);
+  }
+
   async function claim(id: string) {
     setTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimedBy: userId } : t));
     await createClient().from("tasks").update({ claimed_by_user_id: userId }).eq("id", id);
@@ -283,6 +311,15 @@ export default function BlockLiveView({ block, userId }: Props) {
             onStart={startTimer}
             onStop={stopTimer}
             onUnclaim={unclaim}
+            onEdit={(id, current) => { setEditingId(id); setEditingText(current); }}
+            onToggleShared={toggleShared}
+            onRemoveFromBlock={removeFromBlock}
+            onSaveEdit={saveEdit}
+            onCancelEdit={() => setEditingId(null)}
+            editingId={editingId}
+            editingText={editingText}
+            onEditingTextChange={setEditingText}
+            editInputRef={editInputRef}
             currentUserId={userId}
           />
         </section>
@@ -329,6 +366,15 @@ function TaskSection({
   onStart,
   onStop,
   onUnclaim,
+  onEdit,
+  onToggleShared,
+  onRemoveFromBlock,
+  onSaveEdit,
+  onCancelEdit,
+  editingId,
+  editingText,
+  onEditingTextChange,
+  editInputRef,
   currentUserId,
   readonly = false,
 }: {
@@ -339,6 +385,15 @@ function TaskSection({
   onStart?: (id: string) => void;
   onStop?: (id: string) => void;
   onUnclaim?: (id: string) => void;
+  onEdit?: (id: string, currentText: string) => void;
+  onToggleShared?: (id: string) => void;
+  onRemoveFromBlock?: (id: string) => void;
+  onSaveEdit?: (id: string) => void;
+  onCancelEdit?: () => void;
+  editingId?: string | null;
+  editingText?: string;
+  onEditingTextChange?: (text: string) => void;
+  editInputRef?: React.RefObject<HTMLInputElement | null>;
   currentUserId: string;
   readonly?: boolean;
 }) {
@@ -350,128 +405,197 @@ function TaskSection({
     );
   }
 
+  function rowContent(t: LiveTask) {
+    const e = elapsed(t);
+    const running = t.startedAt !== null;
+    const isClaimed = t.claimedBy === currentUserId;
+    const isEditing = !readonly && editingId === t.id;
+
+    return (
+      <div
+        className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
+        style={{
+          background: running ? "rgba(124,58,237,0.05)" : "var(--surface)",
+          opacity: t.done ? 0.55 : 1,
+        }}
+      >
+        {readonly ? (
+          <div
+            className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+            style={t.done
+              ? { background: "var(--purple)", border: "2px solid var(--purple)" }
+              : { border: "2px solid var(--border-3)" }}
+          >
+            {t.done && (
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </div>
+        ) : (
+          <button
+            onClick={() => onToggle?.(t.id)}
+            className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+            style={t.done
+              ? { background: "var(--purple)", border: "2px solid var(--purple)" }
+              : { border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }}
+            aria-label={t.done ? "Mark not done" : "Mark done"}
+          >
+            {t.done && (
+              <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+            )}
+          </button>
+        )}
+
+        {isEditing && onSaveEdit && onCancelEdit && onEditingTextChange ? (
+          <>
+            <input
+              ref={editInputRef}
+              autoFocus
+              className="flex-1 text-sm bg-transparent focus:outline-none border-b"
+              style={{ borderColor: "var(--purple)", color: "var(--text)" }}
+              value={editingText ?? ""}
+              onChange={(ev) => onEditingTextChange(ev.target.value)}
+              onKeyDown={(ev) => {
+                if (ev.key === "Enter") { ev.preventDefault(); onSaveEdit(t.id); }
+                if (ev.key === "Escape") { ev.preventDefault(); onCancelEdit(); }
+              }}
+              onBlur={() => onSaveEdit(t.id)}
+            />
+            <button onClick={onCancelEdit} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
+              ✕
+            </button>
+          </>
+        ) : (
+          <Inner t={t} allTags={allTags} isClaimed={isClaimed} />
+        )}
+
+        {!isEditing && !readonly && isClaimed && onUnclaim && (
+          <button
+            onClick={() => onUnclaim(t.id)}
+            className="text-xs px-2 py-1 rounded-full font-medium transition-opacity hover:opacity-100"
+            style={{ background: "var(--surface-2)", color: "var(--text-2)", opacity: 0.7 }}
+          >
+            Release
+          </button>
+        )}
+
+        {!isEditing && !t.done && (e > 0 || running) && (
+          <span
+            className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
+            style={{ color: running ? "var(--purple)" : "var(--text-2)" }}
+          >
+            {formatTime(e)}
+          </span>
+        )}
+
+        {!isEditing && !readonly && !t.done && (
+          <button
+            onClick={() => running ? onStop?.(t.id) : onStart?.(t.id)}
+            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
+            style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
+            title={running ? "Stop timer" : "Start timer"}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
+              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
+            </svg>
+          </button>
+        )}
+
+        {!isEditing && t.done && (
+          <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
+            {formatTime(t.timeSpent)}
+          </span>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div
-      className="rounded-2xl border p-3 space-y-0.5"
+      className="rounded-2xl border p-2 space-y-1"
       style={{ background: "var(--surface)", borderColor: "var(--border)" }}
     >
       {tasks.map((t) => {
-        const e = elapsed(t);
-        const running = t.startedAt !== null;
-        const isClaimed = t.claimedBy === currentUserId;
+        const isEditing = !readonly && editingId === t.id;
+        if (readonly || isEditing || !onEdit || !onToggleShared || !onRemoveFromBlock) {
+          return <div key={t.id} className="rounded-xl overflow-hidden">{rowContent(t)}</div>;
+        }
         return (
-          <div
+          <SwipeableRow
             key={t.id}
-            className="flex items-center gap-2.5 px-2 py-2.5 rounded-xl transition-colors"
-            style={{
-              background: running ? "rgba(124,58,237,0.05)" : "transparent",
-              opacity: t.done ? 0.55 : 1,
-            }}
+            leftActions={[
+              {
+                label: "Edit",
+                icon: SwipeIcons.Edit,
+                bg: SwipeColors.edit,
+                onClick: () => onEdit(t.id, t.text),
+              },
+              {
+                label: t.isShared ? "Unshare" : "Share",
+                icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
+                bg: SwipeColors.share,
+                onClick: () => onToggleShared(t.id),
+              },
+            ]}
+            rightActions={[
+              {
+                label: "Off block",
+                icon: SwipeIcons.RemoveFromDay,
+                bg: SwipeColors.remove,
+                onClick: () => onRemoveFromBlock(t.id),
+              },
+            ]}
           >
-            {readonly ? (
-              <div
-                className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                style={t.done
-                  ? { background: "var(--purple)", border: "2px solid var(--purple)" }
-                  : { border: "2px solid var(--border-3)" }}
-              >
-                {t.done && (
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </div>
-            ) : (
-              <button
-                onClick={() => onToggle?.(t.id)}
-                className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
-                style={t.done
-                  ? { background: "var(--purple)", border: "2px solid var(--purple)" }
-                  : { border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }}
-                aria-label={t.done ? "Mark not done" : "Mark done"}
-              >
-                {t.done && (
-                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
-                    <polyline points="20 6 9 17 4 12" />
-                  </svg>
-                )}
-              </button>
-            )}
-
-            <div className="flex-1 min-w-0">
-              <span
-                className="text-sm break-words"
-                style={{
-                  color: "var(--text)",
-                  textDecoration: t.done ? "line-through" : "none",
-                }}
-              >
-                {t.text}
-              </span>
-              {isClaimed && (
-                <span
-                  className="ml-1.5 inline-flex text-[10px] font-semibold px-1.5 py-0.5 rounded-full"
-                  style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
-                >
-                  yours
-                </span>
-              )}
-              {t.tagIds.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1">
-                  {t.tagIds.map((tid) => {
-                    const tag = allTags.find((tg) => tg.id === tid);
-                    if (!tag) return null;
-                    const { bg, fg } = tagColor(tag.name);
-                    return (
-                      <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
-                        #{tag.name}
-                      </span>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-
-            {!readonly && isClaimed && onUnclaim && (
-              <button
-                onClick={() => onUnclaim(t.id)}
-                className="text-xs px-2 py-1 rounded-full font-medium transition-opacity hover:opacity-100"
-                style={{ background: "var(--surface-2)", color: "var(--text-2)", opacity: 0.7 }}
-              >
-                Release
-              </button>
-            )}
-
-            {!t.done && (e > 0 || running) && (
-              <span
-                className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
-                style={{ color: running ? "var(--purple)" : "var(--text-2)" }}
-              >
-                {formatTime(e)}
-              </span>
-            )}
-
-            {!readonly && !t.done && (
-              <button
-                onClick={() => running ? onStop?.(t.id) : onStart?.(t.id)}
-                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
-                style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
-                title={running ? "Stop timer" : "Start timer"}
-              >
-                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
-                  <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                </svg>
-              </button>
-            )}
-
-            {t.done && (
-              <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
-                {formatTime(t.timeSpent)}
-              </span>
-            )}
-          </div>
+            {rowContent(t)}
+          </SwipeableRow>
         );
       })}
     </div>
   );
 }
+
+function Inner({ t, allTags, isClaimed }: { t: LiveTask; allTags: Tag[]; isClaimed: boolean }) {
+  return (
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-1.5">
+        <span
+          className="text-sm break-words"
+          style={{
+            color: "var(--text)",
+            textDecoration: t.done ? "line-through" : "none",
+          }}
+        >
+          {t.text}
+        </span>
+        {t.isShared && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(5,150,105,0.12)", color: "#059669" }}>
+            shared
+          </span>
+        )}
+        {isClaimed && (
+          <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}>
+            yours
+          </span>
+        )}
+      </div>
+      {t.tagIds.length > 0 && (
+        <div className="flex flex-wrap gap-1 mt-1">
+          {t.tagIds.map((tid) => {
+            const tag = allTags.find((tg) => tg.id === tid);
+            if (!tag) return null;
+            const { bg, fg } = tagColor(tag.name);
+            return (
+              <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                #{tag.name}
+              </span>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+

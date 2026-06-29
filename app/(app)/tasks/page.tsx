@@ -337,7 +337,6 @@ export default function TasksPage() {
           {undoneFiltered.map((task) => (
             <TaskRow
               key={task.id}
-              id={task.id}
               text={task.text}
               done={task.done}
               isPrivate={task.isPrivate}
@@ -385,7 +384,6 @@ export default function TasksPage() {
               {doneFiltered.map((task) => (
                 <TaskRow
                   key={task.id}
-                  id={task.id}
                   text={task.text}
                   done={task.done}
                   isPrivate={task.isPrivate}
