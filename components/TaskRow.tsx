@@ -139,12 +139,12 @@ export default function TaskRow({ id, text, done, isPrivate, tags, onToggle, onS
           )}
         </button>
 
-        {/* Edit + delete — visible on hover */}
+        {/* Edit + delete — always visible (mobile-friendly) */}
         {!done && !editing && (
           <button
             onClick={() => { setDraft(text); setEditing(true); }}
-            className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:opacity-70"
-            style={{ color: "var(--text-2)" }}
+            className="p-1 rounded transition-opacity hover:opacity-100 active:opacity-100"
+            style={{ color: "var(--text-2)", opacity: 0.6 }}
             title="Edit"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -155,8 +155,8 @@ export default function TaskRow({ id, text, done, isPrivate, tags, onToggle, onS
         )}
         <button
           onClick={onDelete}
-          className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity hover:opacity-70"
-          style={{ color: "var(--text-2)" }}
+          className="p-1 rounded transition-opacity hover:opacity-100 active:opacity-100"
+          style={{ color: "var(--text-2)", opacity: 0.6 }}
           title="Delete"
           aria-label={`Delete task ${id}`}
         >
