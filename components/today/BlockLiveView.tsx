@@ -6,6 +6,7 @@ import { formatTime, isWithinTimeRange } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
 import TagChip from "@/components/TagChip";
+import MoreMenu from "@/components/MoreMenu";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Block, Tag } from "@/lib/db/types";
 
@@ -543,40 +544,36 @@ function TaskSection({
           </button>
         )}
 
-        {/* Hidden-until-hover actions */}
         {!isEditing && !readonly && hasHover && (onToggleShared || onRemoveFromBlock) && (
-          <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
-            {onToggleShared && !t.isShared && (
-              <button
-                onClick={() => onToggleShared(t.id)}
-                className="p-1 rounded transition-opacity hover:opacity-100"
-                style={{ color: "var(--text-2)", opacity: 0.6 }}
-                title="Make shareable"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <circle cx="9" cy="12" r="3" />
-                  <circle cx="17" cy="6" r="3" />
-                  <circle cx="17" cy="18" r="3" />
-                  <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
-                  <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
-                </svg>
-              </button>
-            )}
-            {onRemoveFromBlock && (
-              <button
-                onClick={() => onRemoveFromBlock(t.id)}
-                className="p-1 rounded transition-opacity hover:opacity-100"
-                style={{ color: "var(--text-2)", opacity: 0.6 }}
-                title="Remove from block"
-              >
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                  <line x1="3" y1="10" x2="21" y2="10" />
-                  <line x1="9" y1="16" x2="15" y2="16" />
-                </svg>
-              </button>
-            )}
-          </div>
+          <MoreMenu
+            items={[
+              ...(onToggleShared && !t.isShared ? [{
+                label: "Make shareable",
+                onClick: () => onToggleShared(t.id),
+                icon: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <circle cx="9" cy="12" r="3" />
+                    <circle cx="17" cy="6" r="3" />
+                    <circle cx="17" cy="18" r="3" />
+                    <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
+                    <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
+                  </svg>
+                ),
+              }] : []),
+              ...(onRemoveFromBlock ? [{
+                label: "Remove from block",
+                destructive: true,
+                onClick: () => onRemoveFromBlock(t.id),
+                icon: (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="4" width="18" height="18" rx="2" />
+                    <line x1="3" y1="10" x2="21" y2="10" />
+                    <line x1="9" y1="16" x2="15" y2="16" />
+                  </svg>
+                ),
+              }] : []),
+            ]}
+          />
         )}
 
         {!isEditing && !t.done && (e > 0 || running) && (
