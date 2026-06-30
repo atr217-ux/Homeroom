@@ -639,11 +639,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             )}
                           </button>
                           {hasHover && (
-                            <>
+                            <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
                               <button
                                 onClick={() => removeFromToday(t.id)}
-                                className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
-                                style={{ color: "var(--text-2)" }}
+                                className="p-1 rounded transition-opacity hover:opacity-100"
+                                style={{ color: "var(--text-2)", opacity: 0.6 }}
                                 title="Remove from today"
                               >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -654,8 +654,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               </button>
                               <button
                                 onClick={() => deleteTask(t.id)}
-                                className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
-                                style={{ color: "var(--text-2)" }}
+                                className="p-1 rounded transition-opacity hover:opacity-100"
+                                style={{ color: "var(--text-2)", opacity: 0.6 }}
                                 title="Delete"
                               >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -663,7 +663,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                   <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
                                 </svg>
                               </button>
-                            </>
+                            </div>
                           )}
                         </>
                       )}
@@ -711,11 +711,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         {formatTime(t.timeSpent)}
                       </span>
                       {hasHover && (
-                        <>
+                        <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
                           <button
                             onClick={() => removeFromToday(t.id)}
-                            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
-                            style={{ color: "var(--text-2)" }}
+                            className="p-1 rounded transition-opacity hover:opacity-100"
+                            style={{ color: "var(--text-2)", opacity: 0.6 }}
                             title="Remove from today"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -726,8 +726,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                           </button>
                           <button
                             onClick={() => deleteTask(t.id)}
-                            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
-                            style={{ color: "var(--text-2)" }}
+                            className="p-1 rounded transition-opacity hover:opacity-100"
+                            style={{ color: "var(--text-2)", opacity: 0.6 }}
                             title="Delete"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -735,7 +735,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
                             </svg>
                           </button>
-                        </>
+                        </div>
                       )}
                     </div>
                   </SwipeableRow>

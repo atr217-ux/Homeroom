@@ -528,44 +528,55 @@ function TaskSection({
           </button>
         )}
 
-        {!isEditing && !readonly && hasHover && onToggleShared && (
+        {/* Active share state — always visible as state indicator */}
+        {!isEditing && !readonly && hasHover && onToggleShared && t.isShared && (
           <button
             onClick={() => onToggleShared(t.id)}
-            className={t.isShared
-              ? "p-1 rounded transition-opacity flex-shrink-0"
-              : "p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"}
-            style={{ color: t.isShared ? "#059669" : "var(--text-2)", opacity: t.isShared ? 1 : undefined }}
-            title={t.isShared ? "Currently shared — tap to unshare" : "Make shareable"}
-          >
-            {t.isShared ? (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="12" r="3" />
-                <line x1="5" y1="5" x2="19" y2="19" />
-              </svg>
-            ) : (
-              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="9" cy="12" r="3" />
-                <circle cx="17" cy="6" r="3" />
-                <circle cx="17" cy="18" r="3" />
-                <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
-                <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
-              </svg>
-            )}
-          </button>
-        )}
-        {!isEditing && !readonly && hasHover && onRemoveFromBlock && (
-          <button
-            onClick={() => onRemoveFromBlock(t.id)}
-            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
-            style={{ color: "var(--text-2)" }}
-            title="Remove from block"
+            className="p-1 rounded transition-opacity flex-shrink-0"
+            style={{ color: "#059669" }}
+            title="Currently shared — tap to unshare"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="4" width="18" height="18" rx="2" />
-              <line x1="3" y1="10" x2="21" y2="10" />
-              <line x1="9" y1="16" x2="15" y2="16" />
+              <circle cx="9" cy="12" r="3" />
+              <line x1="5" y1="5" x2="19" y2="19" />
             </svg>
           </button>
+        )}
+
+        {/* Hidden-until-hover actions */}
+        {!isEditing && !readonly && hasHover && (onToggleShared || onRemoveFromBlock) && (
+          <div className="hidden group-hover:flex items-center gap-1 flex-shrink-0">
+            {onToggleShared && !t.isShared && (
+              <button
+                onClick={() => onToggleShared(t.id)}
+                className="p-1 rounded transition-opacity hover:opacity-100"
+                style={{ color: "var(--text-2)", opacity: 0.6 }}
+                title="Make shareable"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="9" cy="12" r="3" />
+                  <circle cx="17" cy="6" r="3" />
+                  <circle cx="17" cy="18" r="3" />
+                  <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
+                  <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
+                </svg>
+              </button>
+            )}
+            {onRemoveFromBlock && (
+              <button
+                onClick={() => onRemoveFromBlock(t.id)}
+                className="p-1 rounded transition-opacity hover:opacity-100"
+                style={{ color: "var(--text-2)", opacity: 0.6 }}
+                title="Remove from block"
+              >
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                  <line x1="3" y1="10" x2="21" y2="10" />
+                  <line x1="9" y1="16" x2="15" y2="16" />
+                </svg>
+              </button>
+            )}
+          </div>
         )}
 
         {!isEditing && !t.done && (e > 0 || running) && (
