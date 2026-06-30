@@ -93,7 +93,8 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
                 if (e.key === "Enter") { e.preventDefault(); commitEdit(); }
                 if (e.key === "Escape") { e.preventDefault(); setDraft(text); setEditing(false); }
               }}
-              onBlur={commitEdit}
+              // Defer so a TagChip × click can fire before this row exits edit mode.
+              onBlur={() => setTimeout(() => { if (editing) commitEdit(); }, 180)}
               onPaste={(e) => {
                 e.preventDefault();
                 const txt = e.clipboardData.getData("text/plain").replace(/\n/g, " ");

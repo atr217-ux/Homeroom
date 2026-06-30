@@ -683,7 +683,8 @@ function Inner({
               if (ev.key === "Enter") { ev.preventDefault(); onSaveEdit(); }
               if (ev.key === "Escape") { ev.preventDefault(); onCancelEdit?.(); }
             }}
-            onBlur={() => onSaveEdit()}
+            // Defer so TagChip × click can fire before edit mode exits.
+            onBlur={() => setTimeout(() => onSaveEdit(), 180)}
           />
         ) : readonly || !onClickText ? (
           <span

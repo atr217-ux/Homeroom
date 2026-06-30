@@ -359,7 +359,14 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               if (ev.key === "Enter") { ev.preventDefault(); saveEdit(t.id); }
                               if (ev.key === "Escape") { ev.preventDefault(); setEditingId(null); }
                             }}
-                            onBlur={() => saveEdit(t.id)}
+                            // Defer save so a click on a tag X (which blurs the
+                            // input first) can fire before this row unmounts.
+                            onBlur={() => {
+                              const id = t.id;
+                              setTimeout(() => {
+                                if (editingId === id) saveEdit(id);
+                              }, 180);
+                            }}
                           />
                         ) : (
                           <button

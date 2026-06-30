@@ -29,13 +29,17 @@ export default function TagChip({ tag, hasHover, onRemove, forceVisible = false 
       {showX && (
         <button
           type="button"
+          // Prevent focus shift from a currently-focused edit input so its
+          // onBlur doesn't fire before our onClick gets a chance to run.
+          onMouseDown={(e) => e.preventDefault()}
           onClick={(e) => { e.stopPropagation(); onRemove?.(); }}
           className="rounded-full flex items-center justify-center transition-opacity hover:opacity-90"
-          style={{ width: 14, height: 14, background: fg, color: "white" }}
+          style={{ width: 16, height: 16, background: fg, color: "white" }}
           title={`Remove #${tag.name}`}
           aria-label={`Remove #${tag.name}`}
+          data-tag-remove
         >
-          <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
+          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
             <line x1="18" y1="6" x2="6" y2="18" />
             <line x1="6" y1="6" x2="18" y2="18" />
           </svg>
