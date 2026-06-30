@@ -200,11 +200,30 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   }
 
   async function saveEdit(id: string) {
-    const next = editingText.trim();
-    if (!next) { setEditingId(null); return; }
-    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, text: next } : t));
+    const raw = editingText.trim();
+    if (!raw) { setEditingId(null); return; }
+    const tagNames = parseHashtags(raw);
+    const text = stripHashtags(raw);
+    if (!text) { setEditingId(null); return; }
+
+    const supabase = createClient();
+    const existing = tasks.find((t) => t.id === id)?.tagIds ?? [];
+    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, text } : t));
     setEditingId(null);
-    await createClient().from("tasks").update({ text: next }).eq("id", id);
+    await supabase.from("tasks").update({ text }).eq("id", id);
+
+    if (tagNames.length === 0) return;
+    const tagObjs = (await Promise.all(tagNames.map((n) => getOrCreateTag(n, supabase, userId)))).filter(Boolean) as Tag[];
+    const newOnes = tagObjs.filter((tg) => !existing.includes(tg.id));
+    if (newOnes.length > 0) {
+      await supabase.from("task_tags").insert(newOnes.map((tg) => ({ task_id: id, tag_id: tg.id })));
+      setTasks((prev) => prev.map((t) => t.id === id ? { ...t, tagIds: [...t.tagIds, ...newOnes.map((n) => n.id)] } : t));
+    }
+    setAllTags((prev) => {
+      const map = new Map(prev.map((t) => [t.id, t]));
+      for (const t of tagObjs) map.set(t.id, t);
+      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
+    });
   }
 
   // ── Add an extra task to today ─────────────────────────────────────────
