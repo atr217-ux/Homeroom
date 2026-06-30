@@ -1,9 +1,10 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { buildColoredHTML, tagColor } from "@/lib/utils/tags";
+import { buildColoredHTML } from "@/lib/utils/tags";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
+import TagChip from "@/components/TagChip";
 import type { Tag } from "@/lib/db/types";
 
 type Props = {
@@ -112,7 +113,7 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
               {tags.map((tag) => (
-                <TagChip key={tag.id} tag={tag} hasHover={hasHover} onRemove={() => onRemoveTag(tag.id)} />
+                <TagChip key={tag.id} tag={tag} hasHover={hasHover} forceVisible={editing} onRemove={() => onRemoveTag(tag.id)} />
               ))}
             </div>
           )}
@@ -158,30 +159,3 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
   );
 }
 
-function TagChip({ tag, hasHover, onRemove }: { tag: Tag; hasHover: boolean; onRemove: () => void }) {
-  const { bg, fg } = tagColor(tag.name);
-  const [hovered, setHovered] = useState(false);
-  return (
-    <span
-      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
-      style={{ background: bg, color: fg }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <span>#{tag.name}</span>
-      {hasHover && hovered && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="rounded-full leading-none flex items-center justify-center"
-          style={{ width: 14, height: 14, background: fg, color: bg }}
-          title={`Remove #${tag.name}`}
-          aria-label={`Remove #${tag.name}`}
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      )}
-    </span>
-  );
-}

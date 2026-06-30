@@ -6,6 +6,7 @@ import { dateKey, formatTime } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
+import TagChip from "@/components/TagChip";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Tag } from "@/lib/db/types";
 
@@ -339,49 +340,56 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         style={{ border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }}
                         aria-label="Mark done"
                       />
-                      {isEditing ? (
-                        <>
+                      <div className="flex-1 min-w-0">
+                        {isEditing ? (
                           <input
                             ref={editInputRef}
                             autoFocus
-                            className="flex-1 text-sm bg-transparent focus:outline-none border-b"
+                            className="w-full text-sm bg-transparent focus:outline-none border-b"
                             style={{ borderColor: "var(--purple)", color: "var(--text)" }}
                             value={editingText}
-                            onChange={(e) => setEditingText(e.target.value)}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") { e.preventDefault(); saveEdit(t.id); }
-                              if (e.key === "Escape") { e.preventDefault(); setEditingId(null); }
+                            onChange={(ev) => setEditingText(ev.target.value)}
+                            onKeyDown={(ev) => {
+                              if (ev.key === "Enter") { ev.preventDefault(); saveEdit(t.id); }
+                              if (ev.key === "Escape") { ev.preventDefault(); setEditingId(null); }
                             }}
                             onBlur={() => saveEdit(t.id)}
                           />
-                          <button onClick={() => setEditingId(null)} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
-                            ✕
+                        ) : (
+                          <button
+                            type="button"
+                            onClick={() => { setEditingId(t.id); setEditingText(t.text); }}
+                            className="text-sm break-words text-left w-full cursor-text"
+                            style={{ color: "var(--text)" }}
+                            aria-label="Edit task"
+                          >
+                            {t.text}
                           </button>
-                        </>
+                        )}
+                        {t.tagIds.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {t.tagIds.map((tid) => {
+                              const tag = allTags.find((tg) => tg.id === tid);
+                              if (!tag) return null;
+                              return (
+                                <TagChip
+                                  key={tid}
+                                  tag={tag}
+                                  hasHover={hasHover}
+                                  forceVisible={isEditing}
+                                  onRemove={() => removeTagFromTask(t.id, tid)}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      {isEditing ? (
+                        <button onClick={() => setEditingId(null)} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
+                          ✕
+                        </button>
                       ) : (
                         <>
-                          <div className="flex-1 min-w-0">
-                            <button
-                              type="button"
-                              onClick={() => { setEditingId(t.id); setEditingText(t.text); }}
-                              className="text-sm break-words text-left w-full cursor-text"
-                              style={{ color: "var(--text)" }}
-                              aria-label="Edit task"
-                            >
-                              {t.text}
-                            </button>
-                            {t.tagIds.length > 0 && (
-                              <div className="flex flex-wrap gap-1 mt-1">
-                                {t.tagIds.map((tid) => {
-                                  const tag = allTags.find((tg) => tg.id === tid);
-                                  if (!tag) return null;
-                                  return (
-                                    <TagChip key={tid} tag={tag} hasHover={hasHover} onRemove={() => removeTagFromTask(t.id, tid)} />
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
                           <span
                             className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
                             style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
@@ -678,30 +686,3 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   );
 }
 
-function TagChip({ tag, hasHover, onRemove }: { tag: Tag; hasHover: boolean; onRemove: () => void }) {
-  const { bg, fg } = tagColor(tag.name);
-  const [hovered, setHovered] = useState(false);
-  return (
-    <span
-      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
-      style={{ background: bg, color: fg }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <span>#{tag.name}</span>
-      {hasHover && hovered && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="rounded-full leading-none flex items-center justify-center"
-          style={{ width: 14, height: 14, background: fg, color: bg }}
-          title={`Remove #${tag.name}`}
-          aria-label={`Remove #${tag.name}`}
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      )}
-    </span>
-  );
-}

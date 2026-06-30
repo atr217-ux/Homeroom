@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { formatTime, isWithinTimeRange } from "@/lib/utils/date";
 import { tagColor } from "@/lib/utils/tags";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
+import TagChip from "@/components/TagChip";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Block, Tag } from "@/lib/db/types";
 
@@ -474,35 +475,25 @@ function TaskSection({
           </button>
         )}
 
-        {isEditing && onSaveEdit && onCancelEdit && onEditingTextChange ? (
-          <>
-            <input
-              ref={editInputRef}
-              autoFocus
-              className="flex-1 text-sm bg-transparent focus:outline-none border-b"
-              style={{ borderColor: "var(--purple)", color: "var(--text)" }}
-              value={editingText ?? ""}
-              onChange={(ev) => onEditingTextChange(ev.target.value)}
-              onKeyDown={(ev) => {
-                if (ev.key === "Enter") { ev.preventDefault(); onSaveEdit(t.id); }
-                if (ev.key === "Escape") { ev.preventDefault(); onCancelEdit(); }
-              }}
-              onBlur={() => onSaveEdit(t.id)}
-            />
-            <button onClick={onCancelEdit} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
-              ✕
-            </button>
-          </>
-        ) : (
-          <Inner
-            t={t}
-            allTags={allTags}
-            isClaimed={isClaimed}
-            hasHover={hasHover}
-            readonly={readonly}
-            onClickText={!readonly && onEdit ? () => onEdit(t.id, t.text) : undefined}
-            onRemoveTag={!readonly && onRemoveTag ? (tagId) => onRemoveTag(t.id, tagId) : undefined}
-          />
+        <Inner
+          t={t}
+          allTags={allTags}
+          isClaimed={isClaimed}
+          hasHover={hasHover}
+          readonly={readonly}
+          isEditing={isEditing && !!onSaveEdit && !!onCancelEdit && !!onEditingTextChange}
+          editingText={editingText ?? ""}
+          editInputRef={editInputRef}
+          onClickText={!readonly && onEdit ? () => onEdit(t.id, t.text) : undefined}
+          onRemoveTag={!readonly && onRemoveTag ? (tagId) => onRemoveTag(t.id, tagId) : undefined}
+          onEditingTextChange={onEditingTextChange}
+          onSaveEdit={onSaveEdit ? () => onSaveEdit(t.id) : undefined}
+          onCancelEdit={onCancelEdit}
+        />
+        {isEditing && onCancelEdit && (
+          <button onClick={onCancelEdit} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
+            ✕
+          </button>
         )}
 
         {!isEditing && !readonly && isClaimed && onUnclaim && (
@@ -646,21 +637,47 @@ function Inner({
   isClaimed,
   hasHover,
   readonly,
+  isEditing,
+  editingText,
+  editInputRef,
   onClickText,
   onRemoveTag,
+  onEditingTextChange,
+  onSaveEdit,
+  onCancelEdit,
 }: {
   t: LiveTask;
   allTags: Tag[];
   isClaimed: boolean;
   hasHover: boolean;
   readonly: boolean;
+  isEditing: boolean;
+  editingText: string;
+  editInputRef?: React.RefObject<HTMLInputElement | null>;
   onClickText?: () => void;
   onRemoveTag?: (tagId: string) => void;
+  onEditingTextChange?: (text: string) => void;
+  onSaveEdit?: () => void;
+  onCancelEdit?: () => void;
 }) {
   return (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-1.5">
-        {readonly || !onClickText ? (
+      <div className="flex items-center gap-1.5 flex-wrap">
+        {isEditing && onEditingTextChange && onSaveEdit ? (
+          <input
+            ref={editInputRef}
+            autoFocus
+            className="flex-1 min-w-0 text-sm bg-transparent focus:outline-none border-b"
+            style={{ borderColor: "var(--purple)", color: "var(--text)" }}
+            value={editingText}
+            onChange={(ev) => onEditingTextChange(ev.target.value)}
+            onKeyDown={(ev) => {
+              if (ev.key === "Enter") { ev.preventDefault(); onSaveEdit(); }
+              if (ev.key === "Escape") { ev.preventDefault(); onCancelEdit?.(); }
+            }}
+            onBlur={() => onSaveEdit()}
+          />
+        ) : readonly || !onClickText ? (
           <span
             className="text-sm break-words"
             style={{
@@ -701,7 +718,15 @@ function Inner({
             const tag = allTags.find((tg) => tg.id === tid);
             if (!tag) return null;
             if (onRemoveTag) {
-              return <TagChip key={tid} tag={tag} hasHover={hasHover} onRemove={() => onRemoveTag(tid)} />;
+              return (
+                <TagChip
+                  key={tid}
+                  tag={tag}
+                  hasHover={hasHover}
+                  forceVisible={isEditing}
+                  onRemove={() => onRemoveTag(tid)}
+                />
+              );
             }
             const { bg, fg } = tagColor(tag.name);
             return (
@@ -716,31 +741,4 @@ function Inner({
   );
 }
 
-function TagChip({ tag, hasHover, onRemove }: { tag: Tag; hasHover: boolean; onRemove: () => void }) {
-  const { bg, fg } = tagColor(tag.name);
-  const [hovered, setHovered] = useState(false);
-  return (
-    <span
-      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
-      style={{ background: bg, color: fg }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
-    >
-      <span>#{tag.name}</span>
-      {hasHover && hovered && (
-        <button
-          onClick={(e) => { e.stopPropagation(); onRemove(); }}
-          className="rounded-full leading-none flex items-center justify-center"
-          style={{ width: 14, height: 14, background: fg, color: bg }}
-          title={`Remove #${tag.name}`}
-          aria-label={`Remove #${tag.name}`}
-        >
-          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
-        </button>
-      )}
-    </span>
-  );
-}
 
