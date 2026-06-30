@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 export type MoreMenuItem = {
   label: string;
@@ -91,7 +92,7 @@ export default function MoreMenu({ items }: Props) {
         </svg>
       </button>
 
-      {open && (
+      {open && typeof document !== "undefined" && createPortal(
         <div
           ref={popoverRef}
           className="border rounded-xl shadow-lg overflow-hidden"
@@ -122,7 +123,8 @@ export default function MoreMenu({ items }: Props) {
               <span>{item.label}</span>
             </button>
           ))}
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );
