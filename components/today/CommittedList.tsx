@@ -514,7 +514,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                     ]}
                   >
                     <div
-                      className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
+                      className="group flex items-center gap-2.5 px-2 py-2.5 transition-colors"
                       style={{
                         background: running
                           ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
@@ -642,8 +642,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             <>
                               <button
                                 onClick={() => removeFromToday(t.id)}
-                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                                style={{ color: "var(--text-2)", opacity: 0.35 }}
+                                className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
+                                style={{ color: "var(--text-2)" }}
                                 title="Remove from today"
                               >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -654,8 +654,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               </button>
                               <button
                                 onClick={() => deleteTask(t.id)}
-                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                                style={{ color: "var(--text-2)", opacity: 0.35 }}
+                                className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
+                                style={{ color: "var(--text-2)" }}
                                 title="Delete"
                               >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -698,7 +698,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       },
                     ]}
                   >
-                    <div className="flex items-center gap-2.5 px-2 py-2.5 opacity-55" style={{ background: "var(--surface)" }}>
+                    <div className="group flex items-center gap-2.5 px-2 py-2.5 opacity-55" style={{ background: "var(--surface)" }}>
                       <button
                         onClick={() => toggleDone(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
@@ -714,8 +714,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         <>
                           <button
                             onClick={() => removeFromToday(t.id)}
-                            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                            style={{ color: "var(--text-2)", opacity: 0.35 }}
+                            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
+                            style={{ color: "var(--text-2)" }}
                             title="Remove from today"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
@@ -726,8 +726,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                           </button>
                           <button
                             onClick={() => deleteTask(t.id)}
-                            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                            style={{ color: "var(--text-2)", opacity: 0.35 }}
+                            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
+                            style={{ color: "var(--text-2)" }}
                             title="Delete"
                           >
                             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

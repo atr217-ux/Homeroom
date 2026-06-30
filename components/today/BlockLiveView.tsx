@@ -459,7 +459,7 @@ function TaskSection({
 
     return (
       <div
-        className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
+        className="group flex items-center gap-2.5 px-2 py-2.5 transition-colors"
         style={{
           background: running
             ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
@@ -531,8 +531,10 @@ function TaskSection({
         {!isEditing && !readonly && hasHover && onToggleShared && (
           <button
             onClick={() => onToggleShared(t.id)}
-            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-            style={{ color: t.isShared ? "#059669" : "var(--text-2)", opacity: t.isShared ? 1 : 0.35 }}
+            className={t.isShared
+              ? "p-1 rounded transition-opacity flex-shrink-0"
+              : "p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"}
+            style={{ color: t.isShared ? "#059669" : "var(--text-2)", opacity: t.isShared ? 1 : undefined }}
             title={t.isShared ? "Currently shared — tap to unshare" : "Make shareable"}
           >
             {t.isShared ? (
@@ -554,8 +556,8 @@ function TaskSection({
         {!isEditing && !readonly && hasHover && onRemoveFromBlock && (
           <button
             onClick={() => onRemoveFromBlock(t.id)}
-            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-            style={{ color: "var(--text-2)", opacity: 0.35 }}
+            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
+            style={{ color: "var(--text-2)" }}
             title="Remove from block"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

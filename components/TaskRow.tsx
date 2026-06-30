@@ -80,7 +80,7 @@ export default function TaskRow({ text, done, isPrivate, inToday, tags, onToggle
       }]}
     >
       <div
-        className="flex items-start gap-3 px-3 py-3 rounded-xl"
+        className="group flex items-start gap-3 px-3 py-3 rounded-xl"
         style={{ background: "var(--surface)", border: "1px solid var(--border-2)" }}
       >
         <button
@@ -193,12 +193,12 @@ export default function TaskRow({ text, done, isPrivate, inToday, tags, onToggle
           )}
         </button>
 
-        {/* Desktop-only: subtle inline trash */}
+        {/* Desktop-only: subtle inline trash, revealed on row hover */}
         {hasHover && !editing && (
           <button
             onClick={onDelete}
-            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-            style={{ color: "var(--text-2)", opacity: 0.35 }}
+            className="p-1 rounded opacity-0 group-hover:opacity-60 hover:!opacity-100 transition-opacity flex-shrink-0"
+            style={{ color: "var(--text-2)" }}
             title="Delete"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
