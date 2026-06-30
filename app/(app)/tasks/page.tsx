@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { dateKey } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import TaskRow from "@/components/TaskRow";
@@ -12,6 +13,7 @@ type Task = {
   text: string;
   done: boolean;
   isPrivate: boolean;
+  inToday: boolean;
   tagIds: string[];
   createdAt: string;
 };
@@ -37,10 +39,11 @@ export default function TasksPage() {
       if (!user) return;
       setUserId(user.id);
 
+      const today = dateKey(new Date());
       const [tasksRes, tagsRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, done, is_private, created_at, task_tags(tag_id)")
+          .select("id, text, done, is_private, committed_for_date, created_at, task_tags(tag_id)")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(500),
@@ -57,6 +60,7 @@ export default function TasksPage() {
         text: r.text as string,
         done: r.done as boolean,
         isPrivate: (r.is_private as boolean) ?? false,
+        inToday: (r.committed_for_date as string | null) === today,
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map(tt => tt.tag_id),
         createdAt: r.created_at as string,
       })));
@@ -101,6 +105,7 @@ export default function TasksPage() {
       text,
       done: false,
       isPrivate: false,
+      inToday: false,
       tagIds: tagObjs.map(t => t.id),
       createdAt: row.created_at as string,
     }, ...prev]);
@@ -129,6 +134,17 @@ export default function TasksPage() {
     const next = !task.isPrivate;
     setTasks(prev => prev.map(t => t.id === id ? { ...t, isPrivate: next } : t));
     await createClient().from("tasks").update({ is_private: next }).eq("id", id);
+  }
+
+  async function toggleToday(id: string) {
+    const task = tasks.find(t => t.id === id);
+    if (!task) return;
+    const next = !task.inToday;
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, inToday: next } : t));
+    await createClient()
+      .from("tasks")
+      .update({ committed_for_date: next ? dateKey(new Date()) : null })
+      .eq("id", id);
   }
 
   async function saveTaskEdit(id: string, raw: string) {
@@ -350,6 +366,8 @@ export default function TasksPage() {
               onSave={(t) => saveTaskEdit(task.id, t)}
               onDelete={() => deleteTask(task.id)}
               onTogglePrivate={() => togglePrivate(task.id)}
+              onToggleToday={() => toggleToday(task.id)}
+              inToday={task.inToday}
               onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
             />
           ))}
@@ -398,6 +416,8 @@ export default function TasksPage() {
                   onSave={(t) => saveTaskEdit(task.id, t)}
                   onDelete={() => deleteTask(task.id)}
                   onTogglePrivate={() => togglePrivate(task.id)}
+                  onToggleToday={() => toggleToday(task.id)}
+                  inToday={task.inToday}
                   onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
                 />
               ))}

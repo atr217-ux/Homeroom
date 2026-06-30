@@ -11,15 +11,17 @@ type Props = {
   text: string;
   done: boolean;
   isPrivate: boolean;
+  inToday: boolean;
   tags: Tag[];
   onToggle: () => void;
   onSave: (newText: string) => void;
   onDelete: () => void;
   onTogglePrivate: () => void;
+  onToggleToday: () => void;
   onRemoveTag: (tagId: string) => void;
 };
 
-export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave, onDelete, onTogglePrivate, onRemoveTag }: Props) {
+export default function TaskRow({ text, done, isPrivate, inToday, tags, onToggle, onSave, onDelete, onTogglePrivate, onToggleToday, onRemoveTag }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const editRef = useRef<HTMLDivElement>(null);
@@ -48,12 +50,28 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
 
   return (
     <SwipeableRow
-      leftActions={done ? [] : [{
-        label: "Edit",
-        icon: SwipeIcons.Edit,
-        bg: SwipeColors.edit,
-        onClick: () => { setDraft(text); setEditing(true); },
-      }]}
+      leftActions={done ? [] : [
+        {
+          label: "Edit",
+          icon: SwipeIcons.Edit,
+          bg: SwipeColors.edit,
+          onClick: () => { setDraft(text); setEditing(true); },
+        },
+        {
+          label: inToday ? "Off today" : "To today",
+          icon: inToday ? SwipeIcons.RemoveFromDay : (
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <polyline points="9 16 11 18 16 13" />
+            </svg>
+          ),
+          bg: inToday ? SwipeColors.remove : "var(--purple)",
+          onClick: onToggleToday,
+        },
+      ]}
       rightActions={[{
         label: "Delete",
         icon: SwipeIcons.Trash,
@@ -125,6 +143,34 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
             </div>
           )}
         </div>
+
+        {/* Today toggle — state indicator, always visible */}
+        <button
+          onClick={onToggleToday}
+          className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+          style={{ color: inToday ? "var(--purple)" : "var(--text-3)", opacity: inToday ? 1 : 0.5 }}
+          title={inToday ? "In today's list — tap to remove" : "Add to today"}
+          aria-label={inToday ? "Remove from today" : "Add to today"}
+        >
+          {inToday ? (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <polyline points="9 16 11 18 16 13" />
+            </svg>
+          ) : (
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="12" y1="14" x2="12" y2="18" />
+              <line x1="10" y1="16" x2="14" y2="16" />
+            </svg>
+          )}
+        </button>
 
         {/* Privacy toggle — state indicator, always visible */}
         <button
