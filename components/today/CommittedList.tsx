@@ -315,6 +315,12 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                 return (
                   <SwipeableRow
                     key={t.id}
+                    leftActions={isEditing ? [] : [{
+                      label: "Edit",
+                      icon: SwipeIcons.Edit,
+                      bg: SwipeColors.edit,
+                      onClick: () => { setEditingId(t.id); setEditingText(t.text); },
+                    }]}
                     rightActions={isEditing ? [] : [
                       {
                         label: "Off today",

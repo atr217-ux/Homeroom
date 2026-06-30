@@ -610,12 +610,20 @@ function TaskSection({
         return (
           <SwipeableRow
             key={t.id}
-            leftActions={[{
-              label: t.isShared ? "Unshare" : "Share",
-              icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
-              bg: SwipeColors.share,
-              onClick: () => onToggleShared(t.id),
-            }]}
+            leftActions={[
+              {
+                label: "Edit",
+                icon: SwipeIcons.Edit,
+                bg: SwipeColors.edit,
+                onClick: () => onEdit(t.id, t.text),
+              },
+              {
+                label: t.isShared ? "Unshare" : "Share",
+                icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
+                bg: SwipeColors.share,
+                onClick: () => onToggleShared(t.id),
+              },
+            ]}
             rightActions={[{
               label: "Off block",
               icon: SwipeIcons.RemoveFromDay,

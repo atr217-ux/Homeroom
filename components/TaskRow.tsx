@@ -48,6 +48,12 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
 
   return (
     <SwipeableRow
+      leftActions={done ? [] : [{
+        label: "Edit",
+        icon: SwipeIcons.Edit,
+        bg: SwipeColors.edit,
+        onClick: () => { setDraft(text); setEditing(true); },
+      }]}
       rightActions={[{
         label: "Delete",
         icon: SwipeIcons.Trash,
