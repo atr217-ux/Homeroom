@@ -29,6 +29,7 @@ export default function TasksPage() {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const [showDone, setShowDone] = useState(false);
   const [privacyFilter, setPrivacyFilter] = useState<"all" | "private" | "public">("all");
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Initial load ───────────────────────────────────────────────────────
@@ -183,7 +184,7 @@ export default function TasksPage() {
     await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
   }
 
-  // ── Filtering ──────────────────────────────────────────────────────────
+  // ── Filtering + sorting ────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = tasks;
     if (privacyFilter !== "all") {
@@ -196,8 +197,12 @@ export default function TasksPage() {
       const q = search.toLowerCase().trim();
       list = list.filter(t => t.text.toLowerCase().includes(q));
     }
+    list = [...list].sort((a, b) => {
+      const d = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortDir === "asc" ? d : -d;
+    });
     return list;
-  }, [tasks, privacyFilter, tagFilters, search]);
+  }, [tasks, privacyFilter, tagFilters, search, sortDir]);
 
   const undoneFiltered = filtered.filter(t => !t.done);
   const doneFiltered = filtered.filter(t => t.done);
@@ -332,6 +337,21 @@ export default function TasksPage() {
             : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
         >
           {privacyFilter === "all" ? "All" : privacyFilter === "private" ? "Private only" : "Public only"}
+        </button>
+
+        <button
+          onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+          className="ml-auto flex items-center gap-1 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+          style={{ background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+          title={sortDir === "desc" ? "Newest first — tap to flip" : "Oldest first — tap to flip"}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          Date added {sortDir === "desc" ? "↓" : "↑"}
         </button>
       </div>
 
