@@ -8,6 +8,22 @@ import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
 import TagChip from "@/components/TagChip";
 import { useHasHover } from "@/lib/hooks/useHasHover";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import type { Tag } from "@/lib/db/types";
 
 type CommittedTask = {
@@ -18,6 +34,7 @@ type CommittedTask = {
   timeSpent: number;
   startedAt: number | null;
   tagIds: string[];
+  sortOrder: number;
 };
 
 type Props = {
@@ -47,7 +64,18 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [showAvailable, setShowAvailable] = useState(false);
   const [availableSearch, setAvailableSearch] = useState("");
 
+  // ── Tag filter ─────────────────────────────────────────────────────────
+  const [tagFilters, setTagFilters] = useState<string[]>([]);
+  const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
+  const tagDropdownRef = useRef<HTMLDivElement>(null);
+
   const hasHover = useHasHover();
+
+  // dnd-kit sensors
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+  );
 
   // ── Load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -57,14 +85,15 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       const [tasksRes, tagsRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, done, is_private, time_spent, timer_started_at, task_tags(tag_id)")
+          .select("id, text, done, is_private, time_spent, timer_started_at, sort_order, created_at, task_tags(tag_id)")
           .eq("user_id", userId)
           .eq("committed_for_date", today)
+          .order("sort_order", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: true }),
         supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
       ]);
 
-      setTasks((tasksRes.data ?? []).map((r) => ({
+      setTasks((tasksRes.data ?? []).map((r, i) => ({
         id: r.id as string,
         text: r.text as string,
         done: r.done as boolean,
@@ -72,13 +101,25 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         timeSpent: (r.time_spent as number) ?? 0,
         startedAt: r.timer_started_at ? new Date(r.timer_started_at as string).getTime() : null,
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map((tt) => tt.tag_id),
+        sortOrder: (r.sort_order as number | null) ?? i * 10,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setLoading(false);
     }
     load();
     const ticker = setInterval(() => setTick((t) => t + 1), 1000);
-    return () => clearInterval(ticker);
+
+    function onOutside(e: MouseEvent) {
+      if (tagDropdownRef.current && !tagDropdownRef.current.contains(e.target as Node)) {
+        setTagDropdownOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+
+    return () => {
+      clearInterval(ticker);
+      document.removeEventListener("mousedown", onOutside);
+    };
   }, [userId]);
 
   // ── Load available tasks (master list, excluding ones already in today) ─
@@ -112,6 +153,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     const supabase = createClient();
     // Optimistic: move from `available` to `tasks` immediately
     setAvailable((prev) => prev.filter((t) => t.id !== av.id));
+    const maxOrder = tasks.reduce((m, t) => Math.max(m, t.sortOrder), 0);
     setTasks((prev) => [...prev, {
       id: av.id,
       text: av.text,
@@ -120,8 +162,12 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       timeSpent: 0,
       startedAt: null,
       tagIds: av.tagIds,
+      sortOrder: maxOrder + 10,
     }]);
-    await supabase.from("tasks").update({ committed_for_date: today }).eq("id", av.id);
+    await supabase
+      .from("tasks")
+      .update({ committed_for_date: today, sort_order: maxOrder + 10 })
+      .eq("id", av.id);
   }
 
   function elapsed(t: CommittedTask): number {
@@ -177,6 +223,33 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   async function removeTagFromTask(taskId: string, tagId: string) {
     setTasks((prev) => prev.map((x) => x.id === taskId ? { ...x, tagIds: x.tagIds.filter((id) => id !== tagId) } : x));
     await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+  }
+
+  // ── Drag-to-reorder ─────────────────────────────────────────────────────
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+
+    const undoneTasks = tasks.filter((t) => !t.done);
+    const oldIndex = undoneTasks.findIndex((t) => t.id === active.id);
+    const newIndex = undoneTasks.findIndex((t) => t.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+
+    const reordered = arrayMove(undoneTasks, oldIndex, newIndex);
+    // Reassign sort_order with spacing so future inserts have room
+    const updates = reordered.map((t, i) => ({ id: t.id, sortOrder: i * 10 }));
+    const updatedMap = new Map(updates.map((u) => [u.id, u.sortOrder]));
+
+    setTasks((prev) =>
+      prev.map((t) => (updatedMap.has(t.id) ? { ...t, sortOrder: updatedMap.get(t.id)! } : t))
+        .sort((a, b) => {
+          if (a.done !== b.done) return a.done ? 1 : -1;
+          return a.sortOrder - b.sortOrder;
+        }),
+    );
+
+    const supabase = createClient();
+    void Promise.all(updates.map((u) => supabase.from("tasks").update({ sort_order: u.sortOrder }).eq("id", u.id)));
   }
 
   // Remove from today only — task stays in your master list
@@ -236,6 +309,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     setInput("");
 
     const today = dateKey(new Date());
+    const maxOrder = tasks.reduce((m, t) => Math.max(m, t.sortOrder), 0);
     const supabase = createClient();
     const { data } = await supabase
       .from("tasks")
@@ -244,6 +318,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         text,
         done: false,
         committed_for_date: today,
+        sort_order: maxOrder + 10,
       })
       .select("id")
       .single();
@@ -261,6 +336,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       timeSpent: 0,
       startedAt: null,
       tagIds: tagObjs.map((t) => t.id),
+      sortOrder: maxOrder + 10,
     }]);
     setAllTags((prev) => {
       const map = new Map(prev.map((t) => [t.id, t]));
@@ -271,8 +347,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
 
   void tick;
 
-  const undone = tasks.filter((t) => !t.done);
-  const done = tasks.filter((t) => t.done);
+  const tagMatches = (t: CommittedTask) =>
+    tagFilters.length === 0 || tagFilters.every((id) => t.tagIds.includes(id));
+  const undone = tasks.filter((t) => !t.done && tagMatches(t));
+  const done = tasks.filter((t) => t.done && tagMatches(t));
+  const usedTagIds = Array.from(new Set(tasks.flatMap((t) => t.tagIds)));
   const today = new Date();
 
   // ── Render ─────────────────────────────────────────────────────────────
@@ -310,6 +389,73 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         </div>
       )}
 
+      {/* Tag filter */}
+      {!loading && tasks.length > 0 && usedTagIds.length > 0 && (
+        <div className="flex items-center gap-2 mb-3 flex-wrap">
+          <div ref={tagDropdownRef} className="relative">
+            <button
+              onClick={() => setTagDropdownOpen((v) => !v)}
+              className="flex items-center gap-1.5 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+              style={tagFilters.length > 0
+                ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+                : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+            >
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                <line x1="4" y1="6" x2="20" y2="6" />
+                <line x1="8" y1="12" x2="16" y2="12" />
+                <line x1="11" y1="18" x2="13" y2="18" />
+              </svg>
+              {tagFilters.length > 0 ? `${tagFilters.length} tag${tagFilters.length > 1 ? "s" : ""}` : "Filter by tag"}
+              {tagFilters.length > 0 && (
+                <span onClick={(e) => { e.stopPropagation(); setTagFilters([]); }} className="ml-1 opacity-70">×</span>
+              )}
+            </button>
+            {tagDropdownOpen && (
+              <div
+                className="absolute left-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden min-w-[180px] max-h-72 overflow-y-auto"
+                style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+              >
+                {usedTagIds.map((tid) => {
+                  const tag = allTags.find((tg) => tg.id === tid);
+                  if (!tag) return null;
+                  const { bg, fg } = tagColor(tag.name);
+                  const checked = tagFilters.includes(tid);
+                  return (
+                    <button
+                      key={tid}
+                      onClick={() => setTagFilters((prev) => checked ? prev.filter((i) => i !== tid) : [...prev, tid])}
+                      className="w-full flex items-center gap-2.5 px-3 py-2 text-left"
+                      style={{ background: "var(--surface)" }}
+                    >
+                      <span
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center border-2"
+                        style={checked
+                          ? { background: "var(--purple)", borderColor: "var(--purple)" }
+                          : { borderColor: "var(--border-3)" }}
+                      >
+                        {checked && (
+                          <svg width="9" height="9" viewBox="0 0 12 12" fill="none" stroke="white" strokeWidth="2.5">
+                            <polyline points="2 6 5 9 10 3" />
+                          </svg>
+                        )}
+                      </span>
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                        #{tag.name}
+                      </span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+          {tagFilters.length > 0 && (
+            <span className="text-xs" style={{ color: "var(--text-2)" }}>
+              {undone.length + done.length} of {tasks.length}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Task block */}
       {!loading && (
         <div
@@ -326,12 +472,24 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             )}
 
             {/* Undone */}
-            <div className="space-y-1">
-              {undone.map((t) => {
-                const e = elapsed(t);
-                const running = t.startedAt !== null;
-                const isEditing = editingId === t.id;
-                return (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragEnd={handleDragEnd}
+            >
+              <SortableContext items={undone.map((t) => t.id)} strategy={verticalListSortingStrategy}>
+                <div className="space-y-1">
+                  {undone.map((t) => {
+                    const e = elapsed(t);
+                    const running = t.startedAt !== null;
+                    const isEditing = editingId === t.id;
+                    return (
+                  <SortableTaskRow
+                    key={t.id}
+                    id={t.id}
+                    disabled={isEditing || tagFilters.length > 0}
+                  >
+                    {(dragListeners, isDragging) => (
                   <SwipeableRow
                     key={t.id}
                     leftActions={isEditing ? [] : [{
@@ -357,8 +515,30 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   >
                     <div
                       className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
-                      style={{ background: running ? "rgba(124,58,237,0.05)" : "var(--surface)" }}
+                      style={{
+                        background: running ? "rgba(124,58,237,0.05)" : "var(--surface)",
+                        opacity: isDragging ? 0.5 : 1,
+                      }}
                     >
+                      {/* Drag handle (hidden when filtering or editing) */}
+                      {!isEditing && tagFilters.length === 0 && (
+                        <button
+                          {...dragListeners}
+                          className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-1"
+                          style={{ color: "var(--text-3)", opacity: 0.5 }}
+                          aria-label="Drag to reorder"
+                          title="Drag to reorder"
+                        >
+                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
+                            <circle cx="9" cy="6" r="1.5" />
+                            <circle cx="9" cy="12" r="1.5" />
+                            <circle cx="9" cy="18" r="1.5" />
+                            <circle cx="15" cy="6" r="1.5" />
+                            <circle cx="15" cy="12" r="1.5" />
+                            <circle cx="15" cy="18" r="1.5" />
+                          </svg>
+                        </button>
+                      )}
                       <button
                         onClick={() => toggleDone(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
@@ -488,9 +668,13 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       )}
                     </div>
                   </SwipeableRow>
+                    )}
+                  </SortableTaskRow>
                 );
-              })}
-            </div>
+                  })}
+                </div>
+              </SortableContext>
+            </DndContext>
 
             {/* Done */}
             {done.length > 0 && (
@@ -714,6 +898,29 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           Schedule a block
         </button>
       )}
+    </div>
+  );
+}
+
+function SortableTaskRow({
+  id,
+  disabled,
+  children,
+}: {
+  id: string;
+  disabled: boolean;
+  children: (dragListeners: Record<string, unknown> | undefined, isDragging: boolean) => React.ReactNode;
+}) {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id, disabled });
+  const style: React.CSSProperties = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    zIndex: isDragging ? 20 : "auto",
+    position: "relative",
+  };
+  return (
+    <div ref={setNodeRef} style={style} {...attributes}>
+      {children(disabled ? undefined : listeners, isDragging)}
     </div>
   );
 }
