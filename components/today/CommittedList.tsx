@@ -515,10 +515,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   >
                     <div
                       className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
-                      style={{
-                        background: running ? "rgba(124,58,237,0.05)" : "var(--surface)",
-                        opacity: isDragging ? 0.5 : 1,
-                      }}
+                      style={{ background: running ? "rgba(124,58,237,0.05)" : "var(--surface)" }}
                     >
                       {/* Drag handle (hidden when filtering or editing) */}
                       {!isEditing && tagFilters.length === 0 && (
@@ -917,6 +914,8 @@ function SortableTaskRow({
     transition,
     zIndex: isDragging ? 20 : "auto",
     position: "relative",
+    boxShadow: isDragging ? "0 10px 24px rgba(0,0,0,0.18)" : undefined,
+    borderRadius: 12,
   };
   return (
     <div ref={setNodeRef} style={style} {...attributes}>
