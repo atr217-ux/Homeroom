@@ -388,6 +388,7 @@ export default function TasksPage() {
               onTogglePrivate={() => togglePrivate(task.id)}
               onToggleToday={() => toggleToday(task.id)}
               inToday={task.inToday}
+              addedAt={task.createdAt}
               onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
             />
           ))}
@@ -438,6 +439,7 @@ export default function TasksPage() {
                   onTogglePrivate={() => togglePrivate(task.id)}
                   onToggleToday={() => toggleToday(task.id)}
                   inToday={task.inToday}
+                  addedAt={task.createdAt}
                   onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
                 />
               ))}

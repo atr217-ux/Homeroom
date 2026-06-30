@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { buildColoredHTML } from "@/lib/utils/tags";
+import { addedAtLabel } from "@/lib/utils/date";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
 import TagChip from "@/components/TagChip";
@@ -14,6 +15,7 @@ type Props = {
   isPrivate: boolean;
   inToday: boolean;
   tags: Tag[];
+  addedAt: string;
   onToggle: () => void;
   onSave: (newText: string) => void;
   onDelete: () => void;
@@ -22,7 +24,7 @@ type Props = {
   onRemoveTag: (tagId: string) => void;
 };
 
-export default function TaskRow({ text, done, isPrivate, inToday, tags, onToggle, onSave, onDelete, onTogglePrivate, onToggleToday, onRemoveTag }: Props) {
+export default function TaskRow({ text, done, isPrivate, inToday, tags, addedAt, onToggle, onSave, onDelete, onTogglePrivate, onToggleToday, onRemoveTag }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const editRef = useRef<HTMLDivElement>(null);
@@ -144,6 +146,17 @@ export default function TaskRow({ text, done, isPrivate, inToday, tags, onToggle
             </div>
           )}
         </div>
+
+        {/* Added-at label (subtle, far right of content) */}
+        {!editing && (
+          <span
+            className="text-xs flex-shrink-0 self-start mt-0.5 whitespace-nowrap"
+            style={{ color: "var(--text-3)" }}
+            title={new Date(addedAt).toLocaleString()}
+          >
+            {addedAtLabel(addedAt)}
+          </span>
+        )}
 
         {/* Today toggle — state indicator, always visible */}
         <button
