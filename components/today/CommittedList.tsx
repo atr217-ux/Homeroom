@@ -515,7 +515,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   >
                     <div
                       className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
-                      style={{ background: running ? "rgba(124,58,237,0.05)" : "var(--surface)" }}
+                      style={{
+                        background: running
+                          ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
+                          : "var(--surface)",
+                      }}
                     >
                       {/* Drag handle (hidden when filtering or editing) */}
                       {!isEditing && tagFilters.length === 0 && (

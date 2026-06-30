@@ -461,7 +461,9 @@ function TaskSection({
       <div
         className="flex items-center gap-2.5 px-2 py-2.5 transition-colors"
         style={{
-          background: running ? "rgba(124,58,237,0.05)" : "var(--surface)",
+          background: running
+            ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
+            : "var(--surface)",
           opacity: t.done ? 0.55 : 1,
         }}
       >
