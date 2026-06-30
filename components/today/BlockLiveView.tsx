@@ -5,7 +5,6 @@ import { createClient } from "@/lib/supabase/client";
 import { formatTime, isWithinTimeRange } from "@/lib/utils/date";
 import { tagColor } from "@/lib/utils/tags";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
-import MoreMenu from "@/components/MoreMenu";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Block, Tag } from "@/lib/db/types";
 
@@ -200,6 +199,11 @@ export default function BlockLiveView({ block, userId }: Props) {
     await createClient().from("tasks").update({ block_id: null, is_shared: false, claimed_by_user_id: null }).eq("id", id);
   }
 
+  async function removeTagFromTask(taskId: string, tagId: string) {
+    setTasks((prev) => prev.map((x) => x.id === taskId ? { ...x, tagIds: x.tagIds.filter((id) => id !== tagId) } : x));
+    await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+  }
+
   async function claim(id: string) {
     setTasks((prev) => prev.map((t) => t.id === id ? { ...t, claimedBy: userId } : t));
     await createClient().from("tasks").update({ claimed_by_user_id: userId }).eq("id", id);
@@ -328,6 +332,7 @@ export default function BlockLiveView({ block, userId }: Props) {
             onToggleShared={toggleShared}
             onTogglePrivate={togglePrivate}
             onRemoveFromBlock={removeFromBlock}
+            onRemoveTag={removeTagFromTask}
             onSaveEdit={saveEdit}
             onCancelEdit={() => setEditingId(null)}
             editingId={editingId}
@@ -384,6 +389,7 @@ function TaskSection({
   onToggleShared,
   onTogglePrivate,
   onRemoveFromBlock,
+  onRemoveTag,
   onSaveEdit,
   onCancelEdit,
   editingId,
@@ -404,6 +410,7 @@ function TaskSection({
   onToggleShared?: (id: string) => void;
   onTogglePrivate?: (id: string) => void;
   onRemoveFromBlock?: (id: string) => void;
+  onRemoveTag?: (taskId: string, tagId: string) => void;
   onSaveEdit?: (id: string) => void;
   onCancelEdit?: () => void;
   editingId?: string | null;
@@ -487,7 +494,15 @@ function TaskSection({
             </button>
           </>
         ) : (
-          <Inner t={t} allTags={allTags} isClaimed={isClaimed} />
+          <Inner
+            t={t}
+            allTags={allTags}
+            isClaimed={isClaimed}
+            hasHover={hasHover}
+            readonly={readonly}
+            onClickText={!readonly && onEdit ? () => onEdit(t.id, t.text) : undefined}
+            onRemoveTag={!readonly && onRemoveTag ? (tagId) => onRemoveTag(t.id, tagId) : undefined}
+          />
         )}
 
         {!isEditing && !readonly && isClaimed && onUnclaim && (
@@ -500,53 +515,42 @@ function TaskSection({
           </button>
         )}
 
-        {!isEditing && !readonly && hasHover && onEdit && (
+        {!isEditing && !readonly && hasHover && onToggleShared && (
           <button
-            onClick={() => onEdit(t.id, t.text)}
+            onClick={() => onToggleShared(t.id)}
             className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-            style={{ color: "var(--text-2)", opacity: 0.5 }}
-            title="Edit"
+            style={{ color: t.isShared ? "#059669" : "var(--text-2)", opacity: t.isShared ? 1 : 0.35 }}
+            title={t.isShared ? "Currently shared — tap to unshare" : "Make shareable"}
           >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
+            {t.isShared ? (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="12" r="3" />
+                <line x1="5" y1="5" x2="19" y2="19" />
+              </svg>
+            ) : (
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <circle cx="9" cy="12" r="3" />
+                <circle cx="17" cy="6" r="3" />
+                <circle cx="17" cy="18" r="3" />
+                <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
+                <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
+              </svg>
+            )}
           </button>
         )}
-        {!isEditing && !readonly && hasHover && (onToggleShared || onRemoveFromBlock) && (
-          <MoreMenu
-            items={[
-              ...(onToggleShared ? [{
-                label: t.isShared ? "Unshare" : "Make shareable",
-                onClick: () => onToggleShared(t.id),
-                icon: t.isShared ? (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="9" cy="12" r="3" />
-                    <line x1="5" y1="5" x2="19" y2="19" />
-                  </svg>
-                ) : (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="9" cy="12" r="3" />
-                    <circle cx="17" cy="6" r="3" />
-                    <circle cx="17" cy="18" r="3" />
-                    <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
-                    <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
-                  </svg>
-                ),
-              }] : []),
-              ...(onRemoveFromBlock ? [{
-                label: "Remove from block",
-                onClick: () => onRemoveFromBlock(t.id),
-                icon: (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                    <line x1="9" y1="16" x2="15" y2="16" />
-                  </svg>
-                ),
-              }] : []),
-            ]}
-          />
+        {!isEditing && !readonly && hasHover && onRemoveFromBlock && (
+          <button
+            onClick={() => onRemoveFromBlock(t.id)}
+            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{ color: "var(--text-2)", opacity: 0.35 }}
+            title="Remove from block"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+              <line x1="9" y1="16" x2="15" y2="16" />
+            </svg>
+          </button>
         )}
 
         {!isEditing && !t.done && (e > 0 || running) && (
@@ -615,28 +619,18 @@ function TaskSection({
         return (
           <SwipeableRow
             key={t.id}
-            leftActions={[
-              {
-                label: "Edit",
-                icon: SwipeIcons.Edit,
-                bg: SwipeColors.edit,
-                onClick: () => onEdit(t.id, t.text),
-              },
-              {
-                label: t.isShared ? "Unshare" : "Share",
-                icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
-                bg: SwipeColors.share,
-                onClick: () => onToggleShared(t.id),
-              },
-            ]}
-            rightActions={[
-              {
-                label: "Off block",
-                icon: SwipeIcons.RemoveFromDay,
-                bg: SwipeColors.remove,
-                onClick: () => onRemoveFromBlock(t.id),
-              },
-            ]}
+            leftActions={[{
+              label: t.isShared ? "Unshare" : "Share",
+              icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
+              bg: SwipeColors.share,
+              onClick: () => onToggleShared(t.id),
+            }]}
+            rightActions={[{
+              label: "Off block",
+              icon: SwipeIcons.RemoveFromDay,
+              bg: SwipeColors.remove,
+              onClick: () => onRemoveFromBlock(t.id),
+            }]}
           >
             {rowContent(t)}
           </SwipeableRow>
@@ -646,19 +640,50 @@ function TaskSection({
   );
 }
 
-function Inner({ t, allTags, isClaimed }: { t: LiveTask; allTags: Tag[]; isClaimed: boolean }) {
+function Inner({
+  t,
+  allTags,
+  isClaimed,
+  hasHover,
+  readonly,
+  onClickText,
+  onRemoveTag,
+}: {
+  t: LiveTask;
+  allTags: Tag[];
+  isClaimed: boolean;
+  hasHover: boolean;
+  readonly: boolean;
+  onClickText?: () => void;
+  onRemoveTag?: (tagId: string) => void;
+}) {
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-1.5">
-        <span
-          className="text-sm break-words"
-          style={{
-            color: "var(--text)",
-            textDecoration: t.done ? "line-through" : "none",
-          }}
-        >
-          {t.text}
-        </span>
+        {readonly || !onClickText ? (
+          <span
+            className="text-sm break-words"
+            style={{
+              color: "var(--text)",
+              textDecoration: t.done ? "line-through" : "none",
+            }}
+          >
+            {t.text}
+          </span>
+        ) : (
+          <button
+            type="button"
+            onClick={onClickText}
+            className="text-sm break-words text-left cursor-text"
+            style={{
+              color: "var(--text)",
+              textDecoration: t.done ? "line-through" : "none",
+            }}
+            aria-label="Edit task"
+          >
+            {t.text}
+          </button>
+        )}
         {t.isShared && (
           <span className="text-[10px] font-semibold px-1.5 py-0.5 rounded-full" style={{ background: "rgba(5,150,105,0.12)", color: "#059669" }}>
             shared
@@ -675,6 +700,9 @@ function Inner({ t, allTags, isClaimed }: { t: LiveTask; allTags: Tag[]; isClaim
           {t.tagIds.map((tid) => {
             const tag = allTags.find((tg) => tg.id === tid);
             if (!tag) return null;
+            if (onRemoveTag) {
+              return <TagChip key={tid} tag={tag} hasHover={hasHover} onRemove={() => onRemoveTag(tid)} />;
+            }
             const { bg, fg } = tagColor(tag.name);
             return (
               <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
@@ -685,6 +713,34 @@ function Inner({ t, allTags, isClaimed }: { t: LiveTask; allTags: Tag[]; isClaim
         </div>
       )}
     </div>
+  );
+}
+
+function TagChip({ tag, hasHover, onRemove }: { tag: Tag; hasHover: boolean; onRemove: () => void }) {
+  const { bg, fg } = tagColor(tag.name);
+  const [hovered, setHovered] = useState(false);
+  return (
+    <span
+      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
+      style={{ background: bg, color: fg }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span>#{tag.name}</span>
+      {hasHover && hovered && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="rounded-full leading-none flex items-center justify-center"
+          style={{ width: 14, height: 14, background: fg, color: bg }}
+          title={`Remove #${tag.name}`}
+          aria-label={`Remove #${tag.name}`}
+        >
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
+    </span>
   );
 }
 

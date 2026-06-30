@@ -162,6 +162,11 @@ export default function TasksPage() {
     await createClient().from("tasks").delete().eq("id", id);
   }
 
+  async function removeTagFromTask(taskId: string, tagId: string) {
+    setTasks(prev => prev.map(t => t.id === taskId ? { ...t, tagIds: t.tagIds.filter(id => id !== tagId) } : t));
+    await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+  }
+
   // ── Filtering ──────────────────────────────────────────────────────────
   const filtered = useMemo(() => {
     let list = tasks;
@@ -345,6 +350,7 @@ export default function TasksPage() {
               onSave={(t) => saveTaskEdit(task.id, t)}
               onDelete={() => deleteTask(task.id)}
               onTogglePrivate={() => togglePrivate(task.id)}
+              onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
             />
           ))}
         </div>
@@ -392,6 +398,7 @@ export default function TasksPage() {
                   onSave={(t) => saveTaskEdit(task.id, t)}
                   onDelete={() => deleteTask(task.id)}
                   onTogglePrivate={() => togglePrivate(task.id)}
+                  onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
                 />
               ))}
             </div>

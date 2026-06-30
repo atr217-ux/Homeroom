@@ -4,7 +4,6 @@ import { useEffect, useRef, useState } from "react";
 import { buildColoredHTML, tagColor } from "@/lib/utils/tags";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
-import MoreMenu from "@/components/MoreMenu";
 import type { Tag } from "@/lib/db/types";
 
 type Props = {
@@ -16,9 +15,10 @@ type Props = {
   onSave: (newText: string) => void;
   onDelete: () => void;
   onTogglePrivate: () => void;
+  onRemoveTag: (tagId: string) => void;
 };
 
-export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave, onDelete, onTogglePrivate }: Props) {
+export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave, onDelete, onTogglePrivate, onRemoveTag }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const editRef = useRef<HTMLDivElement>(null);
@@ -47,12 +47,6 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
 
   return (
     <SwipeableRow
-      leftActions={done ? [] : [{
-        label: "Edit",
-        icon: SwipeIcons.Edit,
-        bg: SwipeColors.edit,
-        onClick: () => { setDraft(text); setEditing(true); },
-      }]}
       rightActions={[{
         label: "Delete",
         icon: SwipeIcons.Trash,
@@ -100,69 +94,31 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
               }}
             />
           ) : (
-            <span
-              className="text-sm leading-snug"
+            <button
+              type="button"
+              onClick={() => { if (!done) { setDraft(text); setEditing(true); } }}
+              className="text-sm leading-snug text-left w-full rounded transition-colors cursor-text"
               style={{
                 color: done ? "var(--text-2)" : "var(--text)",
                 textDecoration: done ? "line-through" : "none",
                 opacity: done ? 0.6 : 1,
               }}
+              aria-label="Edit task"
             >
               {text}
-            </span>
+            </button>
           )}
 
           {tags.length > 0 && (
             <div className="flex flex-wrap gap-1 mt-1.5">
-              {tags.map((tag) => {
-                const { bg, fg } = tagColor(tag.name);
-                return (
-                  <span
-                    key={tag.id}
-                    className="text-xs px-1.5 py-0.5 rounded-full font-medium"
-                    style={{ background: bg, color: fg }}
-                  >
-                    #{tag.name}
-                  </span>
-                );
-              })}
+              {tags.map((tag) => (
+                <TagChip key={tag.id} tag={tag} hasHover={hasHover} onRemove={() => onRemoveTag(tag.id)} />
+              ))}
             </div>
           )}
         </div>
 
-        {/* Desktop-only: edit visible, delete behind MoreMenu */}
-        {hasHover && !editing && !done && (
-          <button
-            onClick={() => { setDraft(text); setEditing(true); }}
-            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-            style={{ color: "var(--text-2)", opacity: 0.5 }}
-            title="Edit"
-          >
-            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-              <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-            </svg>
-          </button>
-        )}
-        {hasHover && !editing && (
-          <MoreMenu
-            items={[
-              {
-                label: "Delete",
-                destructive: true,
-                onClick: onDelete,
-                icon: (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                    <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                  </svg>
-                ),
-              },
-            ]}
-          />
-        )}
-
-        {/* Privacy toggle stays inline — it's a state toggle, not a destructive action */}
+        {/* Privacy toggle — state indicator, always visible */}
         <button
           onClick={onTogglePrivate}
           className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
@@ -182,7 +138,50 @@ export default function TaskRow({ text, done, isPrivate, tags, onToggle, onSave,
             </svg>
           )}
         </button>
+
+        {/* Desktop-only: subtle inline trash */}
+        {hasHover && !editing && (
+          <button
+            onClick={onDelete}
+            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{ color: "var(--text-2)", opacity: 0.35 }}
+            title="Delete"
+          >
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+              <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+            </svg>
+          </button>
+        )}
       </div>
     </SwipeableRow>
+  );
+}
+
+function TagChip({ tag, hasHover, onRemove }: { tag: Tag; hasHover: boolean; onRemove: () => void }) {
+  const { bg, fg } = tagColor(tag.name);
+  const [hovered, setHovered] = useState(false);
+  return (
+    <span
+      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
+      style={{ background: bg, color: fg }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span>#{tag.name}</span>
+      {hasHover && hovered && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="rounded-full leading-none flex items-center justify-center"
+          style={{ width: 14, height: 14, background: fg, color: bg }}
+          title={`Remove #${tag.name}`}
+          aria-label={`Remove #${tag.name}`}
+        >
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
+    </span>
   );
 }

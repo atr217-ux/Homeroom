@@ -6,7 +6,6 @@ import { dateKey, formatTime } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
-import MoreMenu from "@/components/MoreMenu";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Tag } from "@/lib/db/types";
 
@@ -174,6 +173,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     await createClient().from("tasks").update({ is_private: next }).eq("id", id);
   }
 
+  async function removeTagFromTask(taskId: string, tagId: string) {
+    setTasks((prev) => prev.map((x) => x.id === taskId ? { ...x, tagIds: x.tagIds.filter((id) => id !== tagId) } : x));
+    await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+  }
+
   // Remove from today only — task stays in your master list
   async function removeFromToday(id: string) {
     const t = tasks.find((x) => x.id === id);
@@ -310,12 +314,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                 return (
                   <SwipeableRow
                     key={t.id}
-                    leftActions={isEditing ? [] : [{
-                      label: "Edit",
-                      icon: SwipeIcons.Edit,
-                      bg: SwipeColors.edit,
-                      onClick: () => { setEditingId(t.id); setEditingText(t.text); },
-                    }]}
                     rightActions={isEditing ? [] : [
                       {
                         label: "Off today",
@@ -362,50 +360,28 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         </>
                       ) : (
                         <>
-                          <span className="text-sm break-words flex-1 min-w-0" style={{ color: "var(--text)" }}>
-                            {t.text}
-                          </span>
-                          {hasHover && (
-                            <>
-                              <button
-                                onClick={() => { setEditingId(t.id); setEditingText(t.text); }}
-                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                                style={{ color: "var(--text-2)", opacity: 0.5 }}
-                                title="Edit"
-                              >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                                </svg>
-                              </button>
-                              <MoreMenu
-                                items={[
-                                  {
-                                    label: "Remove from today",
-                                    onClick: () => removeFromToday(t.id),
-                                    icon: (
-                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <rect x="3" y="4" width="18" height="18" rx="2" />
-                                        <line x1="3" y1="10" x2="21" y2="10" />
-                                        <line x1="9" y1="16" x2="15" y2="16" />
-                                      </svg>
-                                    ),
-                                  },
-                                  {
-                                    label: "Delete",
-                                    destructive: true,
-                                    onClick: () => deleteTask(t.id),
-                                    icon: (
-                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                                        <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                                      </svg>
-                                    ),
-                                  },
-                                ]}
-                              />
-                            </>
-                          )}
+                          <div className="flex-1 min-w-0">
+                            <button
+                              type="button"
+                              onClick={() => { setEditingId(t.id); setEditingText(t.text); }}
+                              className="text-sm break-words text-left w-full cursor-text"
+                              style={{ color: "var(--text)" }}
+                              aria-label="Edit task"
+                            >
+                              {t.text}
+                            </button>
+                            {t.tagIds.length > 0 && (
+                              <div className="flex flex-wrap gap-1 mt-1">
+                                {t.tagIds.map((tid) => {
+                                  const tag = allTags.find((tg) => tg.id === tid);
+                                  if (!tag) return null;
+                                  return (
+                                    <TagChip key={tid} tag={tag} hasHover={hasHover} onRemove={() => removeTagFromTask(t.id, tid)} />
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
                           <span
                             className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
                             style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
@@ -441,6 +417,33 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               </svg>
                             )}
                           </button>
+                          {hasHover && (
+                            <>
+                              <button
+                                onClick={() => removeFromToday(t.id)}
+                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+                                style={{ color: "var(--text-2)", opacity: 0.35 }}
+                                title="Remove from today"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                                  <line x1="3" y1="10" x2="21" y2="10" />
+                                  <line x1="9" y1="16" x2="15" y2="16" />
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => deleteTask(t.id)}
+                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+                                style={{ color: "var(--text-2)", opacity: 0.35 }}
+                                title="Delete"
+                              >
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                                  <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
                         </>
                       )}
                     </div>
@@ -479,37 +482,36 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
                       </button>
                       <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-2)" }}>{t.text}</span>
-                      {hasHover && (
-                        <MoreMenu
-                          items={[
-                            {
-                              label: "Remove from today",
-                              onClick: () => removeFromToday(t.id),
-                              icon: (
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                                  <line x1="3" y1="10" x2="21" y2="10" />
-                                  <line x1="9" y1="16" x2="15" y2="16" />
-                                </svg>
-                              ),
-                            },
-                            {
-                              label: "Delete",
-                              destructive: true,
-                              onClick: () => deleteTask(t.id),
-                              icon: (
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                                  <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                                </svg>
-                              ),
-                            },
-                          ]}
-                        />
-                      )}
                       <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
                         {formatTime(t.timeSpent)}
                       </span>
+                      {hasHover && (
+                        <>
+                          <button
+                            onClick={() => removeFromToday(t.id)}
+                            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+                            style={{ color: "var(--text-2)", opacity: 0.35 }}
+                            title="Remove from today"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <rect x="3" y="4" width="18" height="18" rx="2" />
+                              <line x1="3" y1="10" x2="21" y2="10" />
+                              <line x1="9" y1="16" x2="15" y2="16" />
+                            </svg>
+                          </button>
+                          <button
+                            onClick={() => deleteTask(t.id)}
+                            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+                            style={{ color: "var(--text-2)", opacity: 0.35 }}
+                            title="Delete"
+                          >
+                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                              <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                            </svg>
+                          </button>
+                        </>
+                      )}
                     </div>
                   </SwipeableRow>
                 ))}
@@ -673,5 +675,33 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         </button>
       )}
     </div>
+  );
+}
+
+function TagChip({ tag, hasHover, onRemove }: { tag: Tag; hasHover: boolean; onRemove: () => void }) {
+  const { bg, fg } = tagColor(tag.name);
+  const [hovered, setHovered] = useState(false);
+  return (
+    <span
+      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
+      style={{ background: bg, color: fg }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+    >
+      <span>#{tag.name}</span>
+      {hasHover && hovered && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onRemove(); }}
+          className="rounded-full leading-none flex items-center justify-center"
+          style={{ width: 14, height: 14, background: fg, color: bg }}
+          title={`Remove #${tag.name}`}
+          aria-label={`Remove #${tag.name}`}
+        >
+          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+          </svg>
+        </button>
+      )}
+    </span>
   );
 }
