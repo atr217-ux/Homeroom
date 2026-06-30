@@ -6,6 +6,7 @@ import { dateKey, formatTime } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
+import MoreMenu from "@/components/MoreMenu";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import type { Tag } from "@/lib/db/types";
 
@@ -377,29 +378,32 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
                                 </svg>
                               </button>
-                              <button
-                                onClick={() => removeFromToday(t.id)}
-                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                                style={{ color: "var(--text-2)", opacity: 0.5 }}
-                                title="Remove from today"
-                              >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="3" y="4" width="18" height="18" rx="2" />
-                                  <line x1="3" y1="10" x2="21" y2="10" />
-                                  <line x1="9" y1="16" x2="15" y2="16" />
-                                </svg>
-                              </button>
-                              <button
-                                onClick={() => deleteTask(t.id)}
-                                className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                                style={{ color: "var(--text-2)", opacity: 0.5 }}
-                                title="Delete"
-                              >
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                                  <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                                </svg>
-                              </button>
+                              <MoreMenu
+                                items={[
+                                  {
+                                    label: "Remove from today",
+                                    onClick: () => removeFromToday(t.id),
+                                    icon: (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                                        <line x1="3" y1="10" x2="21" y2="10" />
+                                        <line x1="9" y1="16" x2="15" y2="16" />
+                                      </svg>
+                                    ),
+                                  },
+                                  {
+                                    label: "Delete",
+                                    destructive: true,
+                                    onClick: () => deleteTask(t.id),
+                                    icon: (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                                        <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                                      </svg>
+                                    ),
+                                  },
+                                ]}
+                              />
                             </>
                           )}
                           <span
@@ -476,31 +480,32 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       </button>
                       <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-2)" }}>{t.text}</span>
                       {hasHover && (
-                        <>
-                          <button
-                            onClick={() => removeFromToday(t.id)}
-                            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                            style={{ color: "var(--text-2)", opacity: 0.5 }}
-                            title="Remove from today"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <rect x="3" y="4" width="18" height="18" rx="2" />
-                              <line x1="3" y1="10" x2="21" y2="10" />
-                              <line x1="9" y1="16" x2="15" y2="16" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => deleteTask(t.id)}
-                            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-                            style={{ color: "var(--text-2)", opacity: 0.5 }}
-                            title="Delete"
-                          >
-                            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                              <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                              <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                            </svg>
-                          </button>
-                        </>
+                        <MoreMenu
+                          items={[
+                            {
+                              label: "Remove from today",
+                              onClick: () => removeFromToday(t.id),
+                              icon: (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="4" width="18" height="18" rx="2" />
+                                  <line x1="3" y1="10" x2="21" y2="10" />
+                                  <line x1="9" y1="16" x2="15" y2="16" />
+                                </svg>
+                              ),
+                            },
+                            {
+                              label: "Delete",
+                              destructive: true,
+                              onClick: () => deleteTask(t.id),
+                              icon: (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                                  <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                                </svg>
+                              ),
+                            },
+                          ]}
+                        />
                       )}
                       <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
                         {formatTime(t.timeSpent)}
