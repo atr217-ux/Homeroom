@@ -586,95 +586,103 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             {t.text}
                           </button>
                         )}
-                        <div className="flex flex-wrap items-center gap-1 mt-1">
-                          {t.tagIds.map((tid) => {
-                            const tag = allTags.find((tg) => tg.id === tid);
-                            if (!tag) return null;
-                            return (
-                              <TagChip
-                                key={tid}
-                                tag={tag}
-                                hasHover={hasHover}
-                                forceVisible={isEditing}
-                                onRemove={() => removeTagFromTask(t.id, tid)}
-                              />
-                            );
-                          })}
-                          <span className="text-xs whitespace-nowrap" style={{ color: "var(--text-3)" }} title={new Date(t.createdAt).toLocaleString()}>
-                            {addedAtLabel(t.createdAt)}
-                          </span>
-                        </div>
+                        {t.tagIds.length > 0 && (
+                          <div className="flex flex-wrap items-center gap-1 mt-1">
+                            {t.tagIds.map((tid) => {
+                              const tag = allTags.find((tg) => tg.id === tid);
+                              if (!tag) return null;
+                              return (
+                                <TagChip
+                                  key={tid}
+                                  tag={tag}
+                                  hasHover={hasHover}
+                                  forceVisible={isEditing}
+                                  onRemove={() => removeTagFromTask(t.id, tid)}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
                       </div>
                       {isEditing ? (
                         <button onClick={() => setEditingId(null)} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
                           ✕
                         </button>
                       ) : (
-                        <>
-                          <span
-                            className="text-xs font-mono w-10 text-right flex-shrink-0 tabular-nums"
-                            style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
-                          >
-                            {formatTime(e)}
-                          </span>
-                          <button
-                            onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
-                            className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 transition-colors"
-                            style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
-                            title={running ? "Stop timer" : "Start timer"}
-                          >
-                            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
-                              <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                            </svg>
-                          </button>
-                          <button
-                            onClick={() => togglePrivate(t.id)}
-                            className="p-1 rounded flex-shrink-0 transition-opacity hover:opacity-100"
-                            style={{ color: t.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: t.isPrivate ? 1 : 0.5 }}
-                            title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
-                            aria-label={t.isPrivate ? "Make public" : "Make private"}
-                          >
-                            {t.isPrivate ? (
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" />
-                                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                          <div className="flex items-center gap-2.5">
+                            <span
+                              className="text-xs font-mono w-10 text-right tabular-nums"
+                              style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
+                            >
+                              {formatTime(e)}
+                            </span>
+                            <button
+                              onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
+                              className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                              style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
+                              title={running ? "Stop timer" : "Start timer"}
+                            >
+                              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
+                                <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                               </svg>
-                            ) : (
-                              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                <rect x="3" y="11" width="18" height="11" rx="2" />
-                                <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                              </svg>
+                            </button>
+                            <button
+                              onClick={() => togglePrivate(t.id)}
+                              className="p-1 rounded transition-opacity hover:opacity-100"
+                              style={{ color: t.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: t.isPrivate ? 1 : 0.5 }}
+                              title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+                              aria-label={t.isPrivate ? "Make public" : "Make private"}
+                            >
+                              {t.isPrivate ? (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                </svg>
+                              ) : (
+                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                                </svg>
+                              )}
+                            </button>
+                            {hasHover && (
+                              <MoreMenu
+                                items={[
+                                  {
+                                    label: "Remove from today",
+                                    onClick: () => removeFromToday(t.id),
+                                    icon: (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="4" width="18" height="18" rx="2" />
+                                        <line x1="3" y1="10" x2="21" y2="10" />
+                                        <line x1="9" y1="16" x2="15" y2="16" />
+                                      </svg>
+                                    ),
+                                  },
+                                  {
+                                    label: "Delete",
+                                    destructive: true,
+                                    onClick: () => deleteTask(t.id),
+                                    icon: (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                                        <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                                      </svg>
+                                    ),
+                                  },
+                                ]}
+                              />
                             )}
-                          </button>
-                          {hasHover && (
-                            <MoreMenu
-                              items={[
-                                {
-                                  label: "Remove from today",
-                                  onClick: () => removeFromToday(t.id),
-                                  icon: (
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                      <rect x="3" y="4" width="18" height="18" rx="2" />
-                                      <line x1="3" y1="10" x2="21" y2="10" />
-                                      <line x1="9" y1="16" x2="15" y2="16" />
-                                    </svg>
-                                  ),
-                                },
-                                {
-                                  label: "Delete",
-                                  destructive: true,
-                                  onClick: () => deleteTask(t.id),
-                                  icon: (
-                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                      <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                                      <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                                    </svg>
-                                  ),
-                                },
-                              ]}
-                            />
-                          )}
-                        </>
+                          </div>
+                          <span
+                            className="text-xs whitespace-nowrap pr-1"
+                            style={{ color: "var(--text-3)" }}
+                            title={new Date(t.createdAt).toLocaleString()}
+                          >
+                            {addedAtLabel(t.createdAt)}
+                          </span>
+                        </div>
                       )}
                     </div>
                   </SwipeableRow>
