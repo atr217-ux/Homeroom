@@ -145,7 +145,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
 
       {/* Focus / intention */}
       <div className="mb-5">
-        <label className="text-xs font-semibold block mb-1.5" style={{ color: "var(--text-2)" }}>
+        <label className="text-xs font-semibold block mb-1.5" style={{ color: "var(--purple)" }}>
           Today&apos;s focus <span className="font-normal opacity-70">(optional)</span>
         </label>
         <input
