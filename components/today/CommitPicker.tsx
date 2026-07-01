@@ -28,12 +28,14 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const [loading, setLoading] = useState(true);
   const [committing, setCommitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
+  const [commitment, setCommitment] = useState("");
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     async function load() {
       const supabase = createClient();
-      const [tasksRes, tagsRes] = await Promise.all([
+      const today = dateKey(new Date());
+      const [tasksRes, tagsRes, commitmentRes] = await Promise.all([
         supabase
           .from("tasks")
           .select("id, text, is_private, task_tags(tag_id)")
@@ -42,6 +44,12 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
           .order("created_at", { ascending: false })
           .limit(300),
         supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
+        supabase
+          .from("daily_commitments")
+          .select("commitment")
+          .eq("user_id", userId)
+          .eq("date", today)
+          .maybeSingle(),
       ]);
       setTasks((tasksRes.data ?? []).map((r) => ({
         id: r.id as string,
@@ -50,6 +58,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map((tt) => tt.tag_id),
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
+      setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
       setLoading(false);
     }
     load();
@@ -84,6 +93,18 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
     });
   }
 
+  async function saveCommitment(next: string) {
+    const trimmed = next.trim();
+    const today = dateKey(new Date());
+    const supabase = createClient();
+    await supabase.from("daily_commitments").upsert({
+      user_id: userId,
+      date: today,
+      commitment: trimmed,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,date" });
+  }
+
   async function commit() {
     if (selected.size === 0) {
       setToast("Pick at least one task to commit to");
@@ -93,13 +114,14 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
     setCommitting(true);
     const today = dateKey(new Date());
     const ids = Array.from(selected);
-    const { error } = await createClient()
-      .from("tasks")
-      .update({ committed_for_date: today })
-      .in("id", ids);
+    const supabase = createClient();
+    const [tasksRes] = await Promise.all([
+      supabase.from("tasks").update({ committed_for_date: today }).in("id", ids),
+      saveCommitment(commitment),
+    ]);
     setCommitting(false);
-    if (error) {
-      setToast(error.message ?? "Could not save — try again");
+    if (tasksRes.error) {
+      setToast(tasksRes.error.message ?? "Could not save — try again");
       setTimeout(() => setToast(null), 4000);
       return;
     }
@@ -109,7 +131,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   return (
     <div className="max-w-2xl mx-auto px-4 pt-10 pb-32">
       {/* Header */}
-      <div className="pb-6">
+      <div className="pb-4">
         <span
           className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full mb-3"
           style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
@@ -119,6 +141,29 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         <h1 className="text-2xl font-bold leading-snug" style={{ color: "var(--text)" }}>
           What are you committing to accomplish today?
         </h1>
+      </div>
+
+      {/* Focus / intention */}
+      <div className="mb-5">
+        <label className="text-xs font-semibold block mb-1.5" style={{ color: "var(--text-2)" }}>
+          Today&apos;s focus <span className="font-normal opacity-70">(optional)</span>
+        </label>
+        <input
+          type="text"
+          value={commitment}
+          onChange={(e) => setCommitment(e.target.value)}
+          onBlur={() => saveCommitment(commitment)}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+          placeholder="e.g. Ship the launch email, rest and recharge…"
+          maxLength={140}
+          className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
+          style={{
+            background: "var(--surface)",
+            borderColor: commitment ? "var(--purple)" : "var(--border-2)",
+            color: "var(--text)",
+            fontSize: "16px",
+          }}
+        />
       </div>
 
       {/* Search */}

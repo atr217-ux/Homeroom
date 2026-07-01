@@ -72,6 +72,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
+  // ── Daily commitment ───────────────────────────────────────────────────
+  const [commitment, setCommitment] = useState("");
+  const [editingCommitment, setEditingCommitment] = useState(false);
+  const commitmentInputRef = useRef<HTMLInputElement>(null);
+
   const hasHover = useHasHover();
 
   // dnd-kit sensors
@@ -85,7 +90,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     async function load() {
       const supabase = createClient();
       const today = dateKey(new Date());
-      const [tasksRes, tagsRes] = await Promise.all([
+      const [tasksRes, tagsRes, commitmentRes] = await Promise.all([
         supabase
           .from("tasks")
           .select("id, text, done, is_private, time_spent, timer_started_at, sort_order, created_at, task_tags(tag_id)")
@@ -94,6 +99,12 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           .order("sort_order", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: true }),
         supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
+        supabase
+          .from("daily_commitments")
+          .select("commitment")
+          .eq("user_id", userId)
+          .eq("date", today)
+          .maybeSingle(),
       ]);
 
       setTasks((tasksRes.data ?? []).map((r, i) => ({
@@ -108,6 +119,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         createdAt: r.created_at as string,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
+      setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
       setLoading(false);
     }
     load();
@@ -229,6 +241,18 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   async function removeTagFromTask(taskId: string, tagId: string) {
     setTasks((prev) => prev.map((x) => x.id === taskId ? { ...x, tagIds: x.tagIds.filter((id) => id !== tagId) } : x));
     await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+  }
+
+  async function saveCommitment(next: string) {
+    const trimmed = next.trim();
+    const today = dateKey(new Date());
+    setCommitment(trimmed);
+    await createClient().from("daily_commitments").upsert({
+      user_id: userId,
+      date: today,
+      commitment: trimmed,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,date" });
   }
 
   // ── Drag-to-reorder ─────────────────────────────────────────────────────
@@ -386,6 +410,64 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           </span>
         )}
       </div>
+
+      {/* Daily commitment / focus */}
+      {!loading && (
+        <div className="mb-5">
+          {editingCommitment ? (
+            <input
+              ref={commitmentInputRef}
+              autoFocus
+              type="text"
+              value={commitment}
+              onChange={(e) => setCommitment(e.target.value)}
+              onBlur={() => { saveCommitment(commitment); setEditingCommitment(false); }}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                if (e.key === "Escape") { e.preventDefault(); setEditingCommitment(false); }
+              }}
+              maxLength={140}
+              placeholder="Today's focus…"
+              className="w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--purple)",
+                color: "var(--text)",
+                fontSize: "16px",
+              }}
+            />
+          ) : commitment ? (
+            <button
+              type="button"
+              onClick={() => setEditingCommitment(true)}
+              className="w-full text-left rounded-xl px-3 py-2.5 border transition-colors"
+              style={{
+                background: "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)",
+                borderColor: "rgba(124,58,237,0.25)",
+              }}
+              aria-label="Edit today's focus"
+            >
+              <span className="text-[10px] font-semibold uppercase tracking-wide block mb-0.5" style={{ color: "var(--purple)" }}>
+                Focus
+              </span>
+              <span className="text-sm" style={{ color: "var(--text)" }}>{commitment}</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setEditingCommitment(true)}
+              className="w-full text-sm font-medium rounded-xl px-3 py-2.5 border border-dashed flex items-center gap-2 transition-colors"
+              style={{ borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}
+            >
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19" />
+                <line x1="5" y1="12" x2="19" y2="12" />
+              </svg>
+              Declare today&apos;s focus
+            </button>
+          )}
+        </div>
+      )}
 
       {loading && (
         <div className="flex justify-center pt-12">

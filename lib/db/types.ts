@@ -72,6 +72,14 @@ export type Friendship = {
   created_at: string;
 };
 
+export type DailyCommitment = {
+  user_id: string;
+  date: string;           // YYYY-MM-DD
+  commitment: string;     // may be empty string
+  created_at: string;
+  updated_at: string;
+};
+
 // Row shape emitted by the home/feed query
 export type FeedEventRow = Task & {
   profiles?: { username: string; avatar: string | null };
