@@ -31,6 +31,9 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const [toast, setToast] = useState<string | null>(null);
   const [commitment, setCommitment] = useState("");
   const [newTaskInput, setNewTaskInput] = useState("");
+  const [showAll, setShowAll] = useState(false);
+
+  const LIMIT = 10;
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -310,7 +313,12 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       )}
 
       {/* Task list */}
-      {!loading && (
+      {!loading && (() => {
+        // Auto-expand when searching or filtering so nothing hides behind the cap
+        const isFiltering = !!search.trim() || tagFilters.length > 0;
+        const visible = (showAll || isFiltering) ? filtered : filtered.slice(0, LIMIT);
+        const hidden = filtered.length - visible.length;
+        return (
         <div className="space-y-2 mb-4">
           {filtered.length === 0 && tasks.length === 0 && (
             <p className="text-sm text-center py-12" style={{ color: "var(--text-2)" }}>
@@ -322,7 +330,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
               No tasks match your filters
             </p>
           )}
-          {filtered.map((task) => {
+          {visible.map((task) => {
             const sel = selected.has(task.id);
             return (
               <button
@@ -376,8 +384,27 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
               </button>
             );
           })}
+          {!isFiltering && hidden > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full text-xs font-medium py-2 rounded-xl border transition-colors"
+              style={{ color: "var(--text-2)", borderColor: "var(--border-2)", background: "var(--surface)" }}
+            >
+              See all {filtered.length} tasks
+            </button>
+          )}
+          {!isFiltering && showAll && filtered.length > LIMIT && (
+            <button
+              onClick={() => setShowAll(false)}
+              className="w-full text-xs font-medium py-2 rounded-xl border transition-colors"
+              style={{ color: "var(--text-2)", borderColor: "var(--border-2)", background: "var(--surface)" }}
+            >
+              Show less
+            </button>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* Commit button — fixed above bottom nav */}
       <div className="fixed bottom-24 left-0 right-0 px-4 max-w-2xl mx-auto z-30 pointer-events-none">
