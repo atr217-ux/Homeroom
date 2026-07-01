@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { dateKey, formatTime } from "@/lib/utils/date";
+import { addedAtLabel, dateKey, formatTime } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
@@ -36,6 +36,7 @@ type CommittedTask = {
   startedAt: number | null;
   tagIds: string[];
   sortOrder: number;
+  createdAt: string;
 };
 
 type Props = {
@@ -48,6 +49,7 @@ type AvailableTask = {
   text: string;
   isPrivate: boolean;
   tagIds: string[];
+  createdAt: string;
 };
 
 export default function CommittedList({ userId, onOpenSchedule }: Props) {
@@ -103,6 +105,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         startedAt: r.timer_started_at ? new Date(r.timer_started_at as string).getTime() : null,
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map((tt) => tt.tag_id),
         sortOrder: (r.sort_order as number | null) ?? i * 10,
+        createdAt: r.created_at as string,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setLoading(false);
@@ -128,19 +131,20 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     const supabase = createClient();
     const { data } = await supabase
       .from("tasks")
-      .select("id, text, is_private, task_tags(tag_id)")
+      .select("id, text, is_private, created_at, task_tags(tag_id)")
       .eq("user_id", userId)
       .eq("done", false)
       .order("created_at", { ascending: false })
       .limit(200);
     const inTodayIds = new Set(tasks.map((t) => t.id));
-    setAvailable(((data ?? []) as { id: string; text: string; is_private: boolean | null; task_tags: { tag_id: string }[] | null }[])
+    setAvailable(((data ?? []) as { id: string; text: string; is_private: boolean | null; created_at: string; task_tags: { tag_id: string }[] | null }[])
       .filter((r) => !inTodayIds.has(r.id))
       .map((r) => ({
         id: r.id,
         text: r.text,
         isPrivate: r.is_private ?? false,
         tagIds: (r.task_tags ?? []).map((tt) => tt.tag_id),
+        createdAt: r.created_at,
       })));
   }
 
@@ -164,6 +168,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       startedAt: null,
       tagIds: av.tagIds,
       sortOrder: maxOrder + 10,
+      createdAt: av.createdAt,
     }]);
     await supabase
       .from("tasks")
@@ -261,7 +266,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     // If the available panel is open, surface this task there
     if (showAvailable && t) {
       setAvailable((prev) => [
-        { id: t.id, text: t.text, isPrivate: t.isPrivate, tagIds: t.tagIds },
+        { id: t.id, text: t.text, isPrivate: t.isPrivate, tagIds: t.tagIds, createdAt: t.createdAt },
         ...prev,
       ]);
     }
@@ -321,7 +326,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         committed_for_date: today,
         sort_order: maxOrder + 10,
       })
-      .select("id")
+      .select("id, created_at")
       .single();
     if (!data) return;
 
@@ -338,6 +343,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       startedAt: null,
       tagIds: tagObjs.map((t) => t.id),
       sortOrder: maxOrder + 10,
+      createdAt: data.created_at as string,
     }]);
     setAllTags((prev) => {
       const map = new Map(prev.map((t) => [t.id, t]));
@@ -580,23 +586,24 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             {t.text}
                           </button>
                         )}
-                        {t.tagIds.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {t.tagIds.map((tid) => {
-                              const tag = allTags.find((tg) => tg.id === tid);
-                              if (!tag) return null;
-                              return (
-                                <TagChip
-                                  key={tid}
-                                  tag={tag}
-                                  hasHover={hasHover}
-                                  forceVisible={isEditing}
-                                  onRemove={() => removeTagFromTask(t.id, tid)}
-                                />
-                              );
-                            })}
-                          </div>
-                        )}
+                        <div className="flex flex-wrap items-center gap-1 mt-1">
+                          {t.tagIds.map((tid) => {
+                            const tag = allTags.find((tg) => tg.id === tid);
+                            if (!tag) return null;
+                            return (
+                              <TagChip
+                                key={tid}
+                                tag={tag}
+                                hasHover={hasHover}
+                                forceVisible={isEditing}
+                                onRemove={() => removeTagFromTask(t.id, tid)}
+                              />
+                            );
+                          })}
+                          <span className="text-xs whitespace-nowrap" style={{ color: "var(--text-3)" }} title={new Date(t.createdAt).toLocaleString()}>
+                            {addedAtLabel(t.createdAt)}
+                          </span>
+                        </div>
                       </div>
                       {isEditing ? (
                         <button onClick={() => setEditingId(null)} className="text-xs flex-shrink-0 px-1" style={{ color: "var(--text-2)" }}>
