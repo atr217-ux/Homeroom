@@ -156,7 +156,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
           placeholder="e.g. Ship the launch email, rest and recharge…"
           maxLength={140}
-          className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
+          className="focus-input-purple w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
           style={{
             background: "var(--surface)",
             borderColor: commitment ? "var(--purple)" : "var(--border-2)",

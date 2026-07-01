@@ -428,7 +428,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               }}
               maxLength={140}
               placeholder="Today's focus…"
-              className="w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
+              className="focus-input-purple w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--purple)",
@@ -457,7 +457,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               type="button"
               onClick={() => setEditingCommitment(true)}
               className="w-full text-sm font-medium rounded-xl px-3 py-2.5 border border-dashed flex items-center gap-2 transition-colors"
-              style={{ borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}
+              style={{ borderColor: "rgba(124,58,237,0.35)", color: "var(--purple)", background: "transparent" }}
             >
               <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                 <line x1="12" y1="5" x2="12" y2="19" />

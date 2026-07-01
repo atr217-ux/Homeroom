@@ -129,6 +129,16 @@ html.dark {
   }
 }
 
+/* Purple placeholder for the daily-focus input in both light + dark */
+.focus-input-purple::placeholder {
+  color: var(--purple);
+  opacity: 0.5;
+}
+html.dark .focus-input-purple::placeholder {
+  color: var(--purple);
+  opacity: 0.6;
+}
+
 /* Universal button hover feedback */
 button:not([disabled]) {
   cursor: pointer;
