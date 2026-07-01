@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { dateKey } from "@/lib/utils/date";
-import { tagColor } from "@/lib/utils/tags";
+import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
+import TaskInput from "@/components/TaskInput";
 import type { Tag } from "@/lib/db/types";
 
 type PickerTask = {
@@ -29,6 +30,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const [committing, setCommitting] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [commitment, setCommitment] = useState("");
+  const [newTaskInput, setNewTaskInput] = useState("");
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -90,6 +92,40 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       if (next.has(id)) next.delete(id);
       else next.add(id);
       return next;
+    });
+  }
+
+  async function addQuickTask() {
+    const raw = newTaskInput.trim();
+    if (!raw) return;
+    const tagNames = parseHashtags(raw);
+    const text = stripHashtags(raw);
+    if (!text) return;
+    setNewTaskInput("");
+
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .insert({ user_id: userId, text, done: false })
+      .select("id")
+      .single();
+    if (!data) return;
+
+    const tagObjs = (await Promise.all(tagNames.map((n) => getOrCreateTag(n, supabase, userId)))).filter(Boolean) as Tag[];
+    if (tagObjs.length > 0) {
+      await supabase.from("task_tags").insert(tagObjs.map((t) => ({ task_id: data.id, tag_id: t.id })));
+    }
+
+    const newId = data.id as string;
+    setTasks((prev) => [
+      { id: newId, text, isPrivate: false, tagIds: tagObjs.map((t) => t.id) },
+      ...prev,
+    ]);
+    setSelected((prev) => new Set([newId, ...prev]));
+    setAllTags((prev) => {
+      const map = new Map(prev.map((t) => [t.id, t]));
+      for (const t of tagObjs) map.set(t.id, t);
+      return Array.from(map.values()).sort((a, b) => a.name.localeCompare(b.name));
     });
   }
 
@@ -166,9 +202,20 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         />
       </div>
 
-      {/* Search */}
+      {/* Add a new task inline — commits when submitted, selected by default */}
+      <div className="mb-2">
+        <TaskInput
+          value={newTaskInput}
+          onChange={setNewTaskInput}
+          onSubmit={addQuickTask}
+          allTags={allTags}
+          placeholder="Add a new task… (try #category)"
+        />
+      </div>
+
+      {/* Search (compact) */}
       <div className="mb-3 relative">
-        <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
+        <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 pointer-events-none" width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
           <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
         </svg>
         <input
@@ -176,12 +223,12 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search tasks…"
-          className="w-full text-sm rounded-xl pl-8 pr-3 py-2.5 focus:outline-none border transition-colors"
+          className="w-full rounded-full pl-7 pr-3 py-1 focus:outline-none border transition-colors"
           style={{
             background: "var(--surface)",
             borderColor: search ? "var(--purple)" : "var(--border-2)",
             color: "var(--text)",
-            fontSize: "16px",
+            fontSize: "13px",
           }}
         />
       </div>
