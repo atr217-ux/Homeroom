@@ -379,7 +379,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   void tick;
 
   const tagMatches = (t: CommittedTask) =>
-    tagFilters.length === 0 || tagFilters.every((id) => t.tagIds.includes(id));
+    tagFilters.length === 0 || tagFilters.some((id) => t.tagIds.includes(id));
   const undone = tasks.filter((t) => !t.done && tagMatches(t));
   const done = tasks.filter((t) => t.done && tagMatches(t));
   const usedTagIds = Array.from(new Set(tasks.flatMap((t) => t.tagIds)));

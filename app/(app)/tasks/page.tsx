@@ -191,7 +191,8 @@ export default function TasksPage() {
       list = list.filter(t => (privacyFilter === "private") === t.isPrivate);
     }
     if (tagFilters.length > 0) {
-      list = list.filter(t => tagFilters.every(id => t.tagIds.includes(id)));
+      // OR semantics: a task matches if it has ANY of the selected tags
+      list = list.filter(t => tagFilters.some(id => t.tagIds.includes(id)));
     }
     if (search.trim()) {
       const q = search.toLowerCase().trim();

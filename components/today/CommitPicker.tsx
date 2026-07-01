@@ -80,7 +80,8 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const filtered = useMemo(() => {
     let list = tasks;
     if (tagFilters.length > 0) {
-      list = list.filter((t) => tagFilters.every((id) => t.tagIds.includes(id)));
+      // OR semantics: a task matches if it has ANY of the selected tags
+      list = list.filter((t) => tagFilters.some((id) => t.tagIds.includes(id)));
     }
     if (search.trim()) {
       const q = search.toLowerCase().trim();
