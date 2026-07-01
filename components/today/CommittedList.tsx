@@ -872,22 +872,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         </div>
       )}
 
-      {/* Tag legend */}
-      {!loading && tasks.some((t) => t.tagIds.length > 0) && (
-        <div className="flex flex-wrap gap-1 mb-3 px-1">
-          {Array.from(new Set(tasks.flatMap((t) => t.tagIds))).map((tid) => {
-            const tag = allTags.find((t) => t.id === tid);
-            if (!tag) return null;
-            const { bg, fg } = tagColor(tag.name);
-            return (
-              <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
-                #{tag.name}
-              </span>
-            );
-          })}
-        </div>
-      )}
-
       {/* Schedule a block */}
       {!loading && (
         <button
