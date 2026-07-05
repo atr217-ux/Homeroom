@@ -54,6 +54,7 @@ export default function FriendsPanel({ userId, username }: Props) {
         .from("profiles")
         .select("id, username, avatar")
         .ilike("username", `${term}%`)
+        .eq("searchable", true)
         .limit(8);
       const filtered = ((data as Suggestion[] | null) ?? []).filter(
         (u) => !excluded.has(u.username.toLowerCase()),
@@ -153,12 +154,17 @@ export default function FriendsPanel({ userId, username }: Props) {
       }
       const { data } = await supabase
         .from("profiles")
-        .select("id, username")
+        .select("id, username, searchable")
         .eq("username", target)
         .maybeSingle();
       if (!data) {
         setBusy(false);
         showMsg(`No user named "${target}"`);
+        return;
+      }
+      if ((data as { searchable: boolean | null }).searchable === false) {
+        setBusy(false);
+        showMsg(`${(data as { username: string }).username} isn't accepting new friends`);
         return;
       }
       targetProfile = data as { id: string; username: string };

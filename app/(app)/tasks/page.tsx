@@ -30,6 +30,7 @@ export default function TasksPage() {
   const [showDone, setShowDone] = useState(false);
   const [privacyFilter, setPrivacyFilter] = useState<"all" | "private" | "public">("all");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [autoPrivate, setAutoPrivate] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Initial load ───────────────────────────────────────────────────────
@@ -41,7 +42,7 @@ export default function TasksPage() {
       setUserId(user.id);
 
       const today = dateKey(new Date());
-      const [tasksRes, tagsRes] = await Promise.all([
+      const [tasksRes, tagsRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
           .select("id, text, done, is_private, committed_for_date, created_at, task_tags(tag_id)")
@@ -53,6 +54,11 @@ export default function TasksPage() {
           .select("id, name")
           .eq("user_id", user.id)
           .order("name", { ascending: true }),
+        supabase
+          .from("profiles")
+          .select("auto_private_tasks")
+          .eq("id", user.id)
+          .maybeSingle(),
       ]);
 
       const rows = tasksRes.data ?? [];
@@ -66,6 +72,7 @@ export default function TasksPage() {
         createdAt: r.created_at as string,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
+      setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
       setLoading(false);
     }
     init();
@@ -91,7 +98,7 @@ export default function TasksPage() {
     const supabase = createClient();
     const { data: row } = await supabase
       .from("tasks")
-      .insert({ user_id: userId, text, done: false })
+      .insert({ user_id: userId, text, done: false, is_private: autoPrivate })
       .select("id, created_at")
       .single();
     if (!row) return;
@@ -105,7 +112,7 @@ export default function TasksPage() {
       id: row.id as string,
       text,
       done: false,
-      isPrivate: false,
+      isPrivate: autoPrivate,
       inToday: false,
       tagIds: tagObjs.map(t => t.id),
       createdAt: row.created_at as string,
