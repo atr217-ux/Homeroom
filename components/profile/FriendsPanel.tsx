@@ -97,11 +97,10 @@ export default function FriendsPanel({ userId, username }: Props) {
     const { data: reqs } = await supabase
       .from("friend_requests")
       .select("id, from_username, to_username, status")
-      .or(`from_username.eq.${username},to_username.eq.${username}`)
-      .eq("status", "pending");
+      .or(`from_username.eq.${username},to_username.eq.${username}`);
 
-    const inc = (reqs ?? []).filter((r) => r.to_username === username);
-    const out = (reqs ?? []).filter((r) => r.from_username === username);
+    const inc = (reqs ?? []).filter((r) => r.to_username === username && r.status === "pending");
+    const out = (reqs ?? []).filter((r) => r.from_username === username && r.status === "pending");
 
     const otherUsernames = Array.from(new Set([
       ...inc.map((r) => r.from_username as string),
@@ -368,33 +367,6 @@ export default function FriendsPanel({ userId, username }: Props) {
         </div>
       )}
 
-      {/* Outgoing requests */}
-      {outgoing.length > 0 && (
-        <div className="mb-3">
-          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--text-2)" }}>
-            Pending ({outgoing.length})
-          </div>
-          <div className="space-y-1.5">
-            {outgoing.map((r) => (
-              <div key={r.id} className="flex items-center gap-2 py-1.5">
-                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
-                  {r.avatar || r.username[0]?.toUpperCase()}
-                </span>
-                <span className="flex-1 text-sm" style={{ color: "var(--text-2)" }}>{r.username}</span>
-                <button
-                  onClick={() => cancel(r)}
-                  disabled={busy}
-                  className="text-xs font-medium px-2.5 py-1 rounded-full border disabled:opacity-50"
-                  style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
-                >
-                  Cancel
-                </button>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
       {/* Friends list */}
       {friends.length > 0 ? (
         <div className="space-y-1.5">
@@ -421,6 +393,33 @@ export default function FriendsPanel({ userId, username }: Props) {
           No friends yet — send a request above.
         </p>
       ) : null}
+
+      {/* Outgoing / pending requests — sits at the bottom */}
+      {outgoing.length > 0 && (
+        <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border-2)" }}>
+          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--text-2)" }}>
+            Pending sent ({outgoing.length})
+          </div>
+          <div className="space-y-1.5">
+            {outgoing.map((r) => (
+              <div key={r.id} className="flex items-center gap-2 py-1.5">
+                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
+                  {r.avatar || r.username[0]?.toUpperCase()}
+                </span>
+                <span className="flex-1 text-sm" style={{ color: "var(--text-2)" }}>{r.username}</span>
+                <button
+                  onClick={() => cancel(r)}
+                  disabled={busy}
+                  className="text-xs font-medium px-2.5 py-1 rounded-full border disabled:opacity-50"
+                  style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                >
+                  Cancel
+                </button>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
