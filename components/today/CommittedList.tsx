@@ -408,7 +408,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
           >
             {today.toLocaleDateString(undefined, { weekday: "long" })}{" "}
-            <span className="tabular-nums" style={{ color: "var(--text-3)" }}>
+            <span className="tabular-nums" style={{ color: "var(--text)", fontSize: "0.7em" }}>
               {String(today.getMonth() + 1).padStart(2, "0")}/{String(today.getDate()).padStart(2, "0")}
             </span>
           </h1>
