@@ -1,10 +1,11 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 
 type Friend = { id: string; username: string; avatar: string | null };
 type PendingRequest = { id: string; username: string; avatar: string | null };
+type Suggestion = { id: string; username: string; avatar: string | null };
 
 type Props = {
   userId: string;
@@ -18,6 +19,9 @@ export default function FriendsPanel({ userId, username }: Props) {
   const [addUsername, setAddUsername] = useState("");
   const [busy, setBusy] = useState(false);
   const [msg, setMsg] = useState<string | null>(null);
+  const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const addWrapRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     if (!userId || !username) return;
@@ -33,6 +37,41 @@ export default function FriendsPanel({ userId, username }: Props) {
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [userId, username]);
+
+  // Autocomplete: query profiles matching the current input, debounced
+  useEffect(() => {
+    const term = addUsername.trim().toLowerCase();
+    if (!term) { setSuggestions([]); return; }
+    const timer = setTimeout(async () => {
+      const excluded = new Set<string>([
+        username.toLowerCase(),
+        ...friends.map((f) => f.username.toLowerCase()),
+        ...incoming.map((r) => r.username.toLowerCase()),
+        ...outgoing.map((r) => r.username.toLowerCase()),
+      ]);
+      const { data } = await createClient()
+        .from("profiles")
+        .select("id, username, avatar")
+        .ilike("username", `${term}%`)
+        .limit(8);
+      const filtered = ((data as Suggestion[] | null) ?? []).filter(
+        (u) => !excluded.has(u.username.toLowerCase()),
+      );
+      setSuggestions(filtered);
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [addUsername, friends, incoming, outgoing, username]);
+
+  // Close suggestions on outside click
+  useEffect(() => {
+    function onOutside(e: MouseEvent) {
+      if (addWrapRef.current && !addWrapRef.current.contains(e.target as Node)) {
+        setShowSuggestions(false);
+      }
+    }
+    document.addEventListener("mousedown", onOutside);
+    return () => document.removeEventListener("mousedown", onOutside);
+  }, []);
 
   async function load() {
     const supabase = createClient();
@@ -97,30 +136,36 @@ export default function FriendsPanel({ userId, username }: Props) {
     setTimeout(() => setMsg(null), ms);
   }
 
-  async function sendRequest() {
-    const target = addUsername.trim().toLowerCase();
-    if (!target) return;
-    if (target === username.toLowerCase()) {
-      showMsg("Can't add yourself");
-      return;
-    }
+  async function sendRequest(prefilled?: Suggestion) {
     setBusy(true);
     const supabase = createClient();
+    let targetProfile: { id: string; username: string } | null = prefilled
+      ? { id: prefilled.id, username: prefilled.username }
+      : null;
 
-    // Verify the target user exists
-    const { data: targetProfile } = await supabase
-      .from("profiles")
-      .select("id, username")
-      .eq("username", target)
-      .maybeSingle();
     if (!targetProfile) {
-      setBusy(false);
-      showMsg(`No user named "${target}"`);
-      return;
+      const target = addUsername.trim().toLowerCase();
+      if (!target) { setBusy(false); return; }
+      if (target === username.toLowerCase()) {
+        setBusy(false);
+        showMsg("Can't add yourself");
+        return;
+      }
+      const { data } = await supabase
+        .from("profiles")
+        .select("id, username")
+        .eq("username", target)
+        .maybeSingle();
+      if (!data) {
+        setBusy(false);
+        showMsg(`No user named "${target}"`);
+        return;
+      }
+      targetProfile = data as { id: string; username: string };
     }
 
     // Already friends?
-    if (friends.some((f) => f.username.toLowerCase() === target)) {
+    if (friends.some((f) => f.username.toLowerCase() === targetProfile!.username.toLowerCase())) {
       setBusy(false);
       showMsg("Already friends");
       return;
@@ -152,6 +197,8 @@ export default function FriendsPanel({ userId, username }: Props) {
       return;
     }
     setAddUsername("");
+    setSuggestions([]);
+    setShowSuggestions(false);
     showMsg(`Request sent to ${targetProfile.username}`);
     load();
   }
@@ -226,24 +273,54 @@ export default function FriendsPanel({ userId, username }: Props) {
       </div>
 
       {/* Add by username */}
-      <div className="flex gap-2 mb-3">
-        <input
-          type="text"
-          value={addUsername}
-          onChange={(e) => setAddUsername(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); sendRequest(); } }}
-          placeholder="Add by username…"
-          className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none border"
-          style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
-        />
-        <button
-          onClick={sendRequest}
-          disabled={busy || !addUsername.trim()}
-          className="text-sm font-semibold px-3 py-2 rounded-xl text-white disabled:opacity-50"
-          style={{ background: "var(--purple)" }}
-        >
-          Add
-        </button>
+      <div ref={addWrapRef} className="relative mb-3">
+        <div className="flex gap-2">
+          <input
+            type="text"
+            value={addUsername}
+            onChange={(e) => { setAddUsername(e.target.value); setShowSuggestions(true); }}
+            onFocus={() => setShowSuggestions(true)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") {
+                e.preventDefault();
+                if (suggestions[0]) sendRequest(suggestions[0]);
+                else sendRequest();
+              }
+              if (e.key === "Escape") setShowSuggestions(false);
+            }}
+            placeholder="Add by username…"
+            className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none border"
+            style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+          />
+          <button
+            onClick={() => sendRequest()}
+            disabled={busy || !addUsername.trim()}
+            className="text-sm font-semibold px-3 py-2 rounded-xl text-white disabled:opacity-50"
+            style={{ background: "var(--purple)" }}
+          >
+            Add
+          </button>
+        </div>
+        {showSuggestions && suggestions.length > 0 && (
+          <div
+            className="absolute left-0 right-0 top-full mt-1 z-20 border rounded-xl shadow-md overflow-hidden max-h-64 overflow-y-auto"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          >
+            {suggestions.map((s) => (
+              <button
+                key={s.id}
+                onMouseDown={(e) => { e.preventDefault(); sendRequest(s); }}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors"
+                style={{ background: "var(--surface)" }}
+              >
+                <span className="w-6 h-6 rounded-full flex items-center justify-center text-sm flex-shrink-0" style={{ background: "var(--surface-2)" }}>
+                  {s.avatar || s.username[0]?.toUpperCase()}
+                </span>
+                <span className="text-sm font-medium" style={{ color: "var(--text)" }}>{s.username}</span>
+              </button>
+            ))}
+          </div>
+        )}
       </div>
       {msg && (
         <p className="text-xs mb-3" style={{ color: "var(--text-2)" }}>{msg}</p>
