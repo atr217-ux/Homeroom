@@ -473,10 +473,9 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             <button
               type="button"
               onClick={() => setEditingCommitment(true)}
-              className="w-full text-left rounded-2xl px-5 py-5 border transition-colors relative overflow-hidden"
+              className="w-full text-left rounded-2xl px-5 py-5 transition-colors relative overflow-hidden"
               style={{
                 background: "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)",
-                borderColor: "rgba(124,58,237,0.25)",
               }}
               aria-label="Edit today's focus"
             >
