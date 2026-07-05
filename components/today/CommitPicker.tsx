@@ -199,16 +199,13 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
 
       {/* Focus / intention */}
       <div className="mb-5">
-        <label className="text-xs font-semibold block mb-1.5" style={{ color: "var(--purple)" }}>
-          Today&apos;s focus <span className="font-normal opacity-70">(optional)</span>
-        </label>
         <input
           type="text"
           value={commitment}
           onChange={(e) => setCommitment(e.target.value)}
           onBlur={() => saveCommitment(commitment)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
-          placeholder="e.g. Ship the launch email, rest and recharge…"
+          placeholder="Today's focus (optional)…"
           maxLength={140}
           className="focus-input-purple w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
           style={{
