@@ -475,7 +475,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               onClick={() => setEditingCommitment(true)}
               className="w-full flex flex-col items-center text-center rounded-2xl border px-4 py-7 transition-opacity hover:opacity-90"
               style={{
-                background: "transparent",
+                background: "var(--surface)",
                 borderColor: "var(--text)",
               }}
               aria-label="Edit today's focus"
