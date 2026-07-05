@@ -34,6 +34,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const [newTaskInput, setNewTaskInput] = useState("");
   const [showAll, setShowAll] = useState(false);
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
+  const [autoPrivate, setAutoPrivate] = useState(false);
 
   const LIMIT = 10;
   const tagDropdownRef = useRef<HTMLDivElement>(null);
@@ -52,7 +53,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
     async function load() {
       const supabase = createClient();
       const today = dateKey(new Date());
-      const [tasksRes, tagsRes, commitmentRes] = await Promise.all([
+      const [tasksRes, tagsRes, commitmentRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
           .select("id, text, is_private, created_at, task_tags(tag_id)")
@@ -67,6 +68,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
           .eq("user_id", userId)
           .eq("date", today)
           .maybeSingle(),
+        supabase.from("profiles").select("auto_private_tasks").eq("id", userId).maybeSingle(),
       ]);
       setTasks((tasksRes.data ?? []).map((r) => ({
         id: r.id as string,
@@ -77,6 +79,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
+      setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
       setLoading(false);
     }
     load();
@@ -127,7 +130,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
     const supabase = createClient();
     const { data } = await supabase
       .from("tasks")
-      .insert({ user_id: userId, text, done: false })
+      .insert({ user_id: userId, text, done: false, is_private: autoPrivate })
       .select("id")
       .single();
     if (!data) return;
@@ -139,7 +142,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
 
     const newId = data.id as string;
     setTasks((prev) => [
-      { id: newId, text, isPrivate: false, tagIds: tagObjs.map((t) => t.id), createdAt: new Date().toISOString() },
+      { id: newId, text, isPrivate: autoPrivate, tagIds: tagObjs.map((t) => t.id), createdAt: new Date().toISOString() },
       ...prev,
     ]);
     setSelected((prev) => new Set([newId, ...prev]));

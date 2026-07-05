@@ -76,6 +76,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   // ── Daily commitment ───────────────────────────────────────────────────
   const [commitment, setCommitment] = useState("");
   const [editingCommitment, setEditingCommitment] = useState(false);
+  const [autoPrivate, setAutoPrivate] = useState(false);
   const commitmentInputRef = useRef<HTMLTextAreaElement>(null);
 
   function autoGrowCommitment() {
@@ -103,7 +104,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
     async function load() {
       const supabase = createClient();
       const today = dateKey(new Date());
-      const [tasksRes, tagsRes, commitmentRes] = await Promise.all([
+      const [tasksRes, tagsRes, commitmentRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
           .select("id, text, done, is_private, time_spent, timer_started_at, sort_order, created_at, task_tags(tag_id)")
@@ -118,6 +119,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           .eq("user_id", userId)
           .eq("date", today)
           .maybeSingle(),
+        supabase.from("profiles").select("auto_private_tasks").eq("id", userId).maybeSingle(),
       ]);
 
       setTasks((tasksRes.data ?? []).map((r, i) => ({
@@ -133,6 +135,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
+      setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
       setLoading(false);
     }
     load();
@@ -362,6 +365,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         done: false,
         committed_for_date: today,
         sort_order: maxOrder + 10,
+        is_private: autoPrivate,
       })
       .select("id, created_at")
       .single();
@@ -375,7 +379,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       id: data.id as string,
       text,
       done: false,
-      isPrivate: false,
+      isPrivate: autoPrivate,
       timeSpent: 0,
       startedAt: null,
       tagIds: tagObjs.map((t) => t.id),

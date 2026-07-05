@@ -49,6 +49,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [autoPrivate, setAutoPrivate] = useState(false);
 
   // ── Load friends + tasks ───────────────────────────────────────────────
   useEffect(() => {
@@ -70,8 +71,8 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
       }
       setFriends(friendProfiles);
 
-      // Tasks: open tasks (not done) + tags
-      const [taskRes, tagsRes] = await Promise.all([
+      // Tasks: open tasks (not done) + tags + profile setting
+      const [taskRes, tagsRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
           .select("id, text, is_private, committed_for_date, task_tags(tag_id)")
@@ -80,6 +81,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
           .order("created_at", { ascending: false })
           .limit(200),
         supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
+        supabase.from("profiles").select("auto_private_tasks").eq("id", userId).maybeSingle(),
       ]);
       setTasks(((taskRes.data ?? []) as { id: string; text: string; is_private: boolean; committed_for_date: string | null; task_tags: { tag_id: string }[] | null }[]).map((r) => ({
         id: r.id,
@@ -89,6 +91,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
         committedToday: r.committed_for_date === today,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
+      setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
     }
     load();
   }, [userId, today]);
@@ -182,6 +185,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
           done: false,
           block_id: block.id,
           committed_for_date: date,
+          is_private: autoPrivate,
         })
         .select("id")
         .single();
