@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import CreateSquadModal from "@/components/profile/CreateSquadModal";
+import { useHasHover } from "@/lib/hooks/useHasHover";
 
 type Squad = {
   id: string;
@@ -25,6 +26,8 @@ export default function SquadsPanel({ username }: Props) {
   const [showCreate, setShowCreate] = useState(false);
   const [busy, setBusy] = useState(false);
   const [showBrowse, setShowBrowse] = useState(false);
+  const [confirmLeaveId, setConfirmLeaveId] = useState<string | null>(null);
+  const hasHover = useHasHover();
 
   useEffect(() => {
     if (!username) return;
@@ -137,30 +140,61 @@ export default function SquadsPanel({ username }: Props) {
       {/* My squads */}
       {mine.length > 0 ? (
         <div className="space-y-1.5 mb-4">
-          {mine.map((s) => (
-            <div key={s.id} className="group flex items-center gap-2 py-1.5">
-              <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
-                {s.emoji || "🏆"}
-              </span>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>{s.name}</div>
-                <div className="text-xs" style={{ color: "var(--text-2)" }}>
-                  {s.member_count} member{s.member_count === 1 ? "" : "s"}
-                  {s.is_public ? "" : " · Private"}
-                  {s.role === "owner" ? " · Owner" : ""}
-                </div>
+          {mine.map((s) => {
+            const confirming = confirmLeaveId === s.id;
+            return (
+              <div key={s.id} className="group flex items-center gap-2 py-1.5">
+                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
+                  {s.emoji || "🏆"}
+                </span>
+                {confirming ? (
+                  <>
+                    <span className="flex-1 text-xs" style={{ color: "var(--text-2)" }}>
+                      Leave {s.name}?
+                    </span>
+                    <button
+                      onClick={() => setConfirmLeaveId(null)}
+                      disabled={busy}
+                      className="text-xs font-medium px-2.5 py-1 rounded-full border disabled:opacity-50"
+                      style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => { await leaveSquad(s); setConfirmLeaveId(null); }}
+                      disabled={busy}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full text-white disabled:opacity-50"
+                      style={{ background: "var(--red)" }}
+                    >
+                      Leave
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>{s.name}</div>
+                      <div className="text-xs" style={{ color: "var(--text-2)" }}>
+                        {s.member_count} member{s.member_count === 1 ? "" : "s"}
+                        {s.is_public ? "" : " · Private"}
+                        {s.role === "owner" ? " · Owner" : ""}
+                      </div>
+                    </div>
+                    <button
+                      onClick={() => setConfirmLeaveId(s.id)}
+                      disabled={busy}
+                      className={hasHover
+                        ? "text-xs font-medium px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        : "text-xs font-medium px-2.5 py-1 rounded-full transition-opacity"}
+                      style={{ color: "var(--red)", opacity: hasHover ? undefined : 0.7 }}
+                      title="Leave squad"
+                    >
+                      Leave
+                    </button>
+                  </>
+                )}
               </div>
-              <button
-                onClick={() => leaveSquad(s)}
-                disabled={busy}
-                className="text-xs font-medium px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "var(--red)" }}
-                title="Leave squad"
-              >
-                Leave
-              </button>
-            </div>
-          ))}
+            );
+          })}
         </div>
       ) : (
         <p className="text-sm text-center py-3" style={{ color: "var(--text-2)" }}>

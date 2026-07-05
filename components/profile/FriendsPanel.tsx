@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
+import { useHasHover } from "@/lib/hooks/useHasHover";
 
 type Friend = { id: string; username: string; avatar: string | null };
 type PendingRequest = { id: string; username: string; avatar: string | null };
@@ -23,6 +24,8 @@ export default function FriendsPanel({ userId, username }: Props) {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const addWrapRef = useRef<HTMLDivElement>(null);
   const [pendingOpen, setPendingOpen] = useState(false);
+  const [confirmRemoveId, setConfirmRemoveId] = useState<string | null>(null);
+  const hasHover = useHasHover();
 
   useEffect(() => {
     if (!userId || !username) return;
@@ -382,23 +385,54 @@ export default function FriendsPanel({ userId, username }: Props) {
       {/* Friends list */}
       {friends.length > 0 ? (
         <div className="space-y-1.5">
-          {friends.map((f) => (
-            <div key={f.id} className="group flex items-center gap-2 py-1.5">
-              <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
-                {f.avatar || f.username[0]?.toUpperCase()}
-              </span>
-              <span className="flex-1 text-sm font-medium" style={{ color: "var(--text)" }}>{f.username}</span>
-              <button
-                onClick={() => remove(f)}
-                disabled={busy}
-                className="text-xs font-medium px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
-                style={{ color: "var(--red)" }}
-                title="Remove friend"
-              >
-                Remove
-              </button>
-            </div>
-          ))}
+          {friends.map((f) => {
+            const confirming = confirmRemoveId === f.id;
+            return (
+              <div key={f.id} className="group flex items-center gap-2 py-1.5">
+                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
+                  {f.avatar || f.username[0]?.toUpperCase()}
+                </span>
+                {confirming ? (
+                  <>
+                    <span className="flex-1 text-xs" style={{ color: "var(--text-2)" }}>
+                      Remove {f.username}?
+                    </span>
+                    <button
+                      onClick={() => setConfirmRemoveId(null)}
+                      disabled={busy}
+                      className="text-xs font-medium px-2.5 py-1 rounded-full border disabled:opacity-50"
+                      style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => { await remove(f); setConfirmRemoveId(null); }}
+                      disabled={busy}
+                      className="text-xs font-semibold px-2.5 py-1 rounded-full text-white disabled:opacity-50"
+                      style={{ background: "var(--red)" }}
+                    >
+                      Remove
+                    </button>
+                  </>
+                ) : (
+                  <>
+                    <span className="flex-1 text-sm font-medium" style={{ color: "var(--text)" }}>{f.username}</span>
+                    <button
+                      onClick={() => setConfirmRemoveId(f.id)}
+                      disabled={busy}
+                      className={hasHover
+                        ? "text-xs font-medium px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
+                        : "text-xs font-medium px-2.5 py-1 rounded-full transition-opacity"}
+                      style={{ color: "var(--red)", opacity: hasHover ? undefined : 0.7 }}
+                      title="Remove friend"
+                    >
+                      Remove
+                    </button>
+                  </>
+                )}
+              </div>
+            );
+          })}
         </div>
       ) : incoming.length === 0 && outgoing.length === 0 ? (
         <p className="text-sm text-center py-4" style={{ color: "var(--text-2)" }}>
