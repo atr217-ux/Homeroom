@@ -227,6 +227,9 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
             lineHeight: 1.4,
           }}
         />
+        <div className="text-[11px] text-right mt-1 tabular-nums" style={{ color: "var(--text-3)" }}>
+          {commitment.length}/80
+        </div>
       </div>
 
       {/* Step 2 direction */}

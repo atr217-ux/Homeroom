@@ -430,28 +430,33 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       {!loading && (
         <div className="mb-5">
           {editingCommitment ? (
-            <textarea
-              ref={commitmentInputRef}
-              autoFocus
-              rows={1}
-              value={commitment}
-              onChange={(e) => { setCommitment(e.target.value); autoGrowCommitment(); }}
-              onBlur={() => { saveCommitment(commitment); setEditingCommitment(false); }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
-                if (e.key === "Escape") { e.preventDefault(); setEditingCommitment(false); }
-              }}
-              maxLength={80}
-              placeholder="Today's focus…"
-              className="focus-input-purple w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors resize-none overflow-hidden"
-              style={{
-                background: "var(--surface)",
-                borderColor: "var(--purple)",
-                color: "var(--text)",
-                fontSize: "16px",
-                lineHeight: 1.4,
-              }}
-            />
+            <>
+              <textarea
+                ref={commitmentInputRef}
+                autoFocus
+                rows={1}
+                value={commitment}
+                onChange={(e) => { setCommitment(e.target.value); autoGrowCommitment(); }}
+                onBlur={() => { saveCommitment(commitment); setEditingCommitment(false); }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
+                  if (e.key === "Escape") { e.preventDefault(); setEditingCommitment(false); }
+                }}
+                maxLength={80}
+                placeholder="Today's focus…"
+                className="focus-input-purple w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors resize-none overflow-hidden"
+                style={{
+                  background: "var(--surface)",
+                  borderColor: "var(--purple)",
+                  color: "var(--text)",
+                  fontSize: "16px",
+                  lineHeight: 1.4,
+                }}
+              />
+              <div className="text-[11px] text-right mt-1 tabular-nums" style={{ color: "var(--text-3)" }}>
+                {commitment.length}/80
+              </div>
+            </>
           ) : commitment ? (
             <button
               type="button"
