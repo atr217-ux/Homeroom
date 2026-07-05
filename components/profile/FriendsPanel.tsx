@@ -170,19 +170,24 @@ export default function FriendsPanel({ userId, username }: Props) {
       return;
     }
 
-    // Any existing request between us?
-    const { data: existing } = await supabase
+    // Any existing rows between us? Only 'pending' should block; sweep stale rows.
+    const { data: existingRows } = await supabase
       .from("friend_requests")
       .select("id, status")
       .or(
         `and(from_username.eq.${username},to_username.eq.${targetProfile.username}),` +
         `and(from_username.eq.${targetProfile.username},to_username.eq.${username})`,
-      )
-      .maybeSingle();
-    if (existing) {
+      );
+    const stillPending = (existingRows ?? []).find((r) => r.status === "pending");
+    if (stillPending) {
       setBusy(false);
       showMsg("A request is already open");
       return;
+    }
+    // Clean up stale accepted/declined rows so the fresh insert doesn't collide
+    const staleIds = (existingRows ?? []).map((r) => r.id as string);
+    if (staleIds.length > 0) {
+      await supabase.from("friend_requests").delete().in("id", staleIds);
     }
 
     const { error } = await supabase.from("friend_requests").insert({
