@@ -309,8 +309,15 @@ export default function FriendsPanel({ userId, username }: Props) {
             {suggestions.map((s) => (
               <button
                 key={s.id}
-                onMouseDown={(e) => { e.preventDefault(); sendRequest(s); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors"
+                type="button"
+                onMouseDown={(e) => e.preventDefault()}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  sendRequest(s);
+                }}
+                disabled={busy}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:opacity-80 disabled:opacity-50"
                 style={{ background: "var(--surface)" }}
               >
                 <span className="w-6 h-6 rounded-full flex items-center justify-center text-sm flex-shrink-0" style={{ background: "var(--surface-2)" }}>
