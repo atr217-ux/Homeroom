@@ -423,7 +423,7 @@ export default function FriendsPanel({ userId, username }: Props) {
                       className={hasHover
                         ? "text-xs font-medium px-2.5 py-1 rounded-full opacity-0 group-hover:opacity-100 transition-opacity"
                         : "text-xs font-medium px-2.5 py-1 rounded-full transition-opacity"}
-                      style={{ color: "var(--red)", opacity: hasHover ? undefined : 0.7 }}
+                      style={{ color: "var(--text-2)", opacity: hasHover ? undefined : 0.7 }}
                       title="Remove friend"
                     >
                       Remove
