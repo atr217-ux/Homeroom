@@ -409,8 +409,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           >
             {today.toLocaleDateString(undefined, { weekday: "long" })}
           </h1>
-          <p className="text-sm mt-1 font-medium tracking-wide uppercase" style={{ color: "var(--purple)" }}>
-            {today.toLocaleDateString(undefined, { month: "long", day: "numeric" })}
+          <p className="text-sm mt-1 font-medium tracking-wide uppercase tabular-nums" style={{ color: "var(--purple)" }}>
+            {String(today.getMonth() + 1).padStart(2, "0")}/{String(today.getDate()).padStart(2, "0")}
           </p>
         </div>
         {tasks.length > 0 && (
