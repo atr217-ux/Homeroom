@@ -133,6 +133,14 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
     });
   }
 
+  async function togglePrivate(id: string) {
+    const task = tasks.find((t) => t.id === id);
+    if (!task) return;
+    const next = !task.isPrivate;
+    setTasks((prev) => prev.map((t) => t.id === id ? { ...t, isPrivate: next } : t));
+    await createClient().from("tasks").update({ is_private: next }).eq("id", id);
+  }
+
   async function saveCommitment(next: string) {
     const trimmed = next.trim();
     const today = dateKey(new Date());
@@ -337,10 +345,13 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
           {visible.map((task) => {
             const sel = selected.has(task.id);
             return (
-              <button
+              <div
                 key={task.id}
                 onClick={() => toggle(task.id)}
-                className="w-full flex items-start gap-3 px-3 py-3 rounded-xl text-left transition-all"
+                role="button"
+                tabIndex={0}
+                onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); toggle(task.id); } }}
+                className="w-full flex items-start gap-3 px-3 py-3 rounded-xl text-left transition-all cursor-pointer"
                 style={{
                   background: sel ? "rgba(124,58,237,0.06)" : "var(--surface)",
                   border: `1.5px solid ${sel ? "var(--purple)" : "var(--border-2)"}`,
@@ -359,17 +370,9 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
                   )}
                 </div>
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-1.5">
-                    <span className="text-sm leading-snug" style={{ color: sel ? "var(--text)" : "var(--text-2)" }}>
-                      {task.text}
-                    </span>
-                    {task.isPrivate && (
-                      <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)" }}>
-                        <rect x="3" y="11" width="18" height="11" rx="2" />
-                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                      </svg>
-                    )}
-                  </div>
+                  <span className="text-sm leading-snug" style={{ color: sel ? "var(--text)" : "var(--text-2)" }}>
+                    {task.text}
+                  </span>
                   {task.tagIds.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {task.tagIds.map((tid) => {
@@ -385,7 +388,29 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
                     </div>
                   )}
                 </div>
-              </button>
+
+                {/* Privacy toggle — tap to flip without changing selection */}
+                <button
+                  type="button"
+                  onClick={(e) => { e.stopPropagation(); togglePrivate(task.id); }}
+                  className="p-1 rounded flex-shrink-0 mt-0.5 transition-opacity hover:opacity-100"
+                  style={{ color: task.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: task.isPrivate ? 1 : 0.5 }}
+                  title={task.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+                  aria-label={task.isPrivate ? "Make public" : "Make private"}
+                >
+                  {task.isPrivate ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                    </svg>
+                  )}
+                </button>
+              </div>
             );
           })}
           {!isFiltering && hidden > 0 && (
