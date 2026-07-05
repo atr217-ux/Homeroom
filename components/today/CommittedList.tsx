@@ -75,7 +75,19 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   // ── Daily commitment ───────────────────────────────────────────────────
   const [commitment, setCommitment] = useState("");
   const [editingCommitment, setEditingCommitment] = useState(false);
-  const commitmentInputRef = useRef<HTMLInputElement>(null);
+  const commitmentInputRef = useRef<HTMLTextAreaElement>(null);
+
+  function autoGrowCommitment() {
+    const el = commitmentInputRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  useEffect(() => {
+    if (editingCommitment) autoGrowCommitment();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [editingCommitment, commitment]);
 
   const hasHover = useHasHover();
 
@@ -418,25 +430,26 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       {!loading && (
         <div className="mb-5">
           {editingCommitment ? (
-            <input
+            <textarea
               ref={commitmentInputRef}
               autoFocus
-              type="text"
+              rows={1}
               value={commitment}
-              onChange={(e) => setCommitment(e.target.value)}
+              onChange={(e) => { setCommitment(e.target.value); autoGrowCommitment(); }}
               onBlur={() => { saveCommitment(commitment); setEditingCommitment(false); }}
               onKeyDown={(e) => {
-                if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); }
+                if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); }
                 if (e.key === "Escape") { e.preventDefault(); setEditingCommitment(false); }
               }}
-              maxLength={140}
+              maxLength={80}
               placeholder="Today's focus…"
-              className="focus-input-purple w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
+              className="focus-input-purple w-full text-base font-medium rounded-xl px-3 py-2.5 focus:outline-none border transition-colors resize-none overflow-hidden"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--purple)",
                 color: "var(--text)",
                 fontSize: "16px",
+                lineHeight: 1.4,
               }}
             />
           ) : commitment ? (

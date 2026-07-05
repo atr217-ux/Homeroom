@@ -35,6 +35,16 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
 
   const LIMIT = 10;
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+  const focusRef = useRef<HTMLTextAreaElement>(null);
+
+  function autoGrowFocus() {
+    const el = focusRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  useEffect(() => { autoGrowFocus(); }, [commitment]);
 
   useEffect(() => {
     async function load() {
@@ -199,20 +209,22 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
 
       {/* Focus / intention */}
       <div className="mb-5">
-        <input
-          type="text"
+        <textarea
+          ref={focusRef}
+          rows={1}
           value={commitment}
-          onChange={(e) => setCommitment(e.target.value)}
+          onChange={(e) => { setCommitment(e.target.value); autoGrowFocus(); }}
           onBlur={() => saveCommitment(commitment)}
-          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLInputElement).blur(); } }}
+          onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); (e.target as HTMLTextAreaElement).blur(); } }}
           placeholder="Today's focus (optional)…"
-          maxLength={140}
-          className="focus-input-purple w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border transition-colors"
+          maxLength={80}
+          className="focus-input-purple w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border transition-colors resize-none overflow-hidden"
           style={{
             background: "var(--surface)",
             borderColor: commitment ? "var(--purple)" : "var(--border-2)",
             color: "var(--text)",
             fontSize: "16px",
+            lineHeight: 1.4,
           }}
         />
       </div>
