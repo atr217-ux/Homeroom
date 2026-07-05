@@ -407,11 +407,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             className="font-display italic leading-none"
             style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
           >
-            {today.toLocaleDateString(undefined, { weekday: "long" })}
+            {today.toLocaleDateString(undefined, { weekday: "long" })}{" "}
+            <span className="tabular-nums" style={{ color: "var(--text-3)" }}>
+              {String(today.getMonth() + 1).padStart(2, "0")}/{String(today.getDate()).padStart(2, "0")}
+            </span>
           </h1>
-          <p className="text-sm mt-1 font-medium tracking-wide uppercase tabular-nums" style={{ color: "var(--purple)" }}>
-            {String(today.getMonth() + 1).padStart(2, "0")}/{String(today.getDate()).padStart(2, "0")}
-          </p>
         </div>
         {tasks.length > 0 && (
           <span
