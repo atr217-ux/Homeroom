@@ -473,17 +473,22 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             <button
               type="button"
               onClick={() => setEditingCommitment(true)}
-              className="w-full text-left rounded-xl px-3 py-2.5 border transition-colors"
+              className="w-full text-left rounded-2xl px-5 py-5 border transition-colors relative overflow-hidden"
               style={{
                 background: "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)",
                 borderColor: "rgba(124,58,237,0.25)",
               }}
               aria-label="Edit today's focus"
             >
-              <span className="text-[10px] font-semibold uppercase tracking-wide block mb-0.5" style={{ color: "var(--purple)" }}>
+              <span className="text-[10px] font-semibold uppercase tracking-widest block mb-2" style={{ color: "var(--purple)" }}>
                 Focus
               </span>
-              <span className="text-sm" style={{ color: "var(--text)" }}>{commitment}</span>
+              <span
+                className="font-display italic leading-tight block break-words"
+                style={{ color: "var(--text)", fontSize: "clamp(1.375rem, 5vw, 1.875rem)" }}
+              >
+                {commitment}
+              </span>
             </button>
           ) : (
             <button
