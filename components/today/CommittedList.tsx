@@ -67,10 +67,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [showAvailable, setShowAvailable] = useState(false);
   const [availableSearch, setAvailableSearch] = useState("");
 
-  // ── Tag filter ─────────────────────────────────────────────────────────
+  // ── Tag filter + sort ──────────────────────────────────────────────────
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
+  const [sortDir, setSortDir] = useState<"custom" | "desc" | "asc">("custom");
 
   // ── Daily commitment ───────────────────────────────────────────────────
   const [commitment, setCommitment] = useState("");
@@ -392,8 +393,15 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
 
   const tagMatches = (t: CommittedTask) =>
     tagFilters.length === 0 || tagFilters.some((id) => t.tagIds.includes(id));
-  const undone = tasks.filter((t) => !t.done && tagMatches(t));
-  const done = tasks.filter((t) => t.done && tagMatches(t));
+  const applySort = (list: CommittedTask[]): CommittedTask[] => {
+    if (sortDir === "custom") return list;
+    return [...list].sort((a, b) => {
+      const d = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortDir === "asc" ? d : -d;
+    });
+  };
+  const undone = applySort(tasks.filter((t) => !t.done && tagMatches(t)));
+  const done = applySort(tasks.filter((t) => t.done && tagMatches(t)));
   const usedTagIds = Array.from(new Set(tasks.flatMap((t) => t.tagIds)));
   const today = new Date();
 
@@ -499,9 +507,10 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         </div>
       )}
 
-      {/* Tag filter */}
-      {!loading && tasks.length > 0 && usedTagIds.length > 0 && (
+      {/* Filter + sort row */}
+      {!loading && tasks.length > 0 && (
         <div className="flex items-center gap-2 mb-3 flex-wrap">
+          {usedTagIds.length > 0 && (
           <div ref={tagDropdownRef} className="relative">
             <button
               onClick={() => setTagDropdownOpen((v) => !v)}
@@ -558,11 +567,28 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               </div>
             )}
           </div>
+          )}
           {tagFilters.length > 0 && (
             <span className="text-xs" style={{ color: "var(--text-2)" }}>
               {undone.length + done.length} of {tasks.length}
             </span>
           )}
+          <button
+            onClick={() => setSortDir((d) => (d === "custom" ? "desc" : d === "desc" ? "asc" : "custom"))}
+            className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors ml-auto"
+            style={sortDir !== "custom"
+              ? { background: "var(--purple)", color: "white", borderColor: "var(--purple)" }
+              : { background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+            title={sortDir === "custom" ? "Custom order — tap to sort by date added" : sortDir === "desc" ? "Newest first — tap to flip" : "Oldest first — tap to reset"}
+          >
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            Date added {sortDir === "desc" ? "↓" : sortDir === "asc" ? "↑" : ""}
+          </button>
         </div>
       )}
 
@@ -597,7 +623,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   <SortableTaskRow
                     key={t.id}
                     id={t.id}
-                    disabled={isEditing || tagFilters.length > 0}
+                    disabled={isEditing || tagFilters.length > 0 || sortDir !== "custom"}
                   >
                     {(dragListeners, isDragging) => (
                   <SwipeableRow
@@ -632,7 +658,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       }}
                     >
                       {/* Drag handle (hidden when filtering or editing) */}
-                      {!isEditing && tagFilters.length === 0 && (
+                      {!isEditing && tagFilters.length === 0 && sortDir === "custom" && (
                         <button
                           {...dragListeners}
                           className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-1"

@@ -12,6 +12,7 @@ type PickerTask = {
   text: string;
   isPrivate: boolean;
   tagIds: string[];
+  createdAt: string;
 };
 
 type Props = {
@@ -32,6 +33,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const [commitment, setCommitment] = useState("");
   const [newTaskInput, setNewTaskInput] = useState("");
   const [showAll, setShowAll] = useState(false);
+  const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
 
   const LIMIT = 10;
   const tagDropdownRef = useRef<HTMLDivElement>(null);
@@ -53,7 +55,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       const [tasksRes, tagsRes, commitmentRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, is_private, task_tags(tag_id)")
+          .select("id, text, is_private, created_at, task_tags(tag_id)")
           .eq("user_id", userId)
           .eq("done", false)
           .order("created_at", { ascending: false })
@@ -71,6 +73,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         text: r.text as string,
         isPrivate: (r.is_private as boolean) ?? false,
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map((tt) => tt.tag_id),
+        createdAt: r.created_at as string,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
@@ -97,8 +100,12 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       const q = search.toLowerCase().trim();
       list = list.filter((t) => t.text.toLowerCase().includes(q));
     }
+    list = [...list].sort((a, b) => {
+      const d = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
+      return sortDir === "asc" ? d : -d;
+    });
     return list;
-  }, [tasks, tagFilters, search]);
+  }, [tasks, tagFilters, search, sortDir]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -132,7 +139,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
 
     const newId = data.id as string;
     setTasks((prev) => [
-      { id: newId, text, isPrivate: false, tagIds: tagObjs.map((t) => t.id) },
+      { id: newId, text, isPrivate: false, tagIds: tagObjs.map((t) => t.id), createdAt: new Date().toISOString() },
       ...prev,
     ]);
     setSelected((prev) => new Set([newId, ...prev]));
@@ -350,6 +357,20 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
             </button>
           );
         })()}
+        <button
+          onClick={() => setSortDir((d) => (d === "desc" ? "asc" : "desc"))}
+          className="flex items-center gap-1 text-xs px-3 py-1.5 rounded-full border font-medium transition-colors"
+          style={{ background: "var(--surface)", color: "var(--text-2)", borderColor: "var(--border-2)" }}
+          title={sortDir === "desc" ? "Newest first — tap to flip" : "Oldest first — tap to flip"}
+        >
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="4" width="18" height="18" rx="2" />
+            <line x1="16" y1="2" x2="16" y2="6" />
+            <line x1="8" y1="2" x2="8" y2="6" />
+            <line x1="3" y1="10" x2="21" y2="10" />
+          </svg>
+          Date added {sortDir === "desc" ? "↓" : "↑"}
+        </button>
         {selected.size > 0 && (
           <span
             className="text-xs font-medium px-2 py-1 rounded-full ml-auto"
