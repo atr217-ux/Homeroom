@@ -129,6 +129,12 @@ html.dark {
   }
 }
 
+/* Display serif for headings — Instrument Serif via next/font */
+.font-display {
+  font-family: var(--font-display), Georgia, "Times New Roman", serif;
+  letter-spacing: -0.02em;
+}
+
 /* Purple placeholder for the daily-focus input in both light + dark */
 .focus-input-purple::placeholder {
   color: var(--purple);

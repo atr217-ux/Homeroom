@@ -391,10 +391,13 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       {/* Header */}
       <div className="pb-5 flex items-end justify-between">
         <div>
-          <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+          <h1
+            className="font-display italic leading-none"
+            style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
+          >
             {today.toLocaleDateString(undefined, { weekday: "long" })}
           </h1>
-          <p className="text-sm mt-0.5" style={{ color: "var(--text-2)" }}>
+          <p className="text-sm mt-1 font-medium tracking-wide uppercase" style={{ color: "var(--purple)" }}>
             {today.toLocaleDateString(undefined, { month: "long", day: "numeric" })}
           </p>
         </div>

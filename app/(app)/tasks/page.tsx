@@ -214,15 +214,18 @@ export default function TasksPage() {
       {/* Header */}
       <div className="pb-6">
         <span
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full mb-3"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full mb-3 uppercase tracking-wide"
           style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
         >
           My List
         </span>
-        <h1 className="text-2xl font-bold" style={{ color: "var(--text)" }}>
+        <h1
+          className="font-display italic leading-none"
+          style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
+        >
           Tasks
         </h1>
-        <p className="text-sm mt-1" style={{ color: "var(--text-2)" }}>
+        <p className="text-sm mt-2" style={{ color: "var(--text-2)" }}>
           Tip: type <span className="font-mono">#category</span> to tag a task. Lock icon = private.
         </p>
       </div>

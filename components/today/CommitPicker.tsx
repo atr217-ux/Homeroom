@@ -173,12 +173,15 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       {/* Header */}
       <div className="pb-4">
         <span
-          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full mb-3"
+          className="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1 rounded-full mb-3 uppercase tracking-wide"
           style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
         >
           Today&apos;s Commitment
         </span>
-        <h1 className="text-2xl font-bold leading-snug" style={{ color: "var(--text)" }}>
+        <h1
+          className="font-display italic leading-tight"
+          style={{ color: "var(--text)", fontSize: "clamp(2rem, 8vw, 3rem)" }}
+        >
           What are you committing to accomplish today?
         </h1>
       </div>

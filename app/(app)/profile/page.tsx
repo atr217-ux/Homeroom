@@ -5,7 +5,10 @@ import ThemeToggle from "@/components/ThemeToggle";
 export default function ProfilePage() {
   return (
     <div className="max-w-2xl mx-auto px-4 pt-12">
-      <h1 className="text-2xl font-bold mb-6" style={{ color: "var(--text)" }}>
+      <h1
+        className="font-display italic leading-none mb-6"
+        style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
+      >
         Profile
       </h1>
 
