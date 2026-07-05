@@ -22,6 +22,7 @@ export default function FriendsPanel({ userId, username }: Props) {
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const addWrapRef = useRef<HTMLDivElement>(null);
+  const [pendingOpen, setPendingOpen] = useState(false);
 
   useEffect(() => {
     if (!userId || !username) return;
@@ -399,30 +400,50 @@ export default function FriendsPanel({ userId, username }: Props) {
         </p>
       ) : null}
 
-      {/* Outgoing / pending requests — sits at the bottom */}
+      {/* Outgoing / pending requests — collapsible, sits at the bottom */}
       {outgoing.length > 0 && (
         <div className="mt-4 pt-3 border-t" style={{ borderColor: "var(--border-2)" }}>
-          <div className="text-xs font-semibold uppercase tracking-wide mb-1.5" style={{ color: "var(--text-2)" }}>
-            Pending sent ({outgoing.length})
-          </div>
-          <div className="space-y-1.5">
-            {outgoing.map((r) => (
-              <div key={r.id} className="flex items-center gap-2 py-1.5">
-                <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
-                  {r.avatar || r.username[0]?.toUpperCase()}
-                </span>
-                <span className="flex-1 text-sm" style={{ color: "var(--text-2)" }}>{r.username}</span>
-                <button
-                  onClick={() => cancel(r)}
-                  disabled={busy}
-                  className="text-xs font-medium px-2.5 py-1 rounded-full border disabled:opacity-50"
-                  style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
-                >
-                  Cancel
-                </button>
-              </div>
-            ))}
-          </div>
+          <button
+            type="button"
+            onClick={() => setPendingOpen((v) => !v)}
+            className="w-full flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide mb-1.5"
+            style={{ color: "var(--text-2)" }}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ transform: pendingOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            <span>Pending sent ({outgoing.length})</span>
+          </button>
+          {pendingOpen && (
+            <div className="space-y-1.5">
+              {outgoing.map((r) => (
+                <div key={r.id} className="flex items-center gap-2 py-1.5">
+                  <span className="w-7 h-7 rounded-full flex items-center justify-center text-sm" style={{ background: "var(--surface-2)" }}>
+                    {r.avatar || r.username[0]?.toUpperCase()}
+                  </span>
+                  <span className="flex-1 text-sm" style={{ color: "var(--text-2)" }}>{r.username}</span>
+                  <button
+                    onClick={() => cancel(r)}
+                    disabled={busy}
+                    className="text-xs font-medium px-2.5 py-1 rounded-full border disabled:opacity-50"
+                    style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       )}
     </section>
