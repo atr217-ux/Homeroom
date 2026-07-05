@@ -192,7 +192,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         >
           What are you committing to accomplish today?
         </h1>
-        <p className="text-sm mt-2" style={{ color: "var(--text-2)" }}>
+        <p className="text-sm font-bold mt-2" style={{ color: "var(--text-2)" }}>
           Set a commitment or a goal you have for the day.
         </p>
       </div>
@@ -221,7 +221,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       </div>
 
       {/* Step 2 direction */}
-      <p className="text-sm mb-2" style={{ color: "var(--text-2)" }}>
+      <p className="text-sm font-bold mb-2" style={{ color: "var(--text-2)" }}>
         Choose what tasks you want to accomplish today, or add new ones.
       </p>
 
