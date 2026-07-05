@@ -309,6 +309,32 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
             )}
           </div>
         )}
+        {filtered.length > 0 && (() => {
+          const allSelected = filtered.every((t) => selected.has(t.id));
+          return (
+            <button
+              onClick={() => {
+                setSelected((prev) => {
+                  const next = new Set(prev);
+                  if (allSelected) {
+                    for (const t of filtered) next.delete(t.id);
+                  } else {
+                    for (const t of filtered) next.add(t.id);
+                  }
+                  return next;
+                });
+              }}
+              className="text-xs font-semibold px-3 py-1.5 rounded-full border transition-colors"
+              style={{
+                background: allSelected ? "var(--surface)" : "var(--purple)",
+                color: allSelected ? "var(--text-2)" : "white",
+                borderColor: allSelected ? "var(--border-2)" : "var(--purple)",
+              }}
+            >
+              {allSelected ? "Clear" : "Select all"}
+            </button>
+          );
+        })()}
         {selected.size > 0 && (
           <span
             className="text-xs font-medium px-2 py-1 rounded-full ml-auto"
