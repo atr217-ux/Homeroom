@@ -172,25 +172,27 @@ export default function ScheduleButton({ scheduledFor, onChange }: Props) {
             <span>Next week</span>
             <span className="text-xs" style={{ color: "var(--text-3)" }}>{formatPill(offsetKey(7))}</span>
           </button>
-          <div className="border-t px-3 py-2 flex items-center gap-2" style={{ borderColor: "var(--border-2)" }}>
-            <span className="text-xs" style={{ color: "var(--text-2)" }}>Pick:</span>
-            <input
-              type="date"
-              value={customDate || scheduledFor || ""}
-              min={today}
-              onChange={(e) => setCustomDate(e.target.value)}
-              onClick={(e) => e.stopPropagation()}
-              className="flex-1 text-sm rounded-md px-2 py-1 focus:outline-none border"
-              style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "14px" }}
-            />
+          <div className="border-t px-3 pt-2 pb-2 space-y-2" style={{ borderColor: "var(--border-2)" }}>
+            <div className="flex items-center gap-2">
+              <span className="text-xs" style={{ color: "var(--text-2)" }}>Pick:</span>
+              <input
+                type="date"
+                value={customDate || scheduledFor || ""}
+                min={today}
+                onChange={(e) => setCustomDate(e.target.value)}
+                onClick={(e) => e.stopPropagation()}
+                className="flex-1 text-sm rounded-md px-2 py-1 focus:outline-none border"
+                style={{ background: "var(--bg)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "14px" }}
+              />
+            </div>
             <button
               type="button"
               onClick={() => { if (customDate) pick(customDate); }}
               disabled={!customDate}
-              className="text-xs font-semibold px-2 py-1 rounded-md text-white disabled:opacity-40"
+              className="w-full text-xs font-semibold py-1.5 rounded-md text-white disabled:opacity-40"
               style={{ background: "var(--purple)" }}
             >
-              Set
+              Set date
             </button>
           </div>
           {isScheduled && (
