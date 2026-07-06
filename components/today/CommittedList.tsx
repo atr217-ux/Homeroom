@@ -82,16 +82,13 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
-  function autoGrowNotes() {
-    const el = notesRef.current;
-    if (!el) return;
-    el.style.height = "auto";
-    el.style.height = `${el.scrollHeight}px`;
-  }
-
+  // Prevent background scroll while the drawer is open
   useEffect(() => {
-    if (notesOpen) autoGrowNotes();
-  }, [notesOpen, notes]);
+    if (!notesOpen) return;
+    const prev = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+    return () => { document.body.style.overflow = prev; };
+  }, [notesOpen]);
   const commitmentInputRef = useRef<HTMLTextAreaElement>(null);
 
   function autoGrowCommitment() {
@@ -1082,71 +1079,37 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       )}
 
       {/* Schedule a block */}
-      {/* Notes — collapsible free-form journal for the day */}
+      {/* Notes trigger — opens the full-screen drawer */}
       {!loading && (
-        <div
-          className="rounded-2xl border overflow-hidden mb-3"
+        <button
+          type="button"
+          onClick={() => setNotesOpen(true)}
+          className="w-full flex items-center gap-2 rounded-2xl border px-4 py-3 mb-3 transition-colors hover:opacity-95"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
-          <button
-            type="button"
-            onClick={() => setNotesOpen((v) => !v)}
-            className="w-full flex items-center gap-2 px-4 py-3"
-          >
-            <svg
-              width="12"
-              height="12"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="3"
-              strokeLinecap="round"
-              strokeLinejoin="round"
-              style={{
-                color: "var(--text-2)",
-                transform: notesOpen ? "rotate(90deg)" : "rotate(0deg)",
-                transition: "transform 0.15s",
-              }}
-            >
-              <polyline points="9 18 15 12 9 6" />
-            </svg>
-            <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-              Notes
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
+            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+            <polyline points="14 2 14 8 20 8" />
+            <line x1="8" y1="13" x2="16" y2="13" />
+            <line x1="8" y1="17" x2="13" y2="17" />
+          </svg>
+          <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+            Notes
+          </span>
+          {notes.trim() ? (
+            <span className="text-xs truncate flex-1 min-w-0 text-left" style={{ color: "var(--text-2)" }}>
+              {notes.replace(/\s+/g, " ").slice(0, 60)}
+              {notes.length > 60 ? "…" : ""}
             </span>
-            {!notesOpen && notes.trim() && (
-              <span className="text-xs truncate flex-1 min-w-0 text-left" style={{ color: "var(--text-2)" }}>
-                {notes.replace(/\s+/g, " ").slice(0, 80)}
-                {notes.length > 80 ? "…" : ""}
-              </span>
-            )}
-            {!notesOpen && !notes.trim() && (
-              <span className="text-xs" style={{ color: "var(--text-3)" }}>
-                Add anything on your mind
-              </span>
-            )}
-          </button>
-          {notesOpen && (
-            <div className="px-4 pb-3">
-              <textarea
-                ref={notesRef}
-                rows={3}
-                value={notes}
-                onChange={(e) => { setNotes(e.target.value); autoGrowNotes(); }}
-                onBlur={() => saveNotes(notes)}
-                placeholder="What's on your mind today?"
-                className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border resize-none overflow-hidden"
-                style={{
-                  background: "var(--bg)",
-                  borderColor: "var(--border-2)",
-                  color: "var(--text)",
-                  fontSize: "16px",
-                  lineHeight: 1.5,
-                  minHeight: 96,
-                }}
-              />
-            </div>
+          ) : (
+            <span className="text-xs flex-1 text-left" style={{ color: "var(--text-3)" }}>
+              Add anything on your mind
+            </span>
           )}
-        </div>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+        </button>
       )}
 
       {/* Schedule a block */}
@@ -1162,6 +1125,54 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           </svg>
           Schedule a block
         </button>
+      )}
+
+      {/* Full-screen Notes drawer */}
+      {notesOpen && (
+        <div
+          className="fixed inset-0 z-50 flex flex-col animate-notes-slide"
+          style={{ background: "var(--bg)" }}
+        >
+          <header
+            className="flex items-center justify-between px-4 py-3 border-b sticky top-0"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          >
+            <div>
+              <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--purple)" }}>
+                Notes
+              </div>
+              <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+              </div>
+            </div>
+            <button
+              type="button"
+              onClick={() => { saveNotes(notes); setNotesOpen(false); }}
+              className="text-sm font-bold px-4 py-1.5 rounded-lg text-white"
+              style={{ background: "var(--purple)" }}
+            >
+              Done
+            </button>
+          </header>
+          <div className="flex-1 flex flex-col p-4">
+            <textarea
+              ref={notesRef}
+              autoFocus
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
+              onBlur={() => saveNotes(notes)}
+              placeholder="What's on your mind today?"
+              className="flex-1 w-full text-base rounded-2xl px-4 py-4 focus:outline-none border resize-none"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border-2)",
+                color: "var(--text)",
+                fontSize: "16px",
+                lineHeight: 1.6,
+              }}
+            />
+          </div>
+        </div>
       )}
     </div>
   );

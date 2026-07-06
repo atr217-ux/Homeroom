@@ -129,6 +129,15 @@ html.dark {
   }
 }
 
+/* Slide-up animation for the daily Notes drawer */
+@keyframes notes-slide-up {
+  from { transform: translateY(100%); }
+  to   { transform: translateY(0); }
+}
+.animate-notes-slide {
+  animation: notes-slide-up 0.22s ease-out;
+}
+
 /* Display serif for headings — Instrument Serif via next/font */
 .font-display {
   font-family: var(--font-display), Georgia, "Times New Roman", serif;
