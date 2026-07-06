@@ -78,6 +78,20 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [editingCommitment, setEditingCommitment] = useState(false);
   const [autoPrivate, setAutoPrivate] = useState(false);
   const [doneCollapsed, setDoneCollapsed] = useState(true);
+  const [notes, setNotes] = useState("");
+  const [notesOpen, setNotesOpen] = useState(false);
+  const notesRef = useRef<HTMLTextAreaElement>(null);
+
+  function autoGrowNotes() {
+    const el = notesRef.current;
+    if (!el) return;
+    el.style.height = "auto";
+    el.style.height = `${el.scrollHeight}px`;
+  }
+
+  useEffect(() => {
+    if (notesOpen) autoGrowNotes();
+  }, [notesOpen, notes]);
   const commitmentInputRef = useRef<HTMLTextAreaElement>(null);
 
   function autoGrowCommitment() {
@@ -116,7 +130,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
         supabase
           .from("daily_commitments")
-          .select("commitment")
+          .select("commitment, notes")
           .eq("user_id", userId)
           .eq("date", today)
           .maybeSingle(),
@@ -135,7 +149,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         createdAt: r.created_at as string,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
-      setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
+      setCommitment((commitmentRes.data as { commitment: string; notes?: string } | null)?.commitment ?? "");
+      setNotes((commitmentRes.data as { commitment: string; notes?: string } | null)?.notes ?? "");
       setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
       setLoading(false);
     }
@@ -268,6 +283,16 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       user_id: userId,
       date: today,
       commitment: trimmed,
+      updated_at: new Date().toISOString(),
+    }, { onConflict: "user_id,date" });
+  }
+
+  async function saveNotes(next: string) {
+    const today = dateKey(new Date());
+    await createClient().from("daily_commitments").upsert({
+      user_id: userId,
+      date: today,
+      notes: next,
       updated_at: new Date().toISOString(),
     }, { onConflict: "user_id,date" });
   }
@@ -1051,6 +1076,74 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   ));
                 })()}
               </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Schedule a block */}
+      {/* Notes — collapsible free-form journal for the day */}
+      {!loading && (
+        <div
+          className="rounded-2xl border overflow-hidden mb-3"
+          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+        >
+          <button
+            type="button"
+            onClick={() => setNotesOpen((v) => !v)}
+            className="w-full flex items-center gap-2 px-4 py-3"
+          >
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{
+                color: "var(--text-2)",
+                transform: notesOpen ? "rotate(90deg)" : "rotate(0deg)",
+                transition: "transform 0.15s",
+              }}
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+              Notes
+            </span>
+            {!notesOpen && notes.trim() && (
+              <span className="text-xs truncate flex-1 min-w-0 text-left" style={{ color: "var(--text-2)" }}>
+                {notes.replace(/\s+/g, " ").slice(0, 80)}
+                {notes.length > 80 ? "…" : ""}
+              </span>
+            )}
+            {!notesOpen && !notes.trim() && (
+              <span className="text-xs" style={{ color: "var(--text-3)" }}>
+                Add anything on your mind
+              </span>
+            )}
+          </button>
+          {notesOpen && (
+            <div className="px-4 pb-3">
+              <textarea
+                ref={notesRef}
+                rows={3}
+                value={notes}
+                onChange={(e) => { setNotes(e.target.value); autoGrowNotes(); }}
+                onBlur={() => saveNotes(notes)}
+                placeholder="What's on your mind today?"
+                className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border resize-none overflow-hidden"
+                style={{
+                  background: "var(--bg)",
+                  borderColor: "var(--border-2)",
+                  color: "var(--text)",
+                  fontSize: "16px",
+                  lineHeight: 1.5,
+                  minHeight: 96,
+                }}
+              />
             </div>
           )}
         </div>
