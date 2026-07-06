@@ -858,16 +858,16 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       },
                     ]}
                   >
-                    <div className="group flex items-center gap-2.5 px-2 py-2.5 opacity-55" style={{ background: "var(--surface)" }}>
+                    <div className="group flex items-center gap-2.5 px-2 py-2.5" style={{ background: "var(--surface)" }}>
                       <button
                         onClick={() => toggleDone(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                        style={{ background: "var(--purple)", border: "2px solid var(--purple)" }}
+                        style={{ background: "var(--purple)", border: "2px solid var(--purple)", opacity: 0.6 }}
                       >
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
                       </button>
-                      <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-2)" }}>{t.text}</span>
-                      <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-2)" }}>
+                      <span className="text-sm flex-1 min-w-0 line-through" style={{ color: "var(--text-3)" }}>{t.text}</span>
+                      <span className="text-xs font-mono flex-shrink-0 tabular-nums" style={{ color: "var(--text-3)" }}>
                         {formatTime(t.timeSpent)}
                       </span>
                       {hasHover && (
