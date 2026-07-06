@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { dateKey } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import TaskRow from "@/components/TaskRow";
@@ -13,7 +12,7 @@ type Task = {
   text: string;
   done: boolean;
   isPrivate: boolean;
-  inToday: boolean;
+  scheduledFor: string | null;
   tagIds: string[];
   createdAt: string;
 };
@@ -41,7 +40,6 @@ export default function TasksPage() {
       if (!user) return;
       setUserId(user.id);
 
-      const today = dateKey(new Date());
       const [tasksRes, tagsRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
@@ -67,7 +65,7 @@ export default function TasksPage() {
         text: r.text as string,
         done: r.done as boolean,
         isPrivate: (r.is_private as boolean) ?? false,
-        inToday: (r.committed_for_date as string | null) === today,
+        scheduledFor: (r.committed_for_date as string | null) ?? null,
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map(tt => tt.tag_id),
         createdAt: r.created_at as string,
       })));
@@ -113,7 +111,7 @@ export default function TasksPage() {
       text,
       done: false,
       isPrivate: autoPrivate,
-      inToday: false,
+      scheduledFor: null,
       tagIds: tagObjs.map(t => t.id),
       createdAt: row.created_at as string,
     }, ...prev]);
@@ -144,14 +142,11 @@ export default function TasksPage() {
     await createClient().from("tasks").update({ is_private: next }).eq("id", id);
   }
 
-  async function toggleToday(id: string) {
-    const task = tasks.find(t => t.id === id);
-    if (!task) return;
-    const next = !task.inToday;
-    setTasks(prev => prev.map(t => t.id === id ? { ...t, inToday: next } : t));
+  async function scheduleDate(id: string, next: string | null) {
+    setTasks(prev => prev.map(t => t.id === id ? { ...t, scheduledFor: next } : t));
     await createClient()
       .from("tasks")
-      .update({ committed_for_date: next ? dateKey(new Date()) : null })
+      .update({ committed_for_date: next })
       .eq("id", id);
   }
 
@@ -397,8 +392,8 @@ export default function TasksPage() {
               onSave={(t) => saveTaskEdit(task.id, t)}
               onDelete={() => deleteTask(task.id)}
               onTogglePrivate={() => togglePrivate(task.id)}
-              onToggleToday={() => toggleToday(task.id)}
-              inToday={task.inToday}
+              onSchedule={(date) => scheduleDate(task.id, date)}
+              scheduledFor={task.scheduledFor}
               addedAt={task.createdAt}
               onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
             />
@@ -448,8 +443,8 @@ export default function TasksPage() {
                   onSave={(t) => saveTaskEdit(task.id, t)}
                   onDelete={() => deleteTask(task.id)}
                   onTogglePrivate={() => togglePrivate(task.id)}
-                  onToggleToday={() => toggleToday(task.id)}
-                  inToday={task.inToday}
+                  onSchedule={(date) => scheduleDate(task.id, date)}
+                  scheduledFor={task.scheduledFor}
                   addedAt={task.createdAt}
                   onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
                 />
