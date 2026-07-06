@@ -77,6 +77,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [commitment, setCommitment] = useState("");
   const [editingCommitment, setEditingCommitment] = useState(false);
   const [autoPrivate, setAutoPrivate] = useState(false);
+  const [doneCollapsed, setDoneCollapsed] = useState(true);
   const commitmentInputRef = useRef<HTMLTextAreaElement>(null);
 
   function autoGrowCommitment() {
@@ -839,7 +840,30 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
 
             {/* Done */}
             {done.length > 0 && (
-              <div className="space-y-1 border-t pt-2 mt-2" style={{ borderColor: "var(--border-2)" }}>
+              <div className="border-t pt-2 mt-2" style={{ borderColor: "var(--border-2)" }}>
+                <button
+                  type="button"
+                  onClick={() => setDoneCollapsed((v) => !v)}
+                  className="w-full flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide mb-1.5 px-2"
+                  style={{ color: "var(--text-2)" }}
+                >
+                  <svg
+                    width="10"
+                    height="10"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{ transform: doneCollapsed ? "rotate(0deg)" : "rotate(90deg)", transition: "transform 0.15s" }}
+                  >
+                    <polyline points="9 18 15 12 9 6" />
+                  </svg>
+                  <span>Done ({done.length})</span>
+                </button>
+                {!doneCollapsed && (
+                <div className="space-y-1">
                 {done.map((t) => (
                   <SwipeableRow
                     key={t.id}
@@ -901,6 +925,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                     </div>
                   </SwipeableRow>
                 ))}
+                </div>
+                )}
               </div>
             )}
           </div>
