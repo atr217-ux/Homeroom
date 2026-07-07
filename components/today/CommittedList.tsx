@@ -1128,13 +1128,13 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           onClick={() => { saveNotes(notes); setNotesOpen(false); }}
         >
           <div
-            className="w-full sm:max-w-lg h-[85vh] sm:h-[70vh] max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden animate-notes-slide sm:animate-none shadow-2xl"
+            className="w-full h-full sm:max-w-lg sm:h-[70vh] sm:max-h-[85vh] flex flex-col sm:rounded-3xl overflow-hidden animate-notes-slide sm:animate-none shadow-2xl"
             style={{ background: "var(--surface)" }}
             onClick={(e) => e.stopPropagation()}
           >
             <header
-              className="flex items-center justify-between px-4 py-3 border-b"
-              style={{ borderColor: "var(--border)" }}
+              className="flex items-center justify-between px-4 py-3 border-b sticky top-0 z-10"
+              style={{ background: "var(--surface)", borderColor: "var(--border)" }}
             >
               <div>
                 <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--purple)" }}>
