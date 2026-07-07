@@ -15,7 +15,8 @@ type Props = {
   rightActions?: SwipeAction[];
 };
 
-const ACTION_WIDTH = 76; // px per action button
+const ACTION_WIDTH = 54; // px per action button
+const ACTION_INSET = 6;  // px — pulls buttons in from the container edges so their corners stay tucked behind the row's rounded corners
 
 // SwipeableRow — touch-friendly row that reveals action buttons when swiped
 // left or right. Acts as a transparent wrapper on desktop unless the user
@@ -81,15 +82,26 @@ export default function SwipeableRow({ children, leftActions = [], rightActions 
 
   return (
     <div className="relative overflow-hidden rounded-xl" style={{ touchAction: "pan-y" }}>
-      {/* Left actions (revealed by swipe-right) */}
+      {/* Left actions — fade in as user swipes right, so nothing peeks at rest. */}
       {leftActions.length > 0 && (
-        <div className="absolute inset-y-0 left-0 flex z-0" style={{ width: leftWidth }}>
+        <div
+          className="absolute flex z-0"
+          style={{
+            top: ACTION_INSET,
+            bottom: ACTION_INSET,
+            left: 0,
+            width: leftWidth,
+            opacity: Math.min(1, Math.max(0, tx / leftWidth)),
+            transition: dragging ? "none" : "opacity 0.22s ease-out",
+            pointerEvents: tx > 0 ? "auto" : "none",
+          }}
+        >
           {leftActions.map((a, i) => (
             <button
               key={i}
               type="button"
               onClick={(e) => { e.stopPropagation(); a.onClick(); close(); }}
-              className="flex flex-col items-center justify-center gap-1 text-white font-semibold transition-opacity active:opacity-80"
+              className="flex flex-col items-center justify-center gap-0.5 text-white font-semibold transition-opacity active:opacity-80"
               style={{ width: ACTION_WIDTH, background: a.bg }}
               aria-label={a.label}
             >
@@ -100,15 +112,26 @@ export default function SwipeableRow({ children, leftActions = [], rightActions 
         </div>
       )}
 
-      {/* Right actions (revealed by swipe-left) */}
+      {/* Right actions — fade in as user swipes left. */}
       {rightActions.length > 0 && (
-        <div className="absolute inset-y-0 right-0 flex z-0" style={{ width: rightWidth }}>
+        <div
+          className="absolute flex z-0"
+          style={{
+            top: ACTION_INSET,
+            bottom: ACTION_INSET,
+            right: 0,
+            width: rightWidth,
+            opacity: Math.min(1, Math.max(0, -tx / rightWidth)),
+            transition: dragging ? "none" : "opacity 0.22s ease-out",
+            pointerEvents: tx < 0 ? "auto" : "none",
+          }}
+        >
           {rightActions.map((a, i) => (
             <button
               key={i}
               type="button"
               onClick={(e) => { e.stopPropagation(); a.onClick(); close(); }}
-              className="flex flex-col items-center justify-center gap-1 text-white font-semibold transition-opacity active:opacity-80"
+              className="flex flex-col items-center justify-center gap-0.5 text-white font-semibold transition-opacity active:opacity-80"
               style={{ width: ACTION_WIDTH, background: a.bg }}
               aria-label={a.label}
             >

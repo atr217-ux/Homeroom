@@ -680,7 +680,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               onDragEnd={handleDragEnd}
             >
               <SortableContext items={undone.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                   {undone.map((t) => {
                     const e = elapsed(t);
                     const running = t.startedAt !== null;
@@ -716,12 +716,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                     ]}
                   >
                     <div
-                      className="group flex items-center gap-2.5 px-2 py-2.5 transition-colors"
+                      className="group flex items-center gap-2.5 px-2 py-2 transition-colors"
                       style={{
                         background: running
                           ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
                           : "var(--surface)",
-                        border: "3px solid var(--surface)",
                       }}
                     >
                       {/* Drag handle (hidden when filtering or editing) */}
@@ -915,7 +914,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   <span>Done ({done.length})</span>
                 </button>
                 {!doneCollapsed && (
-                <div className="space-y-1">
+                <div className="space-y-0.5">
                 {done.map((t) => (
                   <SwipeableRow
                     key={t.id}
@@ -934,7 +933,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       },
                     ]}
                   >
-                    <div className="group flex items-center gap-2.5 px-2 py-2.5" style={{ background: "var(--surface)", border: "3px solid var(--surface)" }}>
+                    <div className="group flex items-center gap-2.5 px-2 py-2" style={{ background: "var(--surface)" }}>
                       <button
                         onClick={() => toggleDone(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"

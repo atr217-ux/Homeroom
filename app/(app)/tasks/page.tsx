@@ -409,7 +409,7 @@ export default function TasksPage() {
 
       {/* Undone tasks */}
       {!loading && undoneFiltered.length > 0 && (
-        <div className="space-y-2 mb-6">
+        <div className="space-y-1 mb-6">
           {undoneFiltered.map((task) => (
             <TaskRow
               key={task.id}
@@ -460,7 +460,7 @@ export default function TasksPage() {
           </button>
 
           {showDone && (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {doneFiltered.map((task) => (
                 <TaskRow
                   key={task.id}
