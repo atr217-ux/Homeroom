@@ -82,11 +82,15 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
-  // Prevent background scroll while the drawer is open
+  // Prevent background scroll while the drawer is open, and focus the
+  // textarea without letting iOS scroll the underlying document.
   useEffect(() => {
     if (!notesOpen) return;
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
+    // preventScroll stops iOS from scrolling the page trying to reveal
+    // an already-visible focused element inside a fixed container.
+    requestAnimationFrame(() => notesRef.current?.focus({ preventScroll: true }));
     return () => { document.body.style.overflow = prev; };
   }, [notesOpen]);
   const commitmentInputRef = useRef<HTMLTextAreaElement>(null);
@@ -1156,7 +1160,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             <div className="flex-1 flex flex-col p-4">
               <textarea
                 ref={notesRef}
-                autoFocus
                 value={notes}
                 onChange={(e) => setNotes(e.target.value)}
                 onBlur={() => saveNotes(notes)}
