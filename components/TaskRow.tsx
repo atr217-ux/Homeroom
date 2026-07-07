@@ -89,7 +89,7 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, tags, add
     >
       <div
         className="group flex items-start gap-3 px-3 py-3 rounded-xl"
-        style={{ background: "var(--surface)", border: "1px solid var(--border-2)" }}
+        style={{ background: "var(--surface)", border: "3px solid var(--surface)", outline: "1px solid var(--border-2)" }}
       >
         <button
           onClick={onToggle}
