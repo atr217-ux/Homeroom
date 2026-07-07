@@ -436,7 +436,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   return (
     <div className="max-w-2xl mx-auto px-4 pt-8 pb-32">
       {/* Header */}
-      <div className="pb-5 flex items-end justify-between">
+      <div className="pb-5 flex items-end justify-between gap-2">
         <div>
           <h1
             className="font-display italic leading-none"
@@ -448,17 +448,42 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             </span>
           </h1>
         </div>
-        {tasks.length > 0 && (
-          <span
-            className="text-sm font-semibold px-3 py-1 rounded-full mb-1"
-            style={{
-              background: done.length === tasks.length ? "rgba(124,58,237,0.15)" : "rgba(124,58,237,0.08)",
-              color: "var(--purple)",
-            }}
-          >
-            {done.length}/{tasks.length} done
-          </span>
-        )}
+        <div className="flex items-center gap-2 mb-1 flex-shrink-0">
+          {tasks.length > 0 && (
+            <span
+              className="text-sm font-semibold px-3 py-1 rounded-full"
+              style={{
+                background: done.length === tasks.length ? "rgba(124,58,237,0.15)" : "rgba(124,58,237,0.08)",
+                color: "var(--purple)",
+              }}
+            >
+              {done.length}/{tasks.length} done
+            </span>
+          )}
+          {!loading && (
+            <button
+              type="button"
+              onClick={() => setNotesOpen(true)}
+              className="p-2 rounded-full transition-opacity hover:opacity-100 relative"
+              style={{ color: "var(--text-2)", opacity: 0.7 }}
+              title="Notes"
+              aria-label="Notes"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="8" y1="13" x2="16" y2="13" />
+                <line x1="8" y1="17" x2="13" y2="17" />
+              </svg>
+              {notes.trim() && (
+                <span
+                  className="absolute top-1 right-1 w-2 h-2 rounded-full"
+                  style={{ background: "var(--purple)" }}
+                />
+              )}
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Daily commitment / focus */}
@@ -1079,38 +1104,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       )}
 
       {/* Schedule a block */}
-      {/* Notes trigger — opens the full-screen drawer */}
-      {!loading && (
-        <button
-          type="button"
-          onClick={() => setNotesOpen(true)}
-          className="w-full flex items-center gap-2 rounded-2xl border px-4 py-3 mb-3 transition-colors hover:opacity-95"
-          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
-        >
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-2)" }}>
-            <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
-            <polyline points="14 2 14 8 20 8" />
-            <line x1="8" y1="13" x2="16" y2="13" />
-            <line x1="8" y1="17" x2="13" y2="17" />
-          </svg>
-          <span className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-            Notes
-          </span>
-          {notes.trim() ? (
-            <span className="text-xs truncate flex-1 min-w-0 text-left" style={{ color: "var(--text-2)" }}>
-              {notes.replace(/\s+/g, " ").slice(0, 60)}
-              {notes.length > 60 ? "…" : ""}
-            </span>
-          ) : (
-            <span className="text-xs flex-1 text-left" style={{ color: "var(--text-3)" }}>
-              Add anything on your mind
-            </span>
-          )}
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
-            <polyline points="9 18 15 12 9 6" />
-          </svg>
-        </button>
-      )}
 
       {/* Schedule a block */}
       {!loading && (
@@ -1127,50 +1120,57 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         </button>
       )}
 
-      {/* Full-screen Notes drawer */}
+      {/* Notes popup — centered on desktop, bottom sheet on mobile */}
       {notesOpen && (
         <div
-          className="fixed inset-0 z-50 flex flex-col animate-notes-slide"
-          style={{ background: "var(--bg)" }}
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          style={{ background: "rgba(0,0,0,0.4)" }}
+          onClick={() => { saveNotes(notes); setNotesOpen(false); }}
         >
-          <header
-            className="flex items-center justify-between px-4 py-3 border-b sticky top-0"
-            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          <div
+            className="w-full sm:max-w-lg h-[85vh] sm:h-[70vh] max-h-[85vh] flex flex-col rounded-t-3xl sm:rounded-3xl overflow-hidden animate-notes-slide sm:animate-none shadow-2xl"
+            style={{ background: "var(--surface)" }}
+            onClick={(e) => e.stopPropagation()}
           >
-            <div>
-              <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--purple)" }}>
-                Notes
-              </div>
-              <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
-                {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
-              </div>
-            </div>
-            <button
-              type="button"
-              onClick={() => { saveNotes(notes); setNotesOpen(false); }}
-              className="text-sm font-bold px-4 py-1.5 rounded-lg text-white"
-              style={{ background: "var(--purple)" }}
+            <header
+              className="flex items-center justify-between px-4 py-3 border-b"
+              style={{ borderColor: "var(--border)" }}
             >
-              Done
-            </button>
-          </header>
-          <div className="flex-1 flex flex-col p-4">
-            <textarea
-              ref={notesRef}
-              autoFocus
-              value={notes}
-              onChange={(e) => setNotes(e.target.value)}
-              onBlur={() => saveNotes(notes)}
-              placeholder="What's on your mind today?"
-              className="flex-1 w-full text-base rounded-2xl px-4 py-4 focus:outline-none border resize-none"
-              style={{
-                background: "var(--surface)",
-                borderColor: "var(--border-2)",
-                color: "var(--text)",
-                fontSize: "16px",
-                lineHeight: 1.6,
-              }}
-            />
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-widest" style={{ color: "var(--purple)" }}>
+                  Notes
+                </div>
+                <div className="text-sm font-semibold" style={{ color: "var(--text)" }}>
+                  {today.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" })}
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => { saveNotes(notes); setNotesOpen(false); }}
+                className="text-sm font-bold px-4 py-1.5 rounded-lg text-white"
+                style={{ background: "var(--purple)" }}
+              >
+                Done
+              </button>
+            </header>
+            <div className="flex-1 flex flex-col p-4">
+              <textarea
+                ref={notesRef}
+                autoFocus
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                onBlur={() => saveNotes(notes)}
+                placeholder="What's on your mind today?"
+                className="flex-1 w-full text-base rounded-2xl px-4 py-4 focus:outline-none border resize-none"
+                style={{
+                  background: "var(--bg)",
+                  borderColor: "var(--border-2)",
+                  color: "var(--text)",
+                  fontSize: "16px",
+                  lineHeight: 1.6,
+                }}
+              />
+            </div>
           </div>
         </div>
       )}
