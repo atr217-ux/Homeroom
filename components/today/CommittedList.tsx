@@ -525,7 +525,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
             <button
               type="button"
               onClick={() => setEditingCommitment(true)}
-              className="w-full flex flex-col items-center text-center rounded-2xl border px-4 py-7 transition-opacity hover:opacity-90"
+              className="w-full flex flex-col items-center text-center rounded-2xl border px-4 py-3 transition-opacity hover:opacity-90"
               style={{
                 background: "var(--surface)",
                 borderColor: "var(--text)",
@@ -533,16 +533,16 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               aria-label="Edit today's focus"
             >
               <span
-                className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-3 flex items-center gap-2"
+                className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-1.5 flex items-center gap-2"
                 style={{ color: "var(--purple)" }}
               >
-                <span className="w-5 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
+                <span className="w-4 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
                 Focus
-                <span className="w-5 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
+                <span className="w-4 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
               </span>
               <span
                 className="font-display italic block break-words"
-                style={{ color: "var(--text)", fontSize: "clamp(1.5rem, 6vw, 2.25rem)", lineHeight: 1.2 }}
+                style={{ color: "var(--text)", fontSize: "clamp(1.25rem, 5vw, 1.75rem)", lineHeight: 1.15 }}
               >
                 {commitment}
               </span>
