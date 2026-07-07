@@ -30,6 +30,11 @@ export default function TasksPage() {
   const [privacyFilter, setPrivacyFilter] = useState<"all" | "private" | "public">("all");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [autoPrivate, setAutoPrivate] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
+  const [editingTagId, setEditingTagId] = useState<string | null>(null);
+  const [editingTagName, setEditingTagName] = useState("");
+  const [confirmDeleteTagId, setConfirmDeleteTagId] = useState<string | null>(null);
+  const [tagError, setTagError] = useState<string | null>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
 
   // ── Initial load ───────────────────────────────────────────────────────
@@ -184,6 +189,30 @@ export default function TasksPage() {
   async function removeTagFromTask(taskId: string, tagId: string) {
     setTasks(prev => prev.map(t => t.id === taskId ? { ...t, tagIds: t.tagIds.filter(id => id !== tagId) } : t));
     await createClient().from("task_tags").delete().eq("task_id", taskId).eq("tag_id", tagId);
+  }
+
+  async function renameTag(tagId: string, rawName: string) {
+    if (!userId) return;
+    const name = rawName.replace(/^#/, "").trim().toLowerCase();
+    setTagError(null);
+    if (!name) { setTagError("Give it a name"); return; }
+    if (!/^[a-z0-9_-]+$/.test(name)) { setTagError("Letters, numbers, - or _ only"); return; }
+    const clash = allTags.find(t => t.id !== tagId && t.name.toLowerCase() === name);
+    if (clash) { setTagError(`#${name} already exists`); return; }
+    setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, name } : t));
+    setEditingTagId(null);
+    setEditingTagName("");
+    await createClient().from("tags").update({ name }).eq("id", tagId);
+  }
+
+  async function deleteTag(tagId: string) {
+    setAllTags(prev => prev.filter(t => t.id !== tagId));
+    setTasks(prev => prev.map(t => ({ ...t, tagIds: t.tagIds.filter(id => id !== tagId) })));
+    setTagFilters(prev => prev.filter(id => id !== tagId));
+    setConfirmDeleteTagId(null);
+    const supabase = createClient();
+    await supabase.from("task_tags").delete().eq("tag_id", tagId);
+    await supabase.from("tags").delete().eq("id", tagId);
   }
 
   // ── Filtering + sorting ────────────────────────────────────────────────
@@ -449,6 +478,125 @@ export default function TasksPage() {
                   onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
                 />
               ))}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Manage categories */}
+      {!loading && allTags.length > 0 && (
+        <div className="mt-8 border-t pt-4" style={{ borderColor: "var(--border-2)" }}>
+          <button
+            type="button"
+            onClick={() => setManageOpen((v) => !v)}
+            className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide"
+            style={{ color: "var(--text-2)" }}
+          >
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="3"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              style={{ transform: manageOpen ? "rotate(90deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+            >
+              <polyline points="9 18 15 12 9 6" />
+            </svg>
+            Manage categories ({allTags.length})
+          </button>
+          {manageOpen && (
+            <div className="mt-3 space-y-2">
+              {allTags.map((tag) => {
+                const { bg, fg } = tagColor(tag.name);
+                const editing = editingTagId === tag.id;
+                const confirming = confirmDeleteTagId === tag.id;
+                if (editing) {
+                  return (
+                    <div key={tag.id} className="flex items-center gap-2">
+                      <span className="text-sm" style={{ color: "var(--text-2)" }}>#</span>
+                      <input
+                        type="text"
+                        value={editingTagName}
+                        autoFocus
+                        onChange={(e) => setEditingTagName(e.target.value.replace(/[^a-zA-Z0-9_-]/g, "").toLowerCase())}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); renameTag(tag.id, editingTagName); }
+                          if (e.key === "Escape") { e.preventDefault(); setEditingTagId(null); setTagError(null); }
+                        }}
+                        className="flex-1 text-sm rounded-lg px-2.5 py-1.5 focus:outline-none border"
+                        style={{ background: "var(--surface)", borderColor: "var(--purple)", color: "var(--text)", fontSize: "16px" }}
+                      />
+                      <button
+                        onClick={() => { setEditingTagId(null); setTagError(null); }}
+                        className="text-xs font-medium px-2.5 py-1.5 rounded-full border"
+                        style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => renameTag(tag.id, editingTagName)}
+                        className="text-xs font-semibold px-2.5 py-1.5 rounded-full text-white"
+                        style={{ background: "var(--purple)" }}
+                      >
+                        Save
+                      </button>
+                    </div>
+                  );
+                }
+                if (confirming) {
+                  return (
+                    <div key={tag.id} className="flex items-center gap-2">
+                      <span className="flex-1 text-xs" style={{ color: "var(--text-2)" }}>
+                        Delete <span className="font-semibold" style={{ color: fg }}>#{tag.name}</span> from all tasks?
+                      </span>
+                      <button
+                        onClick={() => setConfirmDeleteTagId(null)}
+                        className="text-xs font-medium px-2.5 py-1.5 rounded-full border"
+                        style={{ color: "var(--text-2)", borderColor: "var(--border-2)" }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => deleteTag(tag.id)}
+                        className="text-xs font-semibold px-2.5 py-1.5 rounded-full text-white"
+                        style={{ background: "var(--red)" }}
+                      >
+                        Delete
+                      </button>
+                    </div>
+                  );
+                }
+                return (
+                  <div key={tag.id} className="flex items-center gap-2">
+                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                      #{tag.name}
+                    </span>
+                    <span className="flex-1" />
+                    <button
+                      onClick={() => { setEditingTagId(tag.id); setEditingTagName(tag.name); setTagError(null); }}
+                      className="text-xs font-medium px-2.5 py-1 rounded-full"
+                      style={{ color: "var(--text-2)" }}
+                      title="Rename"
+                    >
+                      Rename
+                    </button>
+                    <button
+                      onClick={() => setConfirmDeleteTagId(tag.id)}
+                      className="text-xs font-medium px-2.5 py-1 rounded-full"
+                      style={{ color: "var(--text-2)" }}
+                      title="Delete"
+                    >
+                      Delete
+                    </button>
+                  </div>
+                );
+              })}
+              {tagError && (
+                <p className="text-xs" style={{ color: "var(--red)" }}>{tagError}</p>
+              )}
             </div>
           )}
         </div>
