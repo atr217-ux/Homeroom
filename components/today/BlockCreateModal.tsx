@@ -7,7 +7,15 @@ import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/ut
 import type { Tag } from "@/lib/db/types";
 
 type FriendOption = { id: string; username: string; avatar: string | null };
-type TaskOption = { id: string; text: string; isPrivate: boolean; tagIds: string[]; committedToday: boolean };
+type TaskOption = { id: string; text: string; isPrivate: boolean; tagIds: string[]; scheduledFor: string | null };
+
+// "Tue 7/9" style label for a YYYY-MM-DD date-key string.
+function formatSchedulePill(iso: string): string {
+  const [y, m, dd] = iso.split("-").map(Number);
+  const d = new Date(y, m - 1, dd);
+  const wk = d.toLocaleDateString(undefined, { weekday: "short" });
+  return `${wk} ${d.getMonth() + 1}/${d.getDate()}`;
+}
 
 type Props = {
   userId: string;
@@ -88,7 +96,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
         text: r.text,
         isPrivate: r.is_private ?? false,
         tagIds: (r.task_tags ?? []).map((tt) => tt.tag_id),
-        committedToday: r.committed_for_date === today,
+        scheduledFor: r.committed_for_date,
       })));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
@@ -340,6 +348,8 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
               )}
               {filteredTasks.map((t) => {
                 const sel = pickedIds.has(t.id);
+                const isToday = t.scheduledFor === today;
+                const isFuture = t.scheduledFor !== null && t.scheduledFor > today;
                 return (
                   <button
                     key={t.id}
@@ -379,6 +389,31 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                         </div>
                       )}
                     </div>
+                    {/* Current schedule indicator — matches ScheduleButton visuals */}
+                    {isFuture && t.scheduledFor && (
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 whitespace-nowrap"
+                        style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+                        title={`Scheduled for ${formatSchedulePill(t.scheduledFor)}`}
+                      >
+                        {formatSchedulePill(t.scheduledFor)}
+                      </span>
+                    )}
+                    {isToday && (
+                      <span
+                        className="flex-shrink-0 mt-0.5"
+                        style={{ color: "var(--purple)" }}
+                        title="Scheduled for today"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                          <polyline points="9 16 11 18 16 13" />
+                        </svg>
+                      </span>
+                    )}
                   </button>
                 );
               })}
