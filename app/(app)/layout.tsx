@@ -1,4 +1,5 @@
 import BottomNav from "@/components/BottomNav";
+import DailyRecap from "@/components/DailyRecap";
 import SessionSync from "@/components/SessionSync";
 import { ThemeProvider } from "@/lib/theme";
 
@@ -12,6 +13,7 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
         <SessionSync />
         {children}
         <BottomNav />
+        <DailyRecap />
       </div>
     </ThemeProvider>
   );
