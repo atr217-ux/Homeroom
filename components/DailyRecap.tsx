@@ -166,17 +166,14 @@ export default function DailyRecap() {
     });
   }
 
-  async function carryUnfinished() {
+  function carryUnfinished() {
     if (!data || !userId || carrying) return;
     setCarrying(true);
-    const today = dateKey(new Date());
     const ids = data.incomplete.map((t) => t.id);
-    if (ids.length > 0) {
-      const supabase = createClient();
-      await supabase.from("tasks").update({ committed_for_date: today }).in("id", ids);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("homeroom-carried-ids", JSON.stringify(ids));
-      }
+    if (ids.length > 0 && typeof window !== "undefined") {
+      // Hand the IDs to CommitPicker so it can pre-select them at the top of
+      // the list. Don't commit yet — the user should confirm on the picker.
+      sessionStorage.setItem("homeroom-carry-preselect", JSON.stringify(ids));
     }
     close();
     router.push("/today");

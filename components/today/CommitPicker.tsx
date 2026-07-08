@@ -24,6 +24,10 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
   const [tasks, setTasks] = useState<PickerTask[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
+  // Tasks passed in from the DailyRecap "carry unfinished" flow — these get
+  // pre-selected and floated to the top of the list until the user commits or
+  // navigates away.
+  const [carryPreselect, setCarryPreselect] = useState<Set<string>>(new Set());
   const [search, setSearch] = useState("");
   const [tagFilters, setTagFilters] = useState<string[]>([]);
   const [tagDropdownOpen, setTagDropdownOpen] = useState(false);
@@ -70,16 +74,38 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
           .maybeSingle(),
         supabase.from("profiles").select("auto_private_tasks").eq("id", userId).maybeSingle(),
       ]);
-      setTasks((tasksRes.data ?? []).map((r) => ({
+      const loaded = (tasksRes.data ?? []).map((r) => ({
         id: r.id as string,
         text: r.text as string,
         isPrivate: (r.is_private as boolean) ?? false,
         tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map((tt) => tt.tag_id),
         createdAt: r.created_at as string,
-      })));
+      }));
+      setTasks(loaded);
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setCommitment((commitmentRes.data as { commitment: string } | null)?.commitment ?? "");
       setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
+
+      // Consume the DailyRecap "carry unfinished" hand-off, if present.
+      if (typeof window !== "undefined") {
+        const raw = sessionStorage.getItem("homeroom-carry-preselect");
+        if (raw) {
+          sessionStorage.removeItem("homeroom-carry-preselect");
+          try {
+            const ids = JSON.parse(raw) as string[];
+            if (Array.isArray(ids) && ids.length > 0) {
+              const known = new Set(loaded.map((t) => t.id));
+              const usable = ids.filter((id) => known.has(id));
+              if (usable.length > 0) {
+                setCarryPreselect(new Set(usable));
+                setSelected(new Set(usable));
+                if (usable.length > LIMIT) setShowAll(true);
+              }
+            }
+          } catch { /* ignore malformed payload */ }
+        }
+      }
+
       setLoading(false);
     }
     load();
@@ -104,11 +130,16 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
       list = list.filter((t) => t.text.toLowerCase().includes(q));
     }
     list = [...list].sort((a, b) => {
+      // Carried-in tasks from the DailyRecap always sort first, so the user
+      // sees them at the top of the picker.
+      const ac = carryPreselect.has(a.id) ? 1 : 0;
+      const bc = carryPreselect.has(b.id) ? 1 : 0;
+      if (ac !== bc) return bc - ac;
       const d = new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime();
       return sortDir === "asc" ? d : -d;
     });
     return list;
-  }, [tasks, tagFilters, search, sortDir]);
+  }, [tasks, tagFilters, search, sortDir, carryPreselect]);
 
   function toggle(id: string) {
     setSelected((prev) => {
@@ -443,6 +474,14 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
                   <span className="text-sm leading-snug" style={{ color: sel ? "var(--text)" : "var(--text-2)" }}>
                     {task.text}
                   </span>
+                  {carryPreselect.has(task.id) && (
+                    <span
+                      className="ml-2 text-[10px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full align-middle"
+                      style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+                    >
+                      From yesterday
+                    </span>
+                  )}
                   {task.tagIds.length > 0 && (
                     <div className="flex flex-wrap gap-1 mt-1.5">
                       {task.tagIds.map((tid) => {

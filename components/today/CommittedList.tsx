@@ -82,24 +82,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
 
-  // Rows carried in from the DailyRecap — highlight briefly then clear.
-  const [carriedIds, setCarriedIds] = useState<Set<string>>(new Set());
-  useEffect(() => {
-    if (typeof window === "undefined") return;
-    const raw = sessionStorage.getItem("homeroom-carried-ids");
-    if (!raw) return;
-    try {
-      const ids = JSON.parse(raw) as string[];
-      if (Array.isArray(ids) && ids.length > 0) {
-        setCarriedIds(new Set(ids));
-        const timeout = setTimeout(() => setCarriedIds(new Set()), 3000);
-        sessionStorage.removeItem("homeroom-carried-ids");
-        return () => clearTimeout(timeout);
-      }
-    } catch {
-      sessionStorage.removeItem("homeroom-carried-ids");
-    }
-  }, []);
 
   // Prevent background scroll while the drawer is open, and focus the
   // textarea without letting iOS scroll the underlying document.
@@ -735,15 +717,11 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                     ]}
                   >
                     <div
-                      className="group flex items-center gap-2.5 px-2 py-2 transition-all"
+                      className="group flex items-center gap-2.5 px-2 py-2 transition-colors"
                       style={{
                         background: running
                           ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
-                          : carriedIds.has(t.id)
-                            ? "rgba(124,58,237,0.10)"
-                            : "var(--surface)",
-                        boxShadow: carriedIds.has(t.id) ? "inset 0 0 0 2px var(--purple)" : undefined,
-                        borderRadius: carriedIds.has(t.id) ? 12 : undefined,
+                          : "var(--surface)",
                       }}
                     >
                       {/* Drag handle (hidden when filtering or editing) */}
