@@ -43,8 +43,14 @@ export default function DailyRecap() {
       const uid = session.user.id;
 
       const today = dateKey(new Date());
-      const lastShown = typeof window !== "undefined" ? localStorage.getItem("homeroom-recap-shown") : null;
-      if (lastShown === today) return;
+      // Cross-device dismissal: check the server flag on the profile.
+      const { data: profileRow } = await supabase
+        .from("profiles")
+        .select("last_recap_dismissed_date")
+        .eq("id", uid)
+        .maybeSingle();
+      const dismissedOn = (profileRow as { last_recap_dismissed_date: string | null } | null)?.last_recap_dismissed_date;
+      if (dismissedOn === today) return;
 
       const yd = new Date();
       yd.setDate(yd.getDate() - 1);
@@ -146,10 +152,14 @@ export default function DailyRecap() {
   }, []);
 
   function close() {
-    if (typeof window !== "undefined") {
-      localStorage.setItem("homeroom-recap-shown", dateKey(new Date()));
-    }
     setData(null);
+    if (!userId) return;
+    // Persist dismissal to the profile so other devices also skip it today.
+    const today = dateKey(new Date());
+    void createClient()
+      .from("profiles")
+      .update({ last_recap_dismissed_date: today })
+      .eq("id", userId);
   }
 
   async function markDoneRetro(id: string) {
