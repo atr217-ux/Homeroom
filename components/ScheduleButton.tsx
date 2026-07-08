@@ -37,8 +37,8 @@ export default function ScheduleButton({ scheduledFor, onChange }: Props) {
 
   const today = dateKey(new Date());
   const isToday = scheduledFor === today;
-  const isFuture = scheduledFor !== null && scheduledFor > today;
-  const isScheduled = scheduledFor !== null;
+  const isFuture = !!scheduledFor && scheduledFor > today;
+  const isScheduled = !!scheduledFor;
 
   // Recompute popover position based on the trigger's bounding rect
   function recompute() {
