@@ -43,9 +43,8 @@ export default function DailyRecap() {
       const uid = session.user.id;
 
       const today = dateKey(new Date());
-      const force = typeof window !== "undefined" && new URLSearchParams(window.location.search).get("recap") === "1";
       const lastShown = typeof window !== "undefined" ? localStorage.getItem("homeroom-recap-shown") : null;
-      if (!force && lastShown === today) return;
+      if (lastShown === today) return;
 
       const yd = new Date();
       yd.setDate(yd.getDate() - 1);
