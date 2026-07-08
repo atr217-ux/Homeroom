@@ -43,6 +43,9 @@ export default function DailyRecap() {
       const uid = session.user.id;
 
       const today = dateKey(new Date());
+      // Fast local check first — avoids re-showing during the network round-trip
+      // if the user dismisses and immediately reloads on the same device.
+      if (typeof window !== "undefined" && localStorage.getItem("homeroom-recap-shown") === today) return;
       // Cross-device dismissal: check the server flag on the profile.
       const { data: profileRow } = await supabase
         .from("profiles")
@@ -50,7 +53,11 @@ export default function DailyRecap() {
         .eq("id", uid)
         .maybeSingle();
       const dismissedOn = (profileRow as { last_recap_dismissed_date: string | null } | null)?.last_recap_dismissed_date;
-      if (dismissedOn === today) return;
+      if (dismissedOn === today) {
+        // Keep the local cache in sync when the DB says shown but this device hasn't been told yet.
+        if (typeof window !== "undefined") localStorage.setItem("homeroom-recap-shown", today);
+        return;
+      }
 
       const yd = new Date();
       yd.setDate(yd.getDate() - 1);
@@ -153,9 +160,11 @@ export default function DailyRecap() {
 
   function close() {
     setData(null);
-    if (!userId) return;
-    // Persist dismissal to the profile so other devices also skip it today.
     const today = dateKey(new Date());
+    // Instant local flag so a same-device reload during the DB write skips the modal.
+    if (typeof window !== "undefined") localStorage.setItem("homeroom-recap-shown", today);
+    if (!userId) return;
+    // Persist to the profile so other devices also skip it today.
     void createClient()
       .from("profiles")
       .update({ last_recap_dismissed_date: today })
