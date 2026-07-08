@@ -222,23 +222,23 @@ export default function DailyRecap() {
         <div className="h-1 w-full" style={{ background: "var(--purple)" }} />
 
         <div className="px-6 pt-6 pb-5">
-          <div className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-1" style={{ color: "var(--purple)" }}>
+          <div className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-1 text-center" style={{ color: "var(--purple)" }}>
             Yesterday · {data.yesterdayLabel}
           </div>
 
           {data.focus ? (
-            <>
-              <div className="text-sm mb-1" style={{ color: "var(--text-2)" }}>You focused on</div>
+            <div className="text-center">
+              <div className="text-sm mb-1" style={{ color: "var(--text-2)" }}>Yesterday&apos;s focus</div>
               <div
                 className="font-display italic leading-tight break-words"
                 style={{ color: "var(--text)", fontSize: "clamp(1.5rem, 6vw, 2.1rem)" }}
               >
                 {data.focus}
               </div>
-            </>
+            </div>
           ) : (
             <div
-              className="font-display italic leading-tight"
+              className="font-display italic leading-tight text-center"
               style={{ color: "var(--text)", fontSize: "clamp(1.5rem, 6vw, 2.1rem)" }}
             >
               Here&apos;s how it went
