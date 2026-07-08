@@ -10,12 +10,14 @@ import BlockCreateModal from "@/components/today/BlockCreateModal";
 import BlockLiveView from "@/components/today/BlockLiveView";
 
 type Phase = "loading" | "picker" | "committed";
+type ViewMode = "block" | "today";
 
 export default function TodayPage() {
   const [userId, setUserId] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("loading");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  const [viewMode, setViewMode] = useState<ViewMode>("today");
   const { activeBlock, loading: blockLoading } = useBlockClock(userId);
 
   const refreshCommitState = useCallback(async () => {
@@ -46,6 +48,15 @@ export default function TodayPage() {
     if (userId) refreshCommitState();
   }, [userId, reloadKey, refreshCommitState]);
 
+  // When a block becomes active, jump to block view — unless the user just
+  // navigated here from the DailyRecap "carry unfinished" flow, in which case
+  // CommitPicker needs to be visible to consume the sessionStorage key.
+  useEffect(() => {
+    if (!activeBlock) { setViewMode("today"); return; }
+    const carryPending = typeof window !== "undefined" && !!sessionStorage.getItem("homeroom-carry-preselect");
+    setViewMode(carryPending ? "today" : "block");
+  }, [activeBlock?.id]);
+
   if (!userId || phase === "loading" || blockLoading) {
     return (
       <div className="flex items-center justify-center pt-32">
@@ -57,19 +68,59 @@ export default function TodayPage() {
     );
   }
 
-  // Active block takes precedence
-  if (activeBlock) {
-    return <BlockLiveView block={activeBlock} userId={userId} />;
-  }
+  const showToggle = activeBlock !== null;
 
-  // Otherwise: picker or committed
   return (
     <>
-      {phase === "picker" && (
-        <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} />
+      {showToggle && (
+        <div className="max-w-2xl mx-auto px-4 pt-4">
+          <div
+            className="flex items-center rounded-full border p-1 gap-1"
+            style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+          >
+            <button
+              type="button"
+              onClick={() => setViewMode("block")}
+              className="flex-1 text-xs font-semibold py-2 rounded-full transition-colors flex items-center justify-center gap-1.5"
+              style={viewMode === "block"
+                ? { background: "var(--purple)", color: "white" }
+                : { background: "transparent", color: "var(--text-2)" }}
+            >
+              {viewMode === "block" && (
+                <span
+                  className="w-1.5 h-1.5 rounded-full"
+                  style={{ background: "white", boxShadow: "0 0 0 3px rgba(255,255,255,0.35)" }}
+                />
+              )}
+              <span className="truncate max-w-[140px]">
+                {activeBlock!.name || "Block"}
+              </span>
+            </button>
+            <button
+              type="button"
+              onClick={() => setViewMode("today")}
+              className="flex-1 text-xs font-semibold py-2 rounded-full transition-colors"
+              style={viewMode === "today"
+                ? { background: "var(--purple)", color: "white" }
+                : { background: "transparent", color: "var(--text-2)" }}
+            >
+              Today
+            </button>
+          </div>
+        </div>
       )}
-      {phase === "committed" && (
-        <CommittedList userId={userId} onOpenSchedule={() => setScheduleOpen(true)} />
+
+      {activeBlock && viewMode === "block" ? (
+        <BlockLiveView block={activeBlock} userId={userId} />
+      ) : (
+        <>
+          {phase === "picker" && (
+            <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} />
+          )}
+          {phase === "committed" && (
+            <CommittedList userId={userId} onOpenSchedule={() => setScheduleOpen(true)} />
+          )}
+        </>
       )}
 
       {scheduleOpen && (
