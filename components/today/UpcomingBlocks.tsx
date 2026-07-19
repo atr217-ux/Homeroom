@@ -8,7 +8,7 @@ import BlockEditModal from "@/components/today/BlockEditModal";
 import type { Tag } from "@/lib/db/types";
 
 type Participant = { id: string; username: string; avatar: string | null };
-type BlockTask = { id: string; text: string; done: boolean; user_id: string };
+type BlockTask = { id: string; text: string; done: boolean; user_id: string; isShared: boolean };
 
 type UpcomingBlock = {
   id: string;
@@ -87,6 +87,15 @@ export default function UpcomingBlocks({ userId }: Props) {
     setReloadKey((k) => k + 1);
   }
 
+  async function toggleShared(taskId: string, next: boolean) {
+    // Optimistic update so the chain-link flips immediately.
+    setBlocks((prev) => prev.map((bl) => ({
+      ...bl,
+      tasks: bl.tasks.map((t) => t.id === taskId ? { ...t, isShared: next } : t),
+    })));
+    await createClient().from("tasks").update({ is_shared: next }).eq("id", taskId);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -150,7 +159,7 @@ export default function UpcomingBlocks({ userId }: Props) {
       const [tasksRes, invitesFullRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, done, user_id, block_id")
+          .select("id, text, done, user_id, block_id, is_shared")
           .in("block_id", blockIds),
         supabase
           .from("block_invites")
@@ -159,7 +168,7 @@ export default function UpcomingBlocks({ userId }: Props) {
           .in("status", ["invited", "joined"]),
       ]);
 
-      const tasks = (tasksRes.data ?? []) as { id: string; text: string; done: boolean; user_id: string; block_id: string }[];
+      const tasks = (tasksRes.data ?? []) as { id: string; text: string; done: boolean; user_id: string; block_id: string; is_shared: boolean | null }[];
       const invitesAll = (invitesFullRes.data ?? []) as { block_id: string; invited_user_id: string; status: string }[];
 
       // Gather every participant id we need to resolve
@@ -191,7 +200,7 @@ export default function UpcomingBlocks({ userId }: Props) {
         }
         const blockTasks = tasks
           .filter((t) => t.block_id === b.id)
-          .map((t) => ({ id: t.id, text: t.text, done: t.done, user_id: t.user_id }));
+          .map((t) => ({ id: t.id, text: t.text, done: t.done, user_id: t.user_id, isShared: t.is_shared ?? false }));
         return {
           id: b.id,
           name: b.name,
@@ -343,31 +352,65 @@ export default function UpcomingBlocks({ userId }: Props) {
                       <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>No tasks assigned yet</p>
                     ) : (
                       <div className="space-y-1 mb-2">
-                        {b.tasks.map((t) => (
-                          <div key={t.id} className="flex items-center gap-2 text-sm">
-                            <span
-                              className="w-3.5 h-3.5 rounded flex-shrink-0 flex items-center justify-center"
-                              style={t.done
-                                ? { background: "var(--purple)", border: "2px solid var(--purple)" }
-                                : { border: "2px solid var(--border-3)" }}
-                            >
-                              {t.done && (
-                                <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
-                                  <polyline points="20 6 9 17 4 12" />
-                                </svg>
-                              )}
-                            </span>
-                            <span
-                              className="truncate"
-                              style={{
-                                color: t.done ? "var(--text-3)" : "var(--text)",
-                                textDecoration: t.done ? "line-through" : "none",
-                              }}
-                            >
-                              {t.text}
-                            </span>
-                          </div>
-                        ))}
+                        {b.tasks.map((t) => {
+                          const ownTask = t.user_id === userId;
+                          return (
+                            <div key={t.id} className="flex items-center gap-2 text-sm">
+                              <span
+                                className="w-3.5 h-3.5 rounded flex-shrink-0 flex items-center justify-center"
+                                style={t.done
+                                  ? { background: "var(--purple)", border: "2px solid var(--purple)" }
+                                  : { border: "2px solid var(--border-3)" }}
+                              >
+                                {t.done && (
+                                  <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                )}
+                              </span>
+                              <span
+                                className="flex-1 truncate"
+                                style={{
+                                  color: t.done ? "var(--text-3)" : "var(--text)",
+                                  textDecoration: t.done ? "line-through" : "none",
+                                }}
+                              >
+                                {t.text}
+                              </span>
+                              {/* Chain-link "Shared" toggle — only the task
+                                  owner can flip it. Others just see the state. */}
+                              {ownTask ? (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); toggleShared(t.id, !t.isShared); }}
+                                  className="flex-shrink-0 p-1 rounded transition-opacity hover:opacity-100"
+                                  style={{
+                                    color: t.isShared ? "var(--purple)" : "var(--text-3)",
+                                    opacity: t.isShared ? 1 : 0.5,
+                                  }}
+                                  title={t.isShared ? "Shared — tap to make private to you" : "Mark as shared so anyone in the block can claim it"}
+                                  aria-label={t.isShared ? "Unshare task" : "Share task"}
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                  </svg>
+                                </button>
+                              ) : t.isShared ? (
+                                <span
+                                  className="flex-shrink-0 p-1"
+                                  style={{ color: "var(--purple)", opacity: 0.7 }}
+                                  title="Shared task"
+                                >
+                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                    <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                  </svg>
+                                </span>
+                              ) : null}
+                            </div>
+                          );
+                        })}
                       </div>
                     )}
                     {/* Inline quick-add — adds a task to this block for the current user */}
