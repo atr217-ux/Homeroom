@@ -8,6 +8,7 @@ import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
 import TagChip from "@/components/TagChip";
 import MoreMenu from "@/components/MoreMenu";
+import UpcomingBlocks from "@/components/today/UpcomingBlocks";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import {
   DndContext,
@@ -1124,6 +1125,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
           Schedule a block
         </button>
       )}
+
+      {!loading && <UpcomingBlocks userId={userId} />}
 
       {/* Notes popup — centered on desktop, bottom sheet on mobile */}
       {notesOpen && (

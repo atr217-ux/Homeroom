@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { dateKey } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
+import UpcomingBlocks from "@/components/today/UpcomingBlocks";
 import type { Tag } from "@/lib/db/types";
 
 type PickerTask = {
@@ -543,6 +544,8 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         </div>
         );
       })()}
+
+      {!loading && <UpcomingBlocks userId={userId} />}
 
       {/* Commit button — fixed above bottom nav */}
       <div className="fixed bottom-24 left-0 right-0 px-4 max-w-2xl mx-auto z-30 pointer-events-none">
