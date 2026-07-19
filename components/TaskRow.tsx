@@ -153,10 +153,15 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
           )}
         </div>
 
+        {/* Right-side controls — grouped in a single row so everything shares
+            one alignment. self-start + mt-0.5 keeps the group visually anchored
+            to the first line of text on multi-line tasks. */}
+        <div className="flex items-center gap-2 flex-shrink-0 self-start mt-0.5">
+
         {/* Added-at label (subtle, far right of content) */}
         {!editing && (
           <span
-            className="text-xs flex-shrink-0 self-start mt-0.5 whitespace-nowrap"
+            className="text-xs whitespace-nowrap"
             style={{ color: "var(--text-3)" }}
             title={new Date(addedAt).toLocaleString()}
           >
@@ -169,7 +174,7 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
             the block on /today. */}
         {blockName && (
           <span
-            className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md border flex-shrink-0 whitespace-nowrap self-start mt-0.5"
+            className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md border whitespace-nowrap"
             style={{
               background: "rgba(124,58,237,0.10)",
               borderColor: "rgba(124,58,237,0.35)",
@@ -197,7 +202,7 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
         {/* Privacy toggle — state indicator, always visible */}
         <button
           onClick={onTogglePrivate}
-          className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+          className="p-1 rounded transition-opacity hover:opacity-100"
           style={{ color: isPrivate ? "var(--purple)" : "var(--text-3)", opacity: isPrivate ? 1 : 0.5 }}
           title={isPrivate ? "Private — only you can see this" : "Public — friends can see when completed"}
           aria-label={isPrivate ? "Make public" : "Make private"}
@@ -232,6 +237,7 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
             ]}
           />
         )}
+        </div>
       </div>
     </SwipeableRow>
   );
