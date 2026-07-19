@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
 
 type Participant = { id: string; username: string; avatar: string | null };
@@ -126,7 +127,11 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
     return () => { cancelled = true; };
   }, [blockId]);
 
-  return (
+  if (typeof document === "undefined") return null;
+
+  // Render through a portal to escape SwipeableRow's transform, which
+  // otherwise makes `position: fixed` position relative to the row.
+  return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
       style={{ background: "rgba(0,0,0,0.5)" }}
@@ -312,6 +317,7 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
           </div>
         )}
       </div>
-    </div>
+    </div>,
+    document.body,
   );
 }
