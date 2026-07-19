@@ -13,6 +13,7 @@ type Task = {
   done: boolean;
   isPrivate: boolean;
   scheduledFor: string | null;
+  blockId: string | null;
   blockName: string | null;
   tagIds: string[];
   createdAt: string;
@@ -67,7 +68,7 @@ export default function TasksPage() {
 
       const rows = tasksRes.data ?? [];
       setTasks(rows.map(r => {
-        const blockRel = (r as { blocks: { name: string } | { name: string }[] | null }).blocks;
+        const blockRel = (r as { blocks: { id: string; name: string } | { id: string; name: string }[] | null }).blocks;
         const blockRow = Array.isArray(blockRel) ? blockRel[0] : blockRel;
         return {
           id: r.id as string,
@@ -75,6 +76,7 @@ export default function TasksPage() {
           done: r.done as boolean,
           isPrivate: (r.is_private as boolean) ?? false,
           scheduledFor: (r.committed_for_date as string | null) ?? null,
+          blockId: blockRow?.id ?? null,
           blockName: blockRow?.name ?? null,
           tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map(tt => tt.tag_id),
           createdAt: r.created_at as string,
@@ -123,6 +125,7 @@ export default function TasksPage() {
       done: false,
       isPrivate: autoPrivate,
       scheduledFor: null,
+      blockId: null,
       blockName: null,
       tagIds: tagObjs.map(t => t.id),
       createdAt: row.created_at as string,
@@ -430,6 +433,7 @@ export default function TasksPage() {
               onTogglePrivate={() => togglePrivate(task.id)}
               onSchedule={(date) => scheduleDate(task.id, date)}
               scheduledFor={task.scheduledFor}
+              blockId={task.blockId}
               blockName={task.blockName}
               addedAt={task.createdAt}
               onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}

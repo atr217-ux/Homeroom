@@ -8,6 +8,8 @@ import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow
 import TagChip from "@/components/TagChip";
 import MoreMenu from "@/components/MoreMenu";
 import ScheduleButton from "@/components/ScheduleButton";
+import BlockInfoModal from "@/components/BlockInfoModal";
+import { createClient } from "@/lib/supabase/client";
 import type { Tag } from "@/lib/db/types";
 
 type Props = {
@@ -15,6 +17,7 @@ type Props = {
   done: boolean;
   isPrivate: boolean;
   scheduledFor: string | null;
+  blockId?: string | null;
   blockName?: string | null;
   tags: Tag[];
   addedAt: string;
@@ -26,11 +29,18 @@ type Props = {
   onRemoveTag: (tagId: string) => void;
 };
 
-export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName, tags, addedAt, onToggle, onSave, onDelete, onTogglePrivate, onSchedule, onRemoveTag }: Props) {
+export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, blockName, tags, addedAt, onToggle, onSave, onDelete, onTogglePrivate, onSchedule, onRemoveTag }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
+  const [blockInfoOpen, setBlockInfoOpen] = useState(false);
+  const [userId, setUserId] = useState<string | null>(null);
   const editRef = useRef<HTMLDivElement>(null);
   const hasHover = useHasHover();
+
+  useEffect(() => {
+    if (!blockInfoOpen || userId) return;
+    createClient().auth.getUser().then(({ data }) => setUserId(data.user?.id ?? null));
+  }, [blockInfoOpen, userId]);
 
   useEffect(() => {
     if (editing && editRef.current) {
@@ -169,18 +179,19 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
           </span>
         )}
 
-        {/* In-block indicator — small purple chip so users can see this task
-            belongs to a scheduled block. Non-interactive; edits happen inside
-            the block on /today. */}
+        {/* In-block indicator — small purple chip. Tap opens a read-only
+            popup with the block's date/time, tasks, and participants. */}
         {blockName && (
-          <span
-            className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md border whitespace-nowrap"
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); if (blockId) setBlockInfoOpen(true); }}
+            className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md border whitespace-nowrap transition-opacity hover:opacity-100"
             style={{
               background: "rgba(124,58,237,0.10)",
               borderColor: "rgba(124,58,237,0.35)",
               color: "var(--purple)",
             }}
-            title={`In block "${blockName}"`}
+            title={`In block "${blockName}" — tap for details`}
           >
             <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="4" width="18" height="18" rx="2" />
@@ -189,7 +200,7 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
               <line x1="3" y1="10" x2="21" y2="10" />
             </svg>
             <span className="max-w-[100px] truncate">{blockName}</span>
-          </span>
+          </button>
         )}
 
         {/* Schedule / Today — opens popover with Today, Tomorrow, custom date, Clear.
@@ -239,6 +250,14 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
         )}
         </div>
       </div>
+
+      {blockInfoOpen && blockId && userId && (
+        <BlockInfoModal
+          blockId={blockId}
+          userId={userId}
+          onClose={() => setBlockInfoOpen(false)}
+        />
+      )}
     </SwipeableRow>
   );
 }
