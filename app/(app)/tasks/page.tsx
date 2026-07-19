@@ -13,6 +13,7 @@ type Task = {
   done: boolean;
   isPrivate: boolean;
   scheduledFor: string | null;
+  blockName: string | null;
   tagIds: string[];
   createdAt: string;
 };
@@ -48,7 +49,7 @@ export default function TasksPage() {
       const [tasksRes, tagsRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, done, is_private, committed_for_date, created_at, task_tags(tag_id)")
+          .select("id, text, done, is_private, committed_for_date, block_id, blocks(id, name), created_at, task_tags(tag_id)")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(500),
@@ -65,15 +66,20 @@ export default function TasksPage() {
       ]);
 
       const rows = tasksRes.data ?? [];
-      setTasks(rows.map(r => ({
-        id: r.id as string,
-        text: r.text as string,
-        done: r.done as boolean,
-        isPrivate: (r.is_private as boolean) ?? false,
-        scheduledFor: (r.committed_for_date as string | null) ?? null,
-        tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map(tt => tt.tag_id),
-        createdAt: r.created_at as string,
-      })));
+      setTasks(rows.map(r => {
+        const blockRel = (r as { blocks: { name: string } | { name: string }[] | null }).blocks;
+        const blockRow = Array.isArray(blockRel) ? blockRel[0] : blockRel;
+        return {
+          id: r.id as string,
+          text: r.text as string,
+          done: r.done as boolean,
+          isPrivate: (r.is_private as boolean) ?? false,
+          scheduledFor: (r.committed_for_date as string | null) ?? null,
+          blockName: blockRow?.name ?? null,
+          tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map(tt => tt.tag_id),
+          createdAt: r.created_at as string,
+        };
+      }));
       setAllTags((tagsRes.data ?? []) as Tag[]);
       setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
       setLoading(false);
@@ -117,6 +123,7 @@ export default function TasksPage() {
       done: false,
       isPrivate: autoPrivate,
       scheduledFor: null,
+      blockName: null,
       tagIds: tagObjs.map(t => t.id),
       createdAt: row.created_at as string,
     }, ...prev]);
@@ -423,6 +430,7 @@ export default function TasksPage() {
               onTogglePrivate={() => togglePrivate(task.id)}
               onSchedule={(date) => scheduleDate(task.id, date)}
               scheduledFor={task.scheduledFor}
+              blockName={task.blockName}
               addedAt={task.createdAt}
               onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
             />

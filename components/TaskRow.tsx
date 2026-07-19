@@ -15,6 +15,7 @@ type Props = {
   done: boolean;
   isPrivate: boolean;
   scheduledFor: string | null;
+  blockName?: string | null;
   tags: Tag[];
   addedAt: string;
   onToggle: () => void;
@@ -25,7 +26,7 @@ type Props = {
   onRemoveTag: (tagId: string) => void;
 };
 
-export default function TaskRow({ text, done, isPrivate, scheduledFor, tags, addedAt, onToggle, onSave, onDelete, onTogglePrivate, onSchedule, onRemoveTag }: Props) {
+export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName, tags, addedAt, onToggle, onSave, onDelete, onTogglePrivate, onSchedule, onRemoveTag }: Props) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(text);
   const editRef = useRef<HTMLDivElement>(null);
@@ -160,6 +161,29 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, tags, add
             title={new Date(addedAt).toLocaleString()}
           >
             {addedAtLabel(addedAt)}
+          </span>
+        )}
+
+        {/* In-block indicator — small purple chip so users can see this task
+            belongs to a scheduled block. Non-interactive; edits happen inside
+            the block on /today. */}
+        {blockName && (
+          <span
+            className="flex items-center gap-1 text-xs font-semibold px-2 py-0.5 rounded-md border flex-shrink-0 whitespace-nowrap self-start mt-0.5"
+            style={{
+              background: "rgba(124,58,237,0.10)",
+              borderColor: "rgba(124,58,237,0.35)",
+              color: "var(--purple)",
+            }}
+            title={`In block "${blockName}"`}
+          >
+            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="4" width="18" height="18" rx="2" />
+              <line x1="16" y1="2" x2="16" y2="6" />
+              <line x1="8" y1="2" x2="8" y2="6" />
+              <line x1="3" y1="10" x2="21" y2="10" />
+            </svg>
+            <span className="max-w-[100px] truncate">{blockName}</span>
           </span>
         )}
 
