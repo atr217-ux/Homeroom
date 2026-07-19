@@ -480,6 +480,26 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
               {error}
             </div>
           )}
+
+          {/* Duplicate the header Cancel / Create so users don't have to scroll
+              back to the top after filling out the form. */}
+          <div className="flex gap-3 pt-2">
+            <button
+              onClick={onClose}
+              className="flex-1 text-sm font-semibold py-3 rounded-2xl border transition-colors"
+              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text-2)" }}
+            >
+              Cancel
+            </button>
+            <button
+              onClick={save}
+              disabled={saving}
+              className="flex-1 text-sm font-bold py-3 rounded-2xl text-white disabled:opacity-50"
+              style={{ background: "var(--purple)" }}
+            >
+              {saving ? "Creating…" : "Create block"}
+            </button>
+          </div>
         </div>
       </div>
     </div>
