@@ -102,8 +102,12 @@ export default function ScheduleButton({ scheduledFor, onChange }: Props) {
       >
         {isFuture ? (
           <span
-            className="text-xs font-semibold px-2 py-0.5 rounded-full"
-            style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+            className="text-xs font-semibold px-2 py-0.5 rounded-md border"
+            style={{
+              background: "rgba(124,58,237,0.10)",
+              borderColor: "rgba(124,58,237,0.35)",
+              color: "var(--purple)",
+            }}
           >
             {formatPill(scheduledFor)}
           </span>
