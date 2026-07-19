@@ -3,7 +3,9 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { dateKey } from "@/lib/utils/date";
+import { getOrCreateTag, parseHashtags, stripHashtags } from "@/lib/utils/tags";
 import BlockEditModal from "@/components/today/BlockEditModal";
+import type { Tag } from "@/lib/db/types";
 
 type Participant = { id: string; username: string; avatar: string | null };
 type BlockTask = { id: string; text: string; done: boolean; user_id: string };
@@ -46,6 +48,44 @@ export default function UpcomingBlocks({ userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [reloadKey, setReloadKey] = useState(0);
+  // Per-block "add a task" input drafts + in-flight state
+  const [taskDrafts, setTaskDrafts] = useState<Record<string, string>>({});
+  const [addingFor, setAddingFor] = useState<string | null>(null);
+
+  async function addTaskToBlock(blockId: string) {
+    const raw = (taskDrafts[blockId] ?? "").trim();
+    if (!raw || addingFor === blockId) return;
+    const tagNames = parseHashtags(raw);
+    const text = stripHashtags(raw);
+    if (!text) return;
+
+    setAddingFor(blockId);
+    setTaskDrafts((prev) => ({ ...prev, [blockId]: "" }));
+
+    const supabase = createClient();
+    const today = dateKey(new Date());
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        user_id: userId,
+        text,
+        done: false,
+        block_id: blockId,
+        committed_for_date: today,
+      })
+      .select("id")
+      .single();
+
+    if (!error && data && tagNames.length > 0) {
+      const tagObjs = (await Promise.all(tagNames.map((n) => getOrCreateTag(n, supabase, userId)))).filter(Boolean) as Tag[];
+      if (tagObjs.length > 0) {
+        await supabase.from("task_tags").insert(tagObjs.map((t) => ({ task_id: data.id, tag_id: t.id })));
+      }
+    }
+
+    setAddingFor(null);
+    setReloadKey((k) => k + 1);
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -300,9 +340,9 @@ export default function UpcomingBlocks({ userId }: Props) {
                       Tasks · {doneCount}/{b.tasks.length}
                     </div>
                     {b.tasks.length === 0 ? (
-                      <p className="text-xs" style={{ color: "var(--text-3)" }}>No tasks assigned yet</p>
+                      <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>No tasks assigned yet</p>
                     ) : (
-                      <div className="space-y-1">
+                      <div className="space-y-1 mb-2">
                         {b.tasks.map((t) => (
                           <div key={t.id} className="flex items-center gap-2 text-sm">
                             <span
@@ -330,6 +370,35 @@ export default function UpcomingBlocks({ userId }: Props) {
                         ))}
                       </div>
                     )}
+                    {/* Inline quick-add — adds a task to this block for the current user */}
+                    <div className="flex gap-1.5 mt-1">
+                      <input
+                        type="text"
+                        value={taskDrafts[b.id] ?? ""}
+                        onChange={(e) => setTaskDrafts((prev) => ({ ...prev, [b.id]: e.target.value }))}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") { e.preventDefault(); addTaskToBlock(b.id); }
+                        }}
+                        onClick={(e) => e.stopPropagation()}
+                        placeholder="Add a task… (try #category)"
+                        className="flex-1 text-sm rounded-lg px-2.5 py-1.5 focus:outline-none border"
+                        style={{
+                          background: "var(--surface)",
+                          borderColor: "var(--border-2)",
+                          color: "var(--text)",
+                          fontSize: "16px",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        onClick={(e) => { e.stopPropagation(); addTaskToBlock(b.id); }}
+                        disabled={addingFor === b.id || !(taskDrafts[b.id] ?? "").trim()}
+                        className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-40"
+                        style={{ background: "var(--purple)" }}
+                      >
+                        {addingFor === b.id ? "…" : "Add"}
+                      </button>
+                    </div>
                   </div>
 
                   {/* Participants */}
