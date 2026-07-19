@@ -8,7 +8,7 @@ import BlockEditModal from "@/components/today/BlockEditModal";
 import type { Tag } from "@/lib/db/types";
 
 type Participant = { id: string; username: string; avatar: string | null };
-type BlockTask = { id: string; text: string; done: boolean; user_id: string; isShared: boolean };
+type BlockTask = { id: string; text: string; done: boolean; user_id: string; isShared: boolean; isPrivate: boolean };
 
 type UpcomingBlock = {
   id: string;
@@ -96,6 +96,14 @@ export default function UpcomingBlocks({ userId }: Props) {
     await createClient().from("tasks").update({ is_shared: next }).eq("id", taskId);
   }
 
+  async function togglePrivate(taskId: string, next: boolean) {
+    setBlocks((prev) => prev.map((bl) => ({
+      ...bl,
+      tasks: bl.tasks.map((t) => t.id === taskId ? { ...t, isPrivate: next } : t),
+    })));
+    await createClient().from("tasks").update({ is_private: next }).eq("id", taskId);
+  }
+
   useEffect(() => {
     let cancelled = false;
 
@@ -159,7 +167,7 @@ export default function UpcomingBlocks({ userId }: Props) {
       const [tasksRes, invitesFullRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, done, user_id, block_id, is_shared")
+          .select("id, text, done, user_id, block_id, is_shared, is_private")
           .in("block_id", blockIds),
         supabase
           .from("block_invites")
@@ -168,7 +176,7 @@ export default function UpcomingBlocks({ userId }: Props) {
           .in("status", ["invited", "joined"]),
       ]);
 
-      const tasks = (tasksRes.data ?? []) as { id: string; text: string; done: boolean; user_id: string; block_id: string; is_shared: boolean | null }[];
+      const tasks = (tasksRes.data ?? []) as { id: string; text: string; done: boolean; user_id: string; block_id: string; is_shared: boolean | null; is_private: boolean | null }[];
       const invitesAll = (invitesFullRes.data ?? []) as { block_id: string; invited_user_id: string; status: string }[];
 
       // Gather every participant id we need to resolve
@@ -200,7 +208,14 @@ export default function UpcomingBlocks({ userId }: Props) {
         }
         const blockTasks = tasks
           .filter((t) => t.block_id === b.id)
-          .map((t) => ({ id: t.id, text: t.text, done: t.done, user_id: t.user_id, isShared: t.is_shared ?? false }));
+          .map((t) => ({
+            id: t.id,
+            text: t.text,
+            done: t.done,
+            user_id: t.user_id,
+            isShared: t.is_shared ?? false,
+            isPrivate: t.is_private ?? false,
+          }));
         return {
           id: b.id,
           name: b.name,
@@ -377,8 +392,34 @@ export default function UpcomingBlocks({ userId }: Props) {
                               >
                                 {t.text}
                               </span>
-                              {/* Chain-link "Shared" toggle — only the task
-                                  owner can flip it. Others just see the state. */}
+                              {/* Owner-only toggles: privacy (lock) + shared
+                                  (chain link). Non-owners only see the shared
+                                  state as a read-only indicator. */}
+                              {ownTask && (
+                                <button
+                                  type="button"
+                                  onClick={(e) => { e.stopPropagation(); togglePrivate(t.id, !t.isPrivate); }}
+                                  className="flex-shrink-0 p-1 rounded transition-opacity hover:opacity-100"
+                                  style={{
+                                    color: t.isPrivate ? "var(--purple)" : "var(--text-3)",
+                                    opacity: t.isPrivate ? 1 : 0.5,
+                                  }}
+                                  title={t.isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
+                                  aria-label={t.isPrivate ? "Make public" : "Make private"}
+                                >
+                                  {t.isPrivate ? (
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                  ) : (
+                                    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
                               {ownTask ? (
                                 <button
                                   type="button"
