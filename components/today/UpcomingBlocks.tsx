@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import { dateKey } from "@/lib/utils/date";
+import BlockEditModal from "@/components/today/BlockEditModal";
 
 type Participant = { id: string; username: string; avatar: string | null };
 type BlockTask = { id: string; text: string; done: boolean; user_id: string };
@@ -14,12 +15,12 @@ type UpcomingBlock = {
   endTime: string;
   ownerId: string;
   participants: Participant[];
+  invitedIds: string[]; // excludes host
   tasks: BlockTask[];
 };
 
 type Props = {
   userId: string;
-  onEditBlock?: (blockId: string) => void;
 };
 
 // "HH:MM[:SS]" -> "1:00 PM"
@@ -39,10 +40,12 @@ function toMinutes(t: string | null): number {
   return h * 60 + (m || 0);
 }
 
-export default function UpcomingBlocks({ userId, onEditBlock }: Props) {
+export default function UpcomingBlocks({ userId }: Props) {
   const [blocks, setBlocks] = useState<UpcomingBlock[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
 
   useEffect(() => {
     let cancelled = false;
@@ -136,11 +139,13 @@ export default function UpcomingBlocks({ userId, onEditBlock }: Props) {
 
       const result: UpcomingBlock[] = merged.map((b) => {
         const parts: Participant[] = [];
+        const invitedForBlock: string[] = [];
         const owner = profileById.get(b.ownerId);
         if (owner) parts.push(owner);
         for (const i of invitesAll) {
           if (i.block_id !== b.id) continue;
           if (i.invited_user_id === b.ownerId) continue;
+          invitedForBlock.push(i.invited_user_id);
           const p = profileById.get(i.invited_user_id);
           if (p) parts.push(p);
         }
@@ -154,6 +159,7 @@ export default function UpcomingBlocks({ userId, onEditBlock }: Props) {
           endTime: b.endTime,
           ownerId: b.ownerId,
           participants: parts,
+          invitedIds: invitedForBlock,
           tasks: blockTasks,
         };
       });
@@ -178,7 +184,7 @@ export default function UpcomingBlocks({ userId, onEditBlock }: Props) {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [userId]);
+  }, [userId, reloadKey]);
 
   if (loading || blocks.length === 0) return null;
 
@@ -349,11 +355,11 @@ export default function UpcomingBlocks({ userId, onEditBlock }: Props) {
                   </div>
 
                   {/* Owner-only actions */}
-                  {isOwner && onEditBlock && (
+                  {isOwner && (
                     <div className="pt-1">
                       <button
                         type="button"
-                        onClick={(e) => { e.stopPropagation(); onEditBlock(b.id); }}
+                        onClick={(e) => { e.stopPropagation(); setEditingId(b.id); }}
                         className="w-full text-xs font-semibold py-2 rounded-xl border transition-colors"
                         style={{ background: "var(--surface)", borderColor: "var(--purple)", color: "var(--purple)" }}
                       >
@@ -367,6 +373,32 @@ export default function UpcomingBlocks({ userId, onEditBlock }: Props) {
           );
         })}
       </div>
+
+      {editingId && (() => {
+        const target = blocks.find((b) => b.id === editingId);
+        if (!target) return null;
+        return (
+          <BlockEditModal
+            userId={userId}
+            block={{
+              id: target.id,
+              name: target.name,
+              startTime: target.startTime,
+              endTime: target.endTime,
+              invitedIds: target.invitedIds,
+            }}
+            onClose={() => setEditingId(null)}
+            onSaved={() => {
+              setEditingId(null);
+              setReloadKey((k) => k + 1);
+            }}
+            onDeleted={() => {
+              setEditingId(null);
+              setReloadKey((k) => k + 1);
+            }}
+          />
+        );
+      })()}
     </div>
   );
 }
