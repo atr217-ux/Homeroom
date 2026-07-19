@@ -187,8 +187,12 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockName
           </span>
         )}
 
-        {/* Schedule / Today — opens popover with Today, Tomorrow, custom date, Clear */}
-        <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
+        {/* Schedule / Today — opens popover with Today, Tomorrow, custom date, Clear.
+            Hidden when a block chip is already present, since the block implies
+            the schedule and rendering both was too busy. */}
+        {!blockName && (
+          <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
+        )}
 
         {/* Privacy toggle — state indicator, always visible */}
         <button
