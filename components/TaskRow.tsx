@@ -202,9 +202,10 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
           )}
         </div>
 
-        {/* Right-side column — padlock + kebab up top, added-at label below
-            with its right edge aligning to the lock icon. */}
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 self-start mt-0.5">
+        {/* Right-side column — padlock + kebab pinned to the top, added-at
+            label pinned to the bottom of the row's full height, both
+            right-edge-aligned to the lock icon. */}
+        <div className="flex flex-col items-end justify-between gap-0.5 flex-shrink-0 self-stretch mt-0.5">
           <div className="flex items-center gap-2">
 
         {/* Privacy padlock — always visible top-right so state is instantly

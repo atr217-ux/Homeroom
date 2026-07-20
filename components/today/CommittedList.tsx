@@ -806,7 +806,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                           ✕
                         </button>
                       ) : (
-                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                        <div className="flex flex-col items-end justify-between gap-0.5 flex-shrink-0 self-stretch">
                           <div className="flex items-center gap-2.5">
                             <span
                               className="text-xs font-mono w-10 text-right tabular-nums"
