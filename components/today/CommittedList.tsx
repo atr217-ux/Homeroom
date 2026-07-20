@@ -824,28 +824,38 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                 <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                               </svg>
                             </button>
-                            <button
-                              onClick={() => togglePrivate(t.id)}
-                              className="p-1 rounded transition-opacity hover:opacity-100"
-                              style={{ color: t.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: t.isPrivate ? 1 : 0.5 }}
-                              title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
-                              aria-label={t.isPrivate ? "Make public" : "Make private"}
-                            >
-                              {t.isPrivate ? (
+                            {t.isPrivate && (
+                              <button
+                                onClick={() => togglePrivate(t.id)}
+                                className="p-1 rounded transition-opacity hover:opacity-100"
+                                style={{ color: "var(--purple)" }}
+                                title="Private — only you can see this. Tap to make public."
+                                aria-label="Make public"
+                              >
                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                   <rect x="3" y="11" width="18" height="11" rx="2" />
                                   <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                 </svg>
-                              ) : (
-                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                  <rect x="3" y="11" width="18" height="11" rx="2" />
-                                  <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                                </svg>
-                              )}
-                            </button>
+                              </button>
+                            )}
                             {hasHover && (
                               <MoreMenu
                                 items={[
+                                  {
+                                    label: t.isPrivate ? "Make public" : "Make private",
+                                    onClick: () => togglePrivate(t.id),
+                                    icon: t.isPrivate ? (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                                      </svg>
+                                    ) : (
+                                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                      </svg>
+                                    ),
+                                  },
                                   {
                                     label: "Remove from today",
                                     onClick: () => removeFromToday(t.id),
