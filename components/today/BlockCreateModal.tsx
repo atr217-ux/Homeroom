@@ -17,6 +17,16 @@ function formatSchedulePill(iso: string): string {
   return `${wk} ${d.getMonth() + 1}/${d.getDate()}`;
 }
 
+// Add a duration (hours + minutes) to a "HH:MM" start time and return the
+// resulting "HH:MM" end time. Wraps at midnight.
+function endTimeFromDuration(start: string, h: number, m: number): string {
+  const [sh, sm] = start.split(":").map(Number);
+  const total = (sh * 60 + (sm || 0) + h * 60 + m) % (24 * 60);
+  const eh = Math.floor(total / 60);
+  const em = total % 60;
+  return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+}
+
 type Props = {
   userId: string;
   onClose: () => void;
@@ -32,17 +42,13 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
     d.setHours(d.getHours() + 1);
     return `${String(d.getHours()).padStart(2, "0")}:00`;
   }, []);
-  const defaultEnd = useMemo(() => {
-    const d = new Date();
-    d.setMinutes(0, 0, 0);
-    d.setHours(d.getHours() + 2);
-    return `${String(d.getHours()).padStart(2, "0")}:00`;
-  }, []);
-
   const [name, setName] = useState("Focus block");
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState(defaultStart);
-  const [endTime, setEndTime] = useState(defaultEnd);
+  // Duration replaces the raw end-time picker — the user chooses a length
+  // (in hours + minutes) and we compute end_time from start + duration.
+  const [durationH, setDurationH] = useState(1);
+  const [durationM, setDurationM] = useState(0);
 
   const [friends, setFriends] = useState<FriendOption[]>([]);
   const [invitedIds, setInvitedIds] = useState<Set<string>>(new Set());
@@ -140,8 +146,9 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
   async function save() {
     setError(null);
     if (!name.trim()) { setError("Give the block a name"); return; }
-    if (!startTime || !endTime) { setError("Pick start and end times"); return; }
-    if (startTime >= endTime) { setError("End time must be after start time"); return; }
+    if (!startTime) { setError("Pick a start time"); return; }
+    if (durationH === 0 && durationM === 0) { setError("Set a block length"); return; }
+    const endTime = endTimeFromDuration(startTime, durationH, durationM);
     setSaving(true);
 
     const supabase = createClient();
@@ -255,8 +262,8 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             />
           </div>
 
-          {/* Date + times */}
-          <div className="grid grid-cols-3 gap-2">
+          {/* Date + Start */}
+          <div className="grid grid-cols-2 gap-2">
             <div>
               <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>Date</label>
               <input
@@ -277,15 +284,83 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                 style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
               />
             </div>
-            <div>
-              <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>End</label>
-              <input
-                type="time"
-                value={endTime}
-                onChange={(e) => setEndTime(e.target.value)}
-                className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border"
-                style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
-              />
+          </div>
+
+          {/* Length — +/- steppers for hours and minutes with typeable input.
+              End time is derived below the row. */}
+          <div>
+            <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>
+              Length
+            </label>
+            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}>
+              {/* Hours stepper */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setDurationH((h) => Math.max(0, h - 1))}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
+                  aria-label="Decrease hours"
+                >−</button>
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={durationH}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v))));
+                  }}
+                  className="w-10 text-center bg-transparent focus:outline-none tabular-nums"
+                  style={{ color: "var(--text)", fontSize: "16px" }}
+                  aria-label="Hours"
+                />
+                <span className="text-xs" style={{ color: "var(--text-2)" }}>h</span>
+                <button
+                  type="button"
+                  onClick={() => setDurationH((h) => Math.min(23, h + 1))}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
+                  aria-label="Increase hours"
+                >+</button>
+              </div>
+              <span className="mx-1 text-xs" style={{ color: "var(--text-3)" }}>·</span>
+              {/* Minutes stepper */}
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  onClick={() => setDurationM((m) => (m - 5 + 60) % 60)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
+                  aria-label="Decrease minutes"
+                >−</button>
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  step={5}
+                  value={durationM}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v))));
+                  }}
+                  className="w-10 text-center bg-transparent focus:outline-none tabular-nums"
+                  style={{ color: "var(--text)", fontSize: "16px" }}
+                  aria-label="Minutes"
+                />
+                <span className="text-xs" style={{ color: "var(--text-2)" }}>m</span>
+                <button
+                  type="button"
+                  onClick={() => setDurationM((m) => (m + 5) % 60)}
+                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
+                  aria-label="Increase minutes"
+                >+</button>
+              </div>
+              {/* Derived end time — helpful context */}
+              <span className="ml-auto text-xs tabular-nums" style={{ color: "var(--text-3)" }}>
+                ends {endTimeFromDuration(startTime, durationH, durationM)}
+              </span>
             </div>
           </div>
 
