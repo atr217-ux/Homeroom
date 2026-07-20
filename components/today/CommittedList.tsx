@@ -783,15 +783,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             {t.text}
                           </button>
                         )}
-                        {!isEditing && (
+                        {t.tagIds.length > 0 && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">
-                            <span
-                              className="text-xs whitespace-nowrap"
-                              style={{ color: "var(--text-3)" }}
-                              title={new Date(t.createdAt).toLocaleString()}
-                            >
-                              {addedAtLabel(t.createdAt)}
-                            </span>
                             {t.tagIds.map((tid) => {
                               const tag = allTags.find((tg) => tg.id === tid);
                               if (!tag) return null;
@@ -813,7 +806,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                           ✕
                         </button>
                       ) : (
-                        <div className="flex items-center gap-2.5 flex-shrink-0">
+                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
+                          <div className="flex items-center gap-2.5">
                             <span
                               className="text-xs font-mono w-10 text-right tabular-nums"
                               style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
@@ -877,6 +871,14 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                 ]}
                               />
                             )}
+                          </div>
+                          <span
+                            className="text-xs whitespace-nowrap"
+                            style={{ color: "var(--text-3)" }}
+                            title={new Date(t.createdAt).toLocaleString()}
+                          >
+                            {addedAtLabel(t.createdAt)}
+                          </span>
                         </div>
                       )}
                     </div>

@@ -158,15 +158,11 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
               block chip, tags, and added-at as the last right-justified item.
               flex-wrap lets extra hashtags spill onto a second line and push
               the added-at label down with them. */}
+          {/* Metadata row — schedule chip / block chip / tags. Added-at now
+              lives in the right column below the padlock so its right edge
+              aligns with the lock button. */}
           {!editing && (
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              <span
-                className="text-xs whitespace-nowrap"
-                style={{ color: "var(--text-3)" }}
-                title={new Date(addedAt).toLocaleString()}
-              >
-                {addedAtLabel(addedAt)}
-              </span>
               {!blockName && (
                 <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
               )}
@@ -206,10 +202,10 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
           )}
         </div>
 
-        {/* Right-side controls — actions only. Anchored to first line of text.
-            Added-at moved out of here and into the metadata row below the
-            text so tag overflow can push it down. */}
-        <div className="flex items-center gap-2 flex-shrink-0 self-start mt-0.5">
+        {/* Right-side column — padlock + kebab up top, added-at label below
+            with its right edge aligning to the lock icon. */}
+        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 self-start mt-0.5">
+          <div className="flex items-center gap-2">
 
         {/* Privacy padlock — always visible top-right so state is instantly
             legible and the toggle stays discoverable. Purple + full opacity
@@ -251,6 +247,16 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
             ]}
           />
         )}
+          </div>
+          {!editing && (
+            <span
+              className="text-xs whitespace-nowrap"
+              style={{ color: "var(--text-3)" }}
+              title={new Date(addedAt).toLocaleString()}
+            >
+              {addedAtLabel(addedAt)}
+            </span>
+          )}
         </div>
       </div>
 
