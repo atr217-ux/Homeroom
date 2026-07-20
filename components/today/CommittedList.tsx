@@ -78,6 +78,17 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [commitment, setCommitment] = useState("");
   const [editingCommitment, setEditingCommitment] = useState(false);
   const [focusCollapsed, setFocusCollapsed] = useState(false);
+  // Rehydrate the focus collapse preference from localStorage on mount and
+  // mirror it back whenever it changes. Purely client-side; safe to read
+  // inside an effect (skipped during SSR).
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    setFocusCollapsed(localStorage.getItem("homeroom-focus-collapsed") === "1");
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    localStorage.setItem("homeroom-focus-collapsed", focusCollapsed ? "1" : "0");
+  }, [focusCollapsed]);
   const [autoPrivate, setAutoPrivate] = useState(false);
   const [doneCollapsed, setDoneCollapsed] = useState(true);
   const [notes, setNotes] = useState("");
