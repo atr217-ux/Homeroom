@@ -286,104 +286,82 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             </div>
           </div>
 
-          {/* Length — two big stepper tiles side by side, hours and minutes.
-              Each tile has an up chevron on top, big centered number in the
-              middle (typeable), unit label, and down chevron on the bottom.
-              Derived end time renders under the tiles as helpful context. */}
+          {/* Length — horizontal clock-style [+] N [-] : [+] NN [-]. Square
+              purple-outline stepper buttons, big purple digits in between.
+              Numbers are typeable inputs. Ends-at label sits underneath. */}
           <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>
-              Length
+            <label className="text-sm font-bold mb-2 block" style={{ color: "var(--text)" }}>
+              How long are you committing?
             </label>
-            <div className="grid grid-cols-2 gap-3">
-              {/* Hours tile */}
-              <div
-                className="rounded-2xl border flex flex-col items-center py-3"
-                style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+            <div className="flex items-center justify-center gap-2">
+              {/* Hours + */}
+              <button
+                type="button"
+                onClick={() => setDurationH((h) => Math.min(23, h + 1))}
+                className="w-12 h-12 rounded-xl flex items-center justify-center border-2 text-2xl font-medium transition-colors"
+                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
+                aria-label="Increase hours"
               >
-                <button
-                  type="button"
-                  onClick={() => setDurationH((h) => Math.min(23, h + 1))}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
-                  style={{ color: "var(--purple)" }}
-                  aria-label="Increase hours"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="18 15 12 9 6 15" />
-                  </svg>
-                </button>
-                <input
-                  type="number"
-                  min={0}
-                  max={23}
-                  value={durationH}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v))));
-                  }}
-                  className="w-16 text-center bg-transparent focus:outline-none tabular-nums font-display"
-                  style={{ color: "var(--text)", fontSize: "2rem", lineHeight: 1 }}
-                  aria-label="Hours"
-                />
-                <span className="text-[10px] font-semibold uppercase tracking-widest mt-1" style={{ color: "var(--text-2)" }}>
-                  hours
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setDurationH((h) => Math.max(0, h - 1))}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100 mt-1"
-                  style={{ color: "var(--purple)" }}
-                  aria-label="Decrease hours"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-              </div>
-              {/* Minutes tile */}
-              <div
-                className="rounded-2xl border flex flex-col items-center py-3"
-                style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+                +
+              </button>
+              <input
+                type="number"
+                min={0}
+                max={23}
+                value={durationH}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v))));
+                }}
+                className="w-12 text-center bg-transparent focus:outline-none tabular-nums font-bold"
+                style={{ color: "var(--purple)", fontSize: "2rem", lineHeight: 1 }}
+                aria-label="Hours"
+              />
+              {/* Hours − */}
+              <button
+                type="button"
+                onClick={() => setDurationH((h) => Math.max(0, h - 1))}
+                className="w-12 h-12 rounded-xl flex items-center justify-center border-2 text-2xl font-medium transition-colors"
+                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
+                aria-label="Decrease hours"
               >
-                <button
-                  type="button"
-                  onClick={() => setDurationM((m) => (m + 5) % 60)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
-                  style={{ color: "var(--purple)" }}
-                  aria-label="Increase minutes"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="18 15 12 9 6 15" />
-                  </svg>
-                </button>
-                <input
-                  type="number"
-                  min={0}
-                  max={59}
-                  step={5}
-                  value={durationM}
-                  onChange={(e) => {
-                    const v = Number(e.target.value);
-                    if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v))));
-                  }}
-                  className="w-16 text-center bg-transparent focus:outline-none tabular-nums font-display"
-                  style={{ color: "var(--text)", fontSize: "2rem", lineHeight: 1 }}
-                  aria-label="Minutes"
-                />
-                <span className="text-[10px] font-semibold uppercase tracking-widest mt-1" style={{ color: "var(--text-2)" }}>
-                  minutes
-                </span>
-                <button
-                  type="button"
-                  onClick={() => setDurationM((m) => (m - 5 + 60) % 60)}
-                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100 mt-1"
-                  style={{ color: "var(--purple)" }}
-                  aria-label="Decrease minutes"
-                >
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="6 9 12 15 18 9" />
-                  </svg>
-                </button>
-              </div>
+                −
+              </button>
+              <span className="mx-1 font-bold tabular-nums" style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
+              {/* Minutes + */}
+              <button
+                type="button"
+                onClick={() => setDurationM((m) => (m + 5) % 60)}
+                className="w-12 h-12 rounded-xl flex items-center justify-center border-2 text-2xl font-medium transition-colors"
+                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
+                aria-label="Increase minutes"
+              >
+                +
+              </button>
+              <input
+                type="number"
+                min={0}
+                max={59}
+                step={5}
+                value={String(durationM).padStart(2, "0")}
+                onChange={(e) => {
+                  const v = Number(e.target.value);
+                  if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v))));
+                }}
+                className="w-14 text-center bg-transparent focus:outline-none tabular-nums font-bold"
+                style={{ color: "var(--purple)", fontSize: "2rem", lineHeight: 1 }}
+                aria-label="Minutes"
+              />
+              {/* Minutes − */}
+              <button
+                type="button"
+                onClick={() => setDurationM((m) => (m - 5 + 60) % 60)}
+                className="w-12 h-12 rounded-xl flex items-center justify-center border-2 text-2xl font-medium transition-colors"
+                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
+                aria-label="Decrease minutes"
+              >
+                −
+              </button>
             </div>
             <div className="text-xs text-center mt-2 tabular-nums" style={{ color: "var(--text-3)" }}>
               Ends at {endTimeFromDuration(startTime, durationH, durationM)}
