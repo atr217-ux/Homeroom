@@ -286,22 +286,31 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             </div>
           </div>
 
-          {/* Length — +/- steppers for hours and minutes with typeable input.
-              End time is derived below the row. */}
+          {/* Length — two big stepper tiles side by side, hours and minutes.
+              Each tile has an up chevron on top, big centered number in the
+              middle (typeable), unit label, and down chevron on the bottom.
+              Derived end time renders under the tiles as helpful context. */}
           <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>
               Length
             </label>
-            <div className="flex items-center gap-2 rounded-xl border px-3 py-2" style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}>
-              {/* Hours stepper */}
-              <div className="flex items-center gap-1">
+            <div className="grid grid-cols-2 gap-3">
+              {/* Hours tile */}
+              <div
+                className="rounded-2xl border flex flex-col items-center py-3"
+                style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+              >
                 <button
                   type="button"
-                  onClick={() => setDurationH((h) => Math.max(0, h - 1))}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
-                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
-                  aria-label="Decrease hours"
-                >−</button>
+                  onClick={() => setDurationH((h) => Math.min(23, h + 1))}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+                  style={{ color: "var(--purple)" }}
+                  aria-label="Increase hours"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
                 <input
                   type="number"
                   min={0}
@@ -311,29 +320,41 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     const v = Number(e.target.value);
                     if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v))));
                   }}
-                  className="w-10 text-center bg-transparent focus:outline-none tabular-nums"
-                  style={{ color: "var(--text)", fontSize: "16px" }}
+                  className="w-16 text-center bg-transparent focus:outline-none tabular-nums font-display"
+                  style={{ color: "var(--text)", fontSize: "2rem", lineHeight: 1 }}
                   aria-label="Hours"
                 />
-                <span className="text-xs" style={{ color: "var(--text-2)" }}>h</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest mt-1" style={{ color: "var(--text-2)" }}>
+                  hours
+                </span>
                 <button
                   type="button"
-                  onClick={() => setDurationH((h) => Math.min(23, h + 1))}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
-                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
-                  aria-label="Increase hours"
-                >+</button>
+                  onClick={() => setDurationH((h) => Math.max(0, h - 1))}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100 mt-1"
+                  style={{ color: "var(--purple)" }}
+                  aria-label="Decrease hours"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
               </div>
-              <span className="mx-1 text-xs" style={{ color: "var(--text-3)" }}>·</span>
-              {/* Minutes stepper */}
-              <div className="flex items-center gap-1">
+              {/* Minutes tile */}
+              <div
+                className="rounded-2xl border flex flex-col items-center py-3"
+                style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+              >
                 <button
                   type="button"
-                  onClick={() => setDurationM((m) => (m - 5 + 60) % 60)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
-                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
-                  aria-label="Decrease minutes"
-                >−</button>
+                  onClick={() => setDurationM((m) => (m + 5) % 60)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+                  style={{ color: "var(--purple)" }}
+                  aria-label="Increase minutes"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
                 <input
                   type="number"
                   min={0}
@@ -344,23 +365,28 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     const v = Number(e.target.value);
                     if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v))));
                   }}
-                  className="w-10 text-center bg-transparent focus:outline-none tabular-nums"
-                  style={{ color: "var(--text)", fontSize: "16px" }}
+                  className="w-16 text-center bg-transparent focus:outline-none tabular-nums font-display"
+                  style={{ color: "var(--text)", fontSize: "2rem", lineHeight: 1 }}
                   aria-label="Minutes"
                 />
-                <span className="text-xs" style={{ color: "var(--text-2)" }}>m</span>
+                <span className="text-[10px] font-semibold uppercase tracking-widest mt-1" style={{ color: "var(--text-2)" }}>
+                  minutes
+                </span>
                 <button
                   type="button"
-                  onClick={() => setDurationM((m) => (m + 5) % 60)}
-                  className="w-7 h-7 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
-                  style={{ background: "rgba(124,58,237,0.10)", color: "var(--purple)" }}
-                  aria-label="Increase minutes"
-                >+</button>
+                  onClick={() => setDurationM((m) => (m - 5 + 60) % 60)}
+                  className="w-8 h-8 rounded-full flex items-center justify-center transition-opacity hover:opacity-100 mt-1"
+                  style={{ color: "var(--purple)" }}
+                  aria-label="Decrease minutes"
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="6 9 12 15 18 9" />
+                  </svg>
+                </button>
               </div>
-              {/* Derived end time — helpful context */}
-              <span className="ml-auto text-xs tabular-nums" style={{ color: "var(--text-3)" }}>
-                ends {endTimeFromDuration(startTime, durationH, durationM)}
-              </span>
+            </div>
+            <div className="text-xs text-center mt-2 tabular-nums" style={{ color: "var(--text-3)" }}>
+              Ends at {endTimeFromDuration(startTime, durationH, durationM)}
             </div>
           </div>
 
