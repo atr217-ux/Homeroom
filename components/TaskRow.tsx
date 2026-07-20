@@ -154,53 +154,85 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
             </button>
           )}
 
-          {/* Todoist-style metadata row below the task text — schedule chip,
-              block chip, tags, and added-at as the last right-justified item.
-              flex-wrap lets extra hashtags spill onto a second line and push
-              the added-at label down with them. */}
-          {/* Metadata row — schedule chip / block chip / tags. Added-at now
-              lives in the right column below the padlock so its right edge
-              aligns with the lock button. */}
-          {/* Metadata row below the task text — schedule/block chip + tags on
-              the left, added-at pushed to the far right with ml-auto. Moving
-              the date here (instead of the right column) lets the task text
-              span nearly full width, Todoist-style. */}
+          {/* Bottom row — hashtags + schedule/block chip + added-at on the
+              left, lock (and more menu on hover) on the right. Keeps the
+              task text line above uncluttered. */}
           {!editing && (
-            <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
-              {!blockName && (
-                <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
-              )}
-              {blockName && (
-                <button
-                  type="button"
-                  onClick={(e) => { e.stopPropagation(); if (blockId) setBlockInfoOpen(true); }}
-                  className="flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md border whitespace-nowrap transition-opacity hover:opacity-100"
-                  style={{
-                    background: "rgba(124,58,237,0.10)",
-                    borderColor: "rgba(124,58,237,0.35)",
-                    color: "var(--purple)",
-                  }}
-                  title={`In block "${blockName}" — tap for details`}
+            <div className="flex items-center justify-between gap-2 mt-1.5">
+              <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                {!blockName && (
+                  <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
+                )}
+                {blockName && (
+                  <button
+                    type="button"
+                    onClick={(e) => { e.stopPropagation(); if (blockId) setBlockInfoOpen(true); }}
+                    className="flex items-center gap-0.5 text-[11px] font-semibold px-1.5 py-0.5 rounded-md border whitespace-nowrap transition-opacity hover:opacity-100"
+                    style={{
+                      background: "rgba(124,58,237,0.10)",
+                      borderColor: "rgba(124,58,237,0.35)",
+                      color: "var(--purple)",
+                    }}
+                    title={`In block "${blockName}" — tap for details`}
+                  >
+                    <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="4" width="18" height="18" rx="2" />
+                      <line x1="16" y1="2" x2="16" y2="6" />
+                      <line x1="8" y1="2" x2="8" y2="6" />
+                      <line x1="3" y1="10" x2="21" y2="10" />
+                    </svg>
+                    <span className="max-w-[100px] truncate">{blockName}</span>
+                  </button>
+                )}
+                {tags.map((tag) => (
+                  <TagChip key={tag.id} tag={tag} hasHover={hasHover} forceVisible={editing} onRemove={() => onRemoveTag(tag.id)} />
+                ))}
+                <span
+                  className="text-xs whitespace-nowrap"
+                  style={{ color: "var(--text-3)" }}
+                  title={new Date(addedAt).toLocaleString()}
                 >
-                  <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="3" y="4" width="18" height="18" rx="2" />
-                    <line x1="16" y1="2" x2="16" y2="6" />
-                    <line x1="8" y1="2" x2="8" y2="6" />
-                    <line x1="3" y1="10" x2="21" y2="10" />
-                  </svg>
-                  <span className="max-w-[100px] truncate">{blockName}</span>
+                  {addedAtLabel(addedAt)}
+                </span>
+              </div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <button
+                  onClick={onTogglePrivate}
+                  className="p-1 rounded transition-opacity hover:opacity-100"
+                  style={{ color: isPrivate ? "var(--purple)" : "var(--text-3)", opacity: isPrivate ? 1 : 0.5 }}
+                  title={isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
+                  aria-label={isPrivate ? "Make public" : "Make private"}
+                >
+                  {isPrivate ? (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  ) : (
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                    </svg>
+                  )}
                 </button>
-              )}
-              {tags.map((tag) => (
-                <TagChip key={tag.id} tag={tag} hasHover={hasHover} forceVisible={editing} onRemove={() => onRemoveTag(tag.id)} />
-              ))}
-              <span
-                className="ml-auto text-xs whitespace-nowrap"
-                style={{ color: "var(--text-3)" }}
-                title={new Date(addedAt).toLocaleString()}
-              >
-                {addedAtLabel(addedAt)}
-              </span>
+                {hasHover && (
+                  <MoreMenu
+                    items={[
+                      {
+                        label: "Delete",
+                        destructive: true,
+                        onClick: onDelete,
+                        icon: (
+                          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
+                            <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
+                          </svg>
+                        ),
+                      },
+                    ]}
+                  />
+                )}
+              </div>
             </div>
           )}
           {/* In edit mode we still want the tag chips reachable */}
@@ -211,52 +243,6 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
               ))}
             </div>
           )}
-        </div>
-
-        {/* Right-side controls — just padlock + kebab so the task text can
-            span nearly full width. Added-at moved into the metadata row. */}
-        <div className="flex items-center gap-2 flex-shrink-0 self-start mt-0.5">
-
-        {/* Privacy padlock — always visible top-right so state is instantly
-            legible and the toggle stays discoverable. Purple + full opacity
-            when private, muted when public. */}
-        <button
-          onClick={onTogglePrivate}
-          className="p-1 rounded transition-opacity hover:opacity-100"
-          style={{ color: isPrivate ? "var(--purple)" : "var(--text-3)", opacity: isPrivate ? 1 : 0.5 }}
-          title={isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
-          aria-label={isPrivate ? "Make public" : "Make private"}
-        >
-          {isPrivate ? (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-            </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-            </svg>
-          )}
-        </button>
-
-        {hasHover && !editing && (
-          <MoreMenu
-            items={[
-              {
-                label: "Delete",
-                destructive: true,
-                onClick: onDelete,
-                icon: (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <polyline points="3 6 5 6 21 6" /><path d="M19 6l-1 14a2 2 0 01-2 2H8a2 2 0 01-2-2L5 6" />
-                    <path d="M10 11v6M14 11v6" /><path d="M9 6V4a1 1 0 011-1h4a1 1 0 011 1v2" />
-                  </svg>
-                ),
-              },
-            ]}
-          />
-        )}
         </div>
       </div>
 
