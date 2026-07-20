@@ -155,8 +155,9 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
           )}
 
           {/* Todoist-style metadata row below the task text — schedule chip,
-              block chip, tags. Schedule chip is always present as an entry
-              point; block chip replaces it when a block is set. */}
+              block chip, tags, and added-at as the last right-justified item.
+              flex-wrap lets extra hashtags spill onto a second line and push
+              the added-at label down with them. */}
           {!editing && (
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {!blockName && (
@@ -186,6 +187,13 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
               {tags.map((tag) => (
                 <TagChip key={tag.id} tag={tag} hasHover={hasHover} forceVisible={editing} onRemove={() => onRemoveTag(tag.id)} />
               ))}
+              <span
+                className="ml-auto text-xs whitespace-nowrap"
+                style={{ color: "var(--text-3)" }}
+                title={new Date(addedAt).toLocaleString()}
+              >
+                {addedAtLabel(addedAt)}
+              </span>
             </div>
           )}
           {/* In edit mode we still want the tag chips reachable */}
@@ -198,10 +206,10 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
           )}
         </div>
 
-        {/* Right-side controls — actions only (Todoist keeps this column
-            slim). self-start + mt-0.5 anchors to the first line of text. */}
-        <div className="flex flex-col items-end gap-0.5 flex-shrink-0 self-start mt-0.5">
-          <div className="flex items-center gap-2">
+        {/* Right-side controls — actions only. Anchored to first line of text.
+            Added-at moved out of here and into the metadata row below the
+            text so tag overflow can push it down. */}
+        <div className="flex items-center gap-2 flex-shrink-0 self-start mt-0.5">
 
         {/* Privacy padlock — always visible top-right so state is instantly
             legible and the toggle stays discoverable. Purple + full opacity
@@ -243,16 +251,6 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
             ]}
           />
         )}
-          </div>
-          {!editing && (
-            <span
-              className="text-xs whitespace-nowrap pr-1"
-              style={{ color: "var(--text-3)" }}
-              title={new Date(addedAt).toLocaleString()}
-            >
-              {addedAtLabel(addedAt)}
-            </span>
-          )}
         </div>
       </div>
 

@@ -783,7 +783,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                             {t.text}
                           </button>
                         )}
-                        {t.tagIds.length > 0 && (
+                        {!isEditing && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">
                             {t.tagIds.map((tid) => {
                               const tag = allTags.find((tg) => tg.id === tid);
@@ -798,6 +798,13 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                 />
                               );
                             })}
+                            <span
+                              className="ml-auto text-xs whitespace-nowrap"
+                              style={{ color: "var(--text-3)" }}
+                              title={new Date(t.createdAt).toLocaleString()}
+                            >
+                              {addedAtLabel(t.createdAt)}
+                            </span>
                           </div>
                         )}
                       </div>
@@ -806,8 +813,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                           ✕
                         </button>
                       ) : (
-                        <div className="flex flex-col items-end gap-0.5 flex-shrink-0">
-                          <div className="flex items-center gap-2.5">
+                        <div className="flex items-center gap-2.5 flex-shrink-0">
                             <span
                               className="text-xs font-mono w-10 text-right tabular-nums"
                               style={{ color: running ? "var(--purple)" : "var(--text-2)", opacity: e > 0 || running ? 1 : 0 }}
@@ -871,14 +877,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                 ]}
                               />
                             )}
-                          </div>
-                          <span
-                            className="text-xs whitespace-nowrap pr-1"
-                            style={{ color: "var(--text-3)" }}
-                            title={new Date(t.createdAt).toLocaleString()}
-                          >
-                            {addedAtLabel(t.createdAt)}
-                          </span>
                         </div>
                       )}
                     </div>
