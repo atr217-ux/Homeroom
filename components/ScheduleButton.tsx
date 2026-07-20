@@ -38,7 +38,10 @@ export default function ScheduleButton({ scheduledFor, onChange }: Props) {
   const today = dateKey(new Date());
   const isToday = scheduledFor === today;
   const isFuture = !!scheduledFor && scheduledFor > today;
-  const isScheduled = !!scheduledFor;
+  // Past dates should render like "unscheduled" (gray plus icon), not the
+  // scheduled-purple state, otherwise a stale committed_for_date from a
+  // previous day leaves the icon looking active.
+  const isScheduled = isToday || isFuture;
 
   // Recompute popover position based on the trigger's bounding rect
   function recompute() {
