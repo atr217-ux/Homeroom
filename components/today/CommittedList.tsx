@@ -852,8 +852,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               onDragEnd={handleDragEnd}
             >
               <SortableContext items={undone.map((t) => t.id)} strategy={verticalListSortingStrategy}>
-                <div className="space-y-0.5">
-                  {undone.map((t) => {
+                <div>
+                  {undone.map((t, i) => {
                     const e = elapsed(t);
                     const running = t.startedAt !== null;
                     const isEditing = editingId === t.id;
@@ -895,6 +895,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                           ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
                           : "var(--surface)",
                         cursor: dragListeners ? "grab" : undefined,
+                        borderTop: i > 0 ? "1px solid var(--border)" : undefined,
                       }}
                     >
                       <button
@@ -1064,8 +1065,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                   <span>Done ({done.length})</span>
                 </button>
                 {!doneCollapsed && (
-                <div className="space-y-0.5">
-                {done.map((t) => (
+                <div>
+                {done.map((t, i) => (
                   <SwipeableRow
                     key={t.id}
                     rightActions={[
@@ -1083,7 +1084,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       },
                     ]}
                   >
-                    <div className="group flex items-start gap-3 px-3 py-2.5" style={{ background: "var(--surface)" }}>
+                    <div className="group flex items-start gap-3 px-3 py-2.5" style={{ background: "var(--surface)", borderTop: i > 0 ? "1px solid var(--border)" : undefined }}>
                       <button
                         onClick={() => toggleDone(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5"
