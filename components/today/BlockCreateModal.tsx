@@ -296,7 +296,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             />
           </div>
 
-          {/* Start — custom clock-style picker matching the Length control */}
+          {/* Start — HH : MM with +/- pairs stacked below each number */}
           {(() => {
             const start = parseClock(startTime);
             const setStart = (h12: number, m: number, ampm: "AM" | "PM") => setStartTime(composeClock(h12, m, ampm));
@@ -305,67 +305,51 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             return (
               <div>
                 <label className="text-sm font-bold mb-2 block" style={{ color: "var(--text)" }}>Start</label>
-                <div className="flex items-center justify-center gap-1.5">
-                  <button
-                    type="button"
-                    onClick={() => bump(1)}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                    style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                    aria-label="Increase start hour"
-                  >+</button>
-                  <input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={start.h12}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm);
-                    }}
-                    className="w-10 text-center bg-transparent focus:outline-none tabular-nums font-bold"
-                    style={{ color: "var(--purple)", fontSize: "1.5rem", lineHeight: 1 }}
-                    aria-label="Start hour"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => bump(-1)}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                    style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                    aria-label="Decrease start hour"
-                  >−</button>
-                  <span className="mx-0.5 font-bold tabular-nums" style={{ color: "var(--purple)", fontSize: "1.25rem", lineHeight: 1 }}>:</span>
-                  <button
-                    type="button"
-                    onClick={() => bumpM(5)}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                    style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                    aria-label="Increase start minutes"
-                  >+</button>
-                  <input
-                    type="number"
-                    min={0}
-                    max={59}
-                    step={5}
-                    value={String(start.m).padStart(2, "0")}
-                    onChange={(e) => {
-                      const v = Number(e.target.value);
-                      if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm);
-                    }}
-                    className="w-12 text-center bg-transparent focus:outline-none tabular-nums font-bold"
-                    style={{ color: "var(--purple)", fontSize: "1.5rem", lineHeight: 1 }}
-                    aria-label="Start minutes"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => bumpM(-5)}
-                    className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                    style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                    aria-label="Decrease start minutes"
-                  >−</button>
+                <div className="flex items-start justify-center gap-3">
+                  <div className="flex flex-col items-center gap-1">
+                    <input
+                      type="number"
+                      min={1}
+                      max={12}
+                      value={start.h12}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm);
+                      }}
+                      className="w-14 text-center bg-transparent focus:outline-none tabular-nums font-bold"
+                      style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}
+                      aria-label="Start hour"
+                    />
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => bump(1)} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Increase start hour">+</button>
+                      <button type="button" onClick={() => bump(-1)} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Decrease start hour">−</button>
+                    </div>
+                  </div>
+                  <span className="font-bold tabular-nums pt-1" style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
+                  <div className="flex flex-col items-center gap-1">
+                    <input
+                      type="number"
+                      min={0}
+                      max={59}
+                      step={5}
+                      value={String(start.m).padStart(2, "0")}
+                      onChange={(e) => {
+                        const v = Number(e.target.value);
+                        if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm);
+                      }}
+                      className="w-14 text-center bg-transparent focus:outline-none tabular-nums font-bold"
+                      style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}
+                      aria-label="Start minutes"
+                    />
+                    <div className="flex gap-1">
+                      <button type="button" onClick={() => bumpM(5)} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Increase start minutes">+</button>
+                      <button type="button" onClick={() => bumpM(-5)} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Decrease start minutes">−</button>
+                    </div>
+                  </div>
                   <button
                     type="button"
                     onClick={() => setStart(start.h12, start.m, start.ampm === "AM" ? "PM" : "AM")}
-                    className="ml-1 h-9 px-2.5 rounded-lg flex items-center justify-center border-2 text-sm font-bold transition-colors tabular-nums"
+                    className="ml-1 mt-1 h-9 px-2.5 rounded-lg flex items-center justify-center border-2 text-sm font-bold transition-colors tabular-nums"
                     style={{ background: "var(--purple)", borderColor: "var(--purple)", color: "white" }}
                     aria-label="Toggle AM/PM"
                   >
@@ -376,68 +360,52 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             );
           })()}
 
-          {/* Length — [+] N [-] : [+] NN [-] with matching (smaller) buttons */}
+          {/* Length — HH : MM with +/- pairs stacked below each number */}
           <div>
             <label className="text-sm font-bold mb-2 block" style={{ color: "var(--text)" }}>
               How long are you committing?
             </label>
-            <div className="flex items-center justify-center gap-1.5">
-              <button
-                type="button"
-                onClick={() => setDurationH((h) => Math.min(23, h + 1))}
-                className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                aria-label="Increase hours"
-              >+</button>
-              <input
-                type="number"
-                min={0}
-                max={23}
-                value={durationH}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v))));
-                }}
-                className="w-10 text-center bg-transparent focus:outline-none tabular-nums font-bold"
-                style={{ color: "var(--purple)", fontSize: "1.5rem", lineHeight: 1 }}
-                aria-label="Hours"
-              />
-              <button
-                type="button"
-                onClick={() => setDurationH((h) => Math.max(0, h - 1))}
-                className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                aria-label="Decrease hours"
-              >−</button>
-              <span className="mx-0.5 font-bold tabular-nums" style={{ color: "var(--purple)", fontSize: "1.25rem", lineHeight: 1 }}>:</span>
-              <button
-                type="button"
-                onClick={() => setDurationM((m) => (m + 5) % 60)}
-                className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                aria-label="Increase minutes"
-              >+</button>
-              <input
-                type="number"
-                min={0}
-                max={59}
-                step={5}
-                value={String(durationM).padStart(2, "0")}
-                onChange={(e) => {
-                  const v = Number(e.target.value);
-                  if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v))));
-                }}
-                className="w-12 text-center bg-transparent focus:outline-none tabular-nums font-bold"
-                style={{ color: "var(--purple)", fontSize: "1.5rem", lineHeight: 1 }}
-                aria-label="Minutes"
-              />
-              <button
-                type="button"
-                onClick={() => setDurationM((m) => (m - 5 + 60) % 60)}
-                className="w-9 h-9 rounded-lg flex items-center justify-center border-2 text-lg font-medium transition-colors"
-                style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                aria-label="Decrease minutes"
-              >−</button>
+            <div className="flex items-start justify-center gap-3">
+              <div className="flex flex-col items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={23}
+                  value={durationH}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v))));
+                  }}
+                  className="w-14 text-center bg-transparent focus:outline-none tabular-nums font-bold"
+                  style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}
+                  aria-label="Hours"
+                />
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => setDurationH((h) => Math.min(23, h + 1))} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Increase hours">+</button>
+                  <button type="button" onClick={() => setDurationH((h) => Math.max(0, h - 1))} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Decrease hours">−</button>
+                </div>
+              </div>
+              <span className="font-bold tabular-nums pt-1" style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
+              <div className="flex flex-col items-center gap-1">
+                <input
+                  type="number"
+                  min={0}
+                  max={59}
+                  step={5}
+                  value={String(durationM).padStart(2, "0")}
+                  onChange={(e) => {
+                    const v = Number(e.target.value);
+                    if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v))));
+                  }}
+                  className="w-14 text-center bg-transparent focus:outline-none tabular-nums font-bold"
+                  style={{ color: "var(--purple)", fontSize: "1.75rem", lineHeight: 1 }}
+                  aria-label="Minutes"
+                />
+                <div className="flex gap-1">
+                  <button type="button" onClick={() => setDurationM((m) => (m + 5) % 60)} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Increase minutes">+</button>
+                  <button type="button" onClick={() => setDurationM((m) => (m - 5 + 60) % 60)} className="w-8 h-8 rounded-lg flex items-center justify-center border-2 text-base font-medium" style={{ background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }} aria-label="Decrease minutes">−</button>
+                </div>
+              </div>
             </div>
             <div className="text-xs text-center mt-2 tabular-nums" style={{ color: "var(--text-3)" }}>
               Ends at {to12h(endTimeFromDuration(startTime, durationH, durationM))}
