@@ -976,18 +976,20 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               </button>
                               <button
                                 onClick={() => togglePrivate(t.id)}
-                                className="p-1 rounded transition-opacity hover:opacity-100"
-                                style={{ color: t.isPrivate ? "var(--purple)" : "var(--purple-light)", opacity: t.isPrivate ? 1 : 0.55 }}
+                                className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                                style={t.isPrivate
+                                  ? { background: "var(--purple)", color: "white" }
+                                  : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
                                 title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
                                 aria-label={t.isPrivate ? "Make public" : "Make private"}
                               >
                                 {t.isPrivate ? (
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" />
                                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                                   </svg>
                                 ) : (
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <rect x="3" y="11" width="18" height="11" rx="2" />
                                     <path d="M7 11V7a5 5 0 0 1 9.9-1" />
                                   </svg>

@@ -198,18 +198,20 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
               <div className="flex items-center gap-2 flex-shrink-0">
                 <button
                   onClick={onTogglePrivate}
-                  className="p-1 rounded transition-opacity hover:opacity-100"
-                  style={{ color: isPrivate ? "var(--purple)" : "var(--purple-light)", opacity: isPrivate ? 1 : 0.55 }}
+                  className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                  style={isPrivate
+                    ? { background: "var(--purple)", color: "white" }
+                    : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
                   title={isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
                   aria-label={isPrivate ? "Make public" : "Make private"}
                 >
                   {isPrivate ? (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="11" width="18" height="11" rx="2" />
                       <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                     </svg>
                   ) : (
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                       <rect x="3" y="11" width="18" height="11" rx="2" />
                       <path d="M7 11V7a5 5 0 0 1 9.9-1" />
                     </svg>
