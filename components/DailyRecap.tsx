@@ -173,21 +173,24 @@ export default function DailyRecap() {
 
   async function markDoneRetro(id: string) {
     if (!data) return;
-    const t = data.incomplete.find((x) => x.id === id);
-    if (!t) return;
-    const supabase = createClient();
-    await supabase.from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", id);
+    const target = data.incomplete.find((x) => x.id === id);
+    if (!target || target.done) return;
+    // Keep the row in the "left undone" list so the user sees the check
+    // land where they tapped instead of the row jumping/disappearing.
+    // The stat counts below re-derive from the live done state.
     setData({
       ...data,
-      incomplete: data.incomplete.filter((x) => x.id !== id),
-      completed: [...data.completed, { ...t, done: true }],
+      incomplete: data.incomplete.map((x) => x.id === id ? { ...x, done: true } : x),
     });
+    await createClient().from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", id);
   }
 
   function carryUnfinished() {
     if (!data || !userId || carrying) return;
     setCarrying(true);
-    const ids = data.incomplete.map((t) => t.id);
+    // Only carry tasks that are still undone — a user might have retro-checked
+    // some in this session and those don't need to move forward.
+    const ids = data.incomplete.filter((t) => !t.done).map((t) => t.id);
     if (ids.length > 0 && typeof window !== "undefined") {
       // Hand the IDs to CommitPicker so it can pre-select them at the top of
       // the list. Don't commit yet — the user should confirm on the picker.
@@ -204,10 +207,14 @@ export default function DailyRecap() {
 
   if (!data) return null;
 
+  const retroDoneCount = data.incomplete.filter((t) => t.done).length;
+  const liveCompletedCount = data.completed.length + retroDoneCount;
+  const liveIncompleteCount = data.incomplete.length - retroDoneCount;
+
   const stats = [
-    { value: data.completed.length, label: "completed", onClick: data.completed.length > 0 ? () => setCompletedOpen((v) => !v) : undefined, isOpen: completedOpen },
+    { value: liveCompletedCount, label: "completed", onClick: liveCompletedCount > 0 ? () => setCompletedOpen((v) => !v) : undefined, isOpen: completedOpen },
     { value: data.coworkedMinutes, label: data.coworkedMinutes === 1 ? "min coworked" : "mins coworked" },
-    { value: data.incomplete.length, label: "left undone", onClick: data.incomplete.length > 0 ? () => setIncompleteOpen((v) => !v) : undefined, isOpen: incompleteOpen },
+    { value: liveIncompleteCount, label: "left undone", onClick: data.incomplete.length > 0 ? () => setIncompleteOpen((v) => !v) : undefined, isOpen: incompleteOpen },
   ];
 
   return (
@@ -325,13 +332,26 @@ export default function DailyRecap() {
                 key={t.id}
                 type="button"
                 onClick={() => markDoneRetro(t.id)}
-                className="w-full flex items-start gap-2 text-sm text-left transition-opacity hover:opacity-100"
-                style={{ color: "var(--text)", opacity: 0.9 }}
+                disabled={t.done}
+                className="w-full flex items-start gap-2 text-sm text-left transition-opacity"
+                style={{
+                  color: t.done ? "var(--text-3)" : "var(--text)",
+                  opacity: t.done ? 0.7 : 0.9,
+                  textDecoration: t.done ? "line-through" : "none",
+                }}
               >
                 <span
                   className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                  style={{ border: "2px solid var(--border-3)", marginTop: 1 }}
-                />
+                  style={t.done
+                    ? { background: "var(--purple)", border: "2px solid var(--purple)", marginTop: 1 }
+                    : { border: "2px solid var(--border-3)", marginTop: 1 }}
+                >
+                  {t.done && (
+                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                      <polyline points="20 6 9 17 4 12" />
+                    </svg>
+                  )}
+                </span>
                 <span>{t.text}</span>
               </button>
             ))}
@@ -354,7 +374,7 @@ export default function DailyRecap() {
 
         {/* Actions */}
         <div className="px-4 pb-4 pt-2 flex flex-col gap-2">
-          {data.incomplete.length > 0 && (
+          {liveIncompleteCount > 0 && (
             <button
               type="button"
               onClick={carryUnfinished}
@@ -367,7 +387,7 @@ export default function DailyRecap() {
                 opacity: carrying ? 0.5 : 1,
               }}
             >
-              Carry {data.incomplete.length} unfinished task{data.incomplete.length === 1 ? "" : "s"} into today
+              Carry {liveIncompleteCount} unfinished task{liveIncompleteCount === 1 ? "" : "s"} into today
             </button>
           )}
           <button
