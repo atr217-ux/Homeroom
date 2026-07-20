@@ -77,6 +77,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   // ── Daily commitment ───────────────────────────────────────────────────
   const [commitment, setCommitment] = useState("");
   const [editingCommitment, setEditingCommitment] = useState(false);
+  const [focusCollapsed, setFocusCollapsed] = useState(false);
   const [autoPrivate, setAutoPrivate] = useState(false);
   const [doneCollapsed, setDoneCollapsed] = useState(true);
   const [notes, setNotes] = useState("");
@@ -527,31 +528,71 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               </div>
             </>
           ) : commitment ? (
-            <button
-              type="button"
-              onClick={() => setEditingCommitment(true)}
-              className="w-full flex flex-col items-center text-center rounded-2xl border px-4 py-3 transition-opacity hover:opacity-90"
-              style={{
-                background: "var(--surface)",
-                borderColor: "var(--text)",
-              }}
-              aria-label="Edit today's focus"
-            >
-              <span
-                className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-1.5 flex items-center gap-2"
-                style={{ color: "var(--purple)" }}
+            focusCollapsed ? (
+              <button
+                type="button"
+                onClick={() => setFocusCollapsed(false)}
+                className="w-full flex items-center gap-2 rounded-xl border px-3 py-2 transition-opacity hover:opacity-90"
+                style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+                aria-label="Expand today's focus"
+                title="Expand focus"
               >
-                <span className="w-4 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
-                Focus
-                <span className="w-4 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
-              </span>
-              <span
-                className="font-display italic block break-words"
-                style={{ color: "var(--text)", fontSize: "clamp(1.25rem, 5vw, 1.75rem)", lineHeight: 1.15 }}
+                <span
+                  className="text-[10px] font-semibold uppercase tracking-[0.2em] flex-shrink-0"
+                  style={{ color: "var(--purple)" }}
+                >
+                  Focus
+                </span>
+                <span
+                  className="text-sm flex-1 min-w-0 truncate text-left font-display italic"
+                  style={{ color: "var(--text)" }}
+                >
+                  {commitment}
+                </span>
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ color: "var(--text-3)" }}>
+                  <polyline points="6 9 12 15 18 9" />
+                </svg>
+              </button>
+            ) : (
+              <div
+                className="w-full relative rounded-2xl border"
+                style={{ background: "var(--surface)", borderColor: "var(--text)" }}
               >
-                {commitment}
-              </span>
-            </button>
+                <button
+                  type="button"
+                  onClick={() => setEditingCommitment(true)}
+                  className="w-full flex flex-col items-center text-center rounded-2xl px-4 py-3 transition-opacity hover:opacity-90"
+                  aria-label="Edit today's focus"
+                >
+                  <span
+                    className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-1.5 flex items-center gap-2"
+                    style={{ color: "var(--purple)" }}
+                  >
+                    <span className="w-4 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
+                    Focus
+                    <span className="w-4 h-px" style={{ background: "var(--purple)", opacity: 0.5 }} />
+                  </span>
+                  <span
+                    className="font-display italic block break-words"
+                    style={{ color: "var(--text)", fontSize: "clamp(1.25rem, 5vw, 1.75rem)", lineHeight: 1.15 }}
+                  >
+                    {commitment}
+                  </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setFocusCollapsed(true)}
+                  className="absolute top-1.5 right-1.5 p-1 rounded transition-opacity hover:opacity-100"
+                  style={{ color: "var(--text-3)", opacity: 0.6 }}
+                  aria-label="Collapse focus"
+                  title="Collapse focus"
+                >
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="18 15 12 9 6 15" />
+                  </svg>
+                </button>
+              </div>
+            )
           ) : (
             <button
               type="button"
