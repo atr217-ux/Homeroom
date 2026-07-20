@@ -52,7 +52,10 @@ export default function DailyRecap() {
         .select("last_recap_dismissed_date")
         .eq("id", uid)
         .maybeSingle();
-      const dismissedOn = (profileRow as { last_recap_dismissed_date: string | null } | null)?.last_recap_dismissed_date;
+      const rawDismissed = (profileRow as { last_recap_dismissed_date: string | null } | null)?.last_recap_dismissed_date;
+      // Postgres DATE usually serializes as "YYYY-MM-DD" but be defensive in
+      // case it comes back as a timestamp — only compare the date prefix.
+      const dismissedOn = rawDismissed ? String(rawDismissed).slice(0, 10) : null;
       if (dismissedOn === today) {
         // Keep the local cache in sync when the DB says shown but this device hasn't been told yet.
         if (typeof window !== "undefined") localStorage.setItem("homeroom-recap-shown", today);
@@ -158,17 +161,22 @@ export default function DailyRecap() {
     return () => { cancelled = true; };
   }, []);
 
-  function close() {
+  async function close() {
     setData(null);
     const today = dateKey(new Date());
     // Instant local flag so a same-device reload during the DB write skips the modal.
     if (typeof window !== "undefined") localStorage.setItem("homeroom-recap-shown", today);
     if (!userId) return;
-    // Persist to the profile so other devices also skip it today.
-    void createClient()
+    // Persist to the profile so other devices also skip it today. Awaited
+    // (best-effort) so we notice failures instead of dropping them silently.
+    const { error } = await createClient()
       .from("profiles")
       .update({ last_recap_dismissed_date: today })
       .eq("id", userId);
+    if (error) {
+      // eslint-disable-next-line no-console
+      console.error("[DailyRecap] failed to persist dismissal:", error);
+    }
   }
 
   async function markDoneRetro(id: string) {
