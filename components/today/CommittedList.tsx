@@ -785,6 +785,13 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                         )}
                         {!isEditing && (
                           <div className="flex flex-wrap items-center gap-1 mt-1">
+                            <span
+                              className="text-xs whitespace-nowrap"
+                              style={{ color: "var(--text-3)" }}
+                              title={new Date(t.createdAt).toLocaleString()}
+                            >
+                              {addedAtLabel(t.createdAt)}
+                            </span>
                             {t.tagIds.map((tid) => {
                               const tag = allTags.find((tg) => tg.id === tid);
                               if (!tag) return null;
@@ -798,13 +805,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                 />
                               );
                             })}
-                            <span
-                              className="ml-auto text-xs whitespace-nowrap"
-                              style={{ color: "var(--text-3)" }}
-                              title={new Date(t.createdAt).toLocaleString()}
-                            >
-                              {addedAtLabel(t.createdAt)}
-                            </span>
                           </div>
                         )}
                       </div>

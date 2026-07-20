@@ -160,6 +160,13 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
               the added-at label down with them. */}
           {!editing && (
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
+              <span
+                className="text-xs whitespace-nowrap"
+                style={{ color: "var(--text-3)" }}
+                title={new Date(addedAt).toLocaleString()}
+              >
+                {addedAtLabel(addedAt)}
+              </span>
               {!blockName && (
                 <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
               )}
@@ -187,13 +194,6 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
               {tags.map((tag) => (
                 <TagChip key={tag.id} tag={tag} hasHover={hasHover} forceVisible={editing} onRemove={() => onRemoveTag(tag.id)} />
               ))}
-              <span
-                className="ml-auto text-xs whitespace-nowrap"
-                style={{ color: "var(--text-3)" }}
-                title={new Date(addedAt).toLocaleString()}
-              >
-                {addedAtLabel(addedAt)}
-              </span>
             </div>
           )}
           {/* In edit mode we still want the tag chips reachable */}
