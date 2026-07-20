@@ -98,6 +98,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   // a row's play button; the widget stays across pauses so the user can
   // resume from it. Cleared by the widget's X or Record button.
   const [sessionTaskId, setSessionTaskId] = useState<string | null>(null);
+  const [confirmingReset, setConfirmingReset] = useState(false);
 
 
   // Prevent background scroll while the drawer is open, and focus the
@@ -678,15 +679,59 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
               <button
                 type="button"
                 onClick={async () => {
-                  if (sessionRunning) await stopTimer(sessionTask.id);
+                  // toggleDone already stops the timer + saves elapsed +
+                  // stamps completed_at, so it's exactly what "Done" needs.
+                  await toggleDone(sessionTask.id);
                   setSessionTaskId(null);
                 }}
                 className="flex-1 text-sm font-semibold py-2 rounded-xl text-white"
                 style={{ background: "var(--purple)" }}
               >
-                Record time
+                Done
               </button>
             </div>
+            {/* Reset — subtle text link with a two-step inline confirm so
+                nobody wipes real recorded time accidentally. */}
+            {(sessionElapsed > 0) && (
+              <div className="mt-2 flex justify-center">
+                {confirmingReset ? (
+                  <div className="flex items-center gap-3 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setConfirmingReset(false)}
+                      style={{ color: "var(--text-2)" }}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={async () => {
+                        const supabase = createClient();
+                        await supabase
+                          .from("tasks")
+                          .update({ time_spent: 0, timer_started_at: null })
+                          .eq("id", sessionTask.id);
+                        setTasks((prev) => prev.map((x) => x.id === sessionTask.id ? { ...x, timeSpent: 0, startedAt: null } : x));
+                        setConfirmingReset(false);
+                      }}
+                      className="font-semibold"
+                      style={{ color: "var(--red)" }}
+                    >
+                      Reset timer to 0:00
+                    </button>
+                  </div>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={() => setConfirmingReset(true)}
+                    className="text-xs transition-opacity hover:opacity-100"
+                    style={{ color: "var(--text-3)", opacity: 0.7 }}
+                  >
+                    Reset timer
+                  </button>
+                )}
+              </div>
+            )}
           </div>
         </div>
       )}
