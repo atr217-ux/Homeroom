@@ -27,6 +27,14 @@ function endTimeFromDuration(start: string, h: number, m: number): string {
   return `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
 }
 
+// "HH:MM" (24h) -> "h:MM AM/PM" for user-facing labels.
+function to12h(t: string): string {
+  const [h, m] = t.split(":").map(Number);
+  const suffix = h >= 12 ? "PM" : "AM";
+  const h12 = ((h + 11) % 12) + 1;
+  return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
+}
+
 type Props = {
   userId: string;
   onClose: () => void;
@@ -364,7 +372,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
               </button>
             </div>
             <div className="text-xs text-center mt-2 tabular-nums" style={{ color: "var(--text-3)" }}>
-              Ends at {endTimeFromDuration(startTime, durationH, durationM)}
+              Ends at {to12h(endTimeFromDuration(startTime, durationH, durationM))}
             </div>
           </div>
 
