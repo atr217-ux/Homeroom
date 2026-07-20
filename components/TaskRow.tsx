@@ -155,8 +155,9 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
           )}
 
           {/* Todoist-style metadata row below the task text — schedule chip,
-              block chip, tags. All small, muted, wrap as needed. */}
-          {(scheduledFor || blockName || tags.length > 0) && !editing && (
+              block chip, tags. Schedule chip is always present as an entry
+              point; block chip replaces it when a block is set. */}
+          {!editing && (
             <div className="flex flex-wrap items-center gap-1.5 mt-1.5">
               {!blockName && (
                 <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
@@ -202,30 +203,42 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
         <div className="flex flex-col items-end gap-0.5 flex-shrink-0 self-start mt-0.5">
           <div className="flex items-center gap-2">
 
-        {/* Privacy toggle — state indicator, always visible */}
-        <button
-          onClick={onTogglePrivate}
-          className="p-1 rounded transition-opacity hover:opacity-100"
-          style={{ color: isPrivate ? "var(--purple)" : "var(--text-3)", opacity: isPrivate ? 1 : 0.5 }}
-          title={isPrivate ? "Private — only you can see this" : "Public — friends can see when completed"}
-          aria-label={isPrivate ? "Make public" : "Make private"}
-        >
-          {isPrivate ? (
+        {/* Privacy padlock — only visible when the task is actually private,
+            so unmarked rows stay uncluttered. Toggle back to public by
+            tapping the lock, or use the MoreMenu to flip either direction. */}
+        {isPrivate && (
+          <button
+            onClick={onTogglePrivate}
+            className="p-1 rounded transition-opacity hover:opacity-100"
+            style={{ color: "var(--purple)" }}
+            title="Private — only you can see this. Tap to make public."
+            aria-label="Make public"
+          >
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <rect x="3" y="11" width="18" height="11" rx="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-          ) : (
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <rect x="3" y="11" width="18" height="11" rx="2" />
-              <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-            </svg>
-          )}
-        </button>
+          </button>
+        )}
 
         {hasHover && !editing && (
           <MoreMenu
             items={[
+              {
+                label: isPrivate ? "Make public" : "Make private",
+                onClick: onTogglePrivate,
+                icon: isPrivate ? (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                  </svg>
+                ) : (
+                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                ),
+              },
               {
                 label: "Delete",
                 destructive: true,
