@@ -50,7 +50,7 @@ export default function TasksPage() {
       const [tasksRes, tagsRes, profileRes] = await Promise.all([
         supabase
           .from("tasks")
-          .select("id, text, done, is_private, committed_for_date, block_id, blocks(id, name), created_at, task_tags(tag_id)")
+          .select("id, text, done, is_private, committed_for_date, block_id, blocks(id, name, date, end_time), created_at, task_tags(tag_id)")
           .eq("user_id", user.id)
           .order("created_at", { ascending: false })
           .limit(500),
@@ -67,17 +67,37 @@ export default function TasksPage() {
       ]);
 
       const rows = tasksRes.data ?? [];
+      // Today's date + minute-of-day for the "has this block already ended?" check.
+      const now = new Date();
+      const todayKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      const timeToMin = (t: string | null | undefined) => {
+        if (!t) return 0;
+        const [h, m] = t.split(":").map(Number);
+        return h * 60 + (m || 0);
+      };
       setTasks(rows.map(r => {
-        const blockRel = (r as { blocks: { id: string; name: string } | { id: string; name: string }[] | null }).blocks;
+        type BlockRel = { id: string; name: string; date: string; end_time: string | null };
+        const blockRel = (r as { blocks: BlockRel | BlockRel[] | null }).blocks;
         const blockRow = Array.isArray(blockRel) ? blockRel[0] : blockRel;
+        // A block is "past" if its date has rolled over, or the day is today
+        // and its end_time is already in the rearview. Hide the chip on
+        // undone tasks whose block has already come and gone — the block
+        // isn't going to help finish it anymore, and it made rows look busy.
+        const isDoneTask = (r.done as boolean);
+        const blockHasEnded = blockRow
+          ? blockRow.date < todayKey ||
+            (blockRow.date === todayKey && timeToMin(blockRow.end_time) <= nowMin)
+          : false;
+        const showBlock = blockRow && !(blockHasEnded && !isDoneTask);
         return {
           id: r.id as string,
           text: r.text as string,
           done: r.done as boolean,
           isPrivate: (r.is_private as boolean) ?? false,
           scheduledFor: (r.committed_for_date as string | null) ?? null,
-          blockId: blockRow?.id ?? null,
-          blockName: blockRow?.name ?? null,
+          blockId: showBlock ? blockRow!.id : null,
+          blockName: showBlock ? blockRow!.name : null,
           tagIds: ((r.task_tags as { tag_id: string }[] | null) ?? []).map(tt => tt.tag_id),
           createdAt: r.created_at as string,
         };
