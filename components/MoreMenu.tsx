@@ -80,7 +80,7 @@ export default function MoreMenu({ items }: Props) {
         ref={buttonRef}
         onClick={(e) => { e.stopPropagation(); setOpen((v) => !v); }}
         className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
-        style={{ color: "var(--text-2)", opacity: open ? 1 : 0.5 }}
+        style={{ color: "var(--purple-light)", opacity: open ? 1 : 0.55 }}
         title="More"
         aria-label="More actions"
         aria-expanded={open}

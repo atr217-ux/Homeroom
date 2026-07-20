@@ -133,8 +133,8 @@ export default function ScheduleButton({ scheduledFor, onChange }: Props) {
             className="flex items-center gap-0.5 text-[11px] font-medium px-1.5 py-0.5 rounded-md border border-dashed whitespace-nowrap"
             style={{
               background: "transparent",
-              borderColor: "var(--border-3)",
-              color: "var(--text-3)",
+              borderColor: "var(--purple-muted)",
+              color: "var(--purple-light)",
             }}
           >
             <svg width="9" height="9" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

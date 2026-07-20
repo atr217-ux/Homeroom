@@ -967,17 +967,17 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                               <button
                                 onClick={() => running ? stopTimer(t.id) : startTimer(t.id)}
                                 className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                                style={running ? { background: "var(--purple)" } : { background: "var(--border-2)" }}
+                                style={running ? { background: "var(--purple)" } : { background: "rgba(124,58,237,0.10)" }}
                                 title={running ? "Stop timer" : "Start timer"}
                               >
-                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--text-2)"} strokeWidth="2.5">
+                                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke={running ? "white" : "var(--purple-light)"} strokeWidth="2.5">
                                   <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                                 </svg>
                               </button>
                               <button
                                 onClick={() => togglePrivate(t.id)}
                                 className="p-1 rounded transition-opacity hover:opacity-100"
-                                style={{ color: t.isPrivate ? "var(--purple)" : "var(--text-3)", opacity: t.isPrivate ? 1 : 0.5 }}
+                                style={{ color: t.isPrivate ? "var(--purple)" : "var(--purple-light)", opacity: t.isPrivate ? 1 : 0.55 }}
                                 title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
                                 aria-label={t.isPrivate ? "Make public" : "Make private"}
                               >

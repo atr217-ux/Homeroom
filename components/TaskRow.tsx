@@ -199,7 +199,7 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
                 <button
                   onClick={onTogglePrivate}
                   className="p-1 rounded transition-opacity hover:opacity-100"
-                  style={{ color: isPrivate ? "var(--purple)" : "var(--text-3)", opacity: isPrivate ? 1 : 0.5 }}
+                  style={{ color: isPrivate ? "var(--purple)" : "var(--purple-light)", opacity: isPrivate ? 1 : 0.55 }}
                   title={isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
                   aria-label={isPrivate ? "Make public" : "Make private"}
                 >
