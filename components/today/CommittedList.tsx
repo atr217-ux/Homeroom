@@ -112,9 +112,12 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const hasHover = useHasHover();
 
   // dnd-kit sensors
+  // Long-press to reorder: 500ms hold with <=5px movement arms a drag. A
+  // quick tap or a horizontal swipe (>5px within 500ms) never trips the drag,
+  // so checkbox taps and SwipeableRow gestures keep working normally.
   const sensors = useSensors(
-    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
-    useSensor(TouchSensor, { activationConstraint: { delay: 200, tolerance: 5 } }),
+    useSensor(PointerSensor, { activationConstraint: { delay: 500, tolerance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 500, tolerance: 5 } }),
   );
 
   // ── Load ───────────────────────────────────────────────────────────────
@@ -718,32 +721,15 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                     ]}
                   >
                     <div
-                      className="group flex items-start gap-3 px-3 py-2.5 transition-colors"
+                      {...(dragListeners ?? {})}
+                      className="group flex items-start gap-3 px-3 py-2.5 transition-colors touch-manipulation"
                       style={{
                         background: running
                           ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
                           : "var(--surface)",
+                        cursor: dragListeners ? "grab" : undefined,
                       }}
                     >
-                      {/* Drag handle (hidden when filtering or editing) */}
-                      {!isEditing && tagFilters.length === 0 && sortDir === "custom" && (
-                        <button
-                          {...dragListeners}
-                          className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-1 mt-0.5"
-                          style={{ color: "var(--text-3)", opacity: 0.5 }}
-                          aria-label="Drag to reorder"
-                          title="Drag to reorder"
-                        >
-                          <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor">
-                            <circle cx="9" cy="6" r="1.5" />
-                            <circle cx="9" cy="12" r="1.5" />
-                            <circle cx="9" cy="18" r="1.5" />
-                            <circle cx="15" cy="6" r="1.5" />
-                            <circle cx="15" cy="12" r="1.5" />
-                            <circle cx="15" cy="18" r="1.5" />
-                          </svg>
-                        </button>
-                      )}
                       <button
                         onClick={() => toggleDone(t.id)}
                         className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors mt-0.5"
