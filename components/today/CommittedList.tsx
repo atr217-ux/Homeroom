@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { addedAtLabel, dateKey, formatTime } from "@/lib/utils/date";
+import { dateKey, formatTime } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow";
@@ -955,13 +955,6 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                                   />
                                 );
                               })}
-                              <span
-                                className="text-xs whitespace-nowrap"
-                                style={{ color: "var(--text-3)" }}
-                                title={new Date(t.createdAt).toLocaleString()}
-                              >
-                                {addedAtLabel(t.createdAt)}
-                              </span>
                             </div>
                             <div className="flex items-center gap-2.5 flex-shrink-0">
                               <span
