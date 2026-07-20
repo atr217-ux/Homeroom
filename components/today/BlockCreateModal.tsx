@@ -608,10 +608,21 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     className="flex items-center gap-2 px-3 py-2 rounded-xl"
                     style={{ background: "rgba(124,58,237,0.06)", border: "1px solid var(--purple)" }}
                   >
-                    <span className="text-sm flex-1" style={{ color: "var(--text)" }}>
-                      {t.text}
-                      {t.tagNames.map((n) => ` #${n}`).join("")}
-                    </span>
+                    <div className="flex-1 flex flex-wrap items-center gap-1.5 min-w-0">
+                      <span className="text-sm" style={{ color: "var(--text)" }}>{t.text}</span>
+                      {t.tagNames.map((n) => {
+                        const { bg, fg } = tagColor(n);
+                        return (
+                          <span
+                            key={n}
+                            className="text-xs px-1.5 py-0.5 rounded-full font-medium"
+                            style={{ background: bg, color: fg }}
+                          >
+                            #{n}
+                          </span>
+                        );
+                      })}
+                    </div>
                     <button
                       onClick={() => removeExtra(i)}
                       className="p-1 rounded transition-opacity hover:opacity-100"
