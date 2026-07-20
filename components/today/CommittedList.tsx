@@ -94,6 +94,10 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const [notes, setNotes] = useState("");
   const [notesOpen, setNotesOpen] = useState(false);
   const notesRef = useRef<HTMLTextAreaElement>(null);
+  // Floating "Working on…" widget. Set whenever the user starts a timer via
+  // a row's play button; the widget stays across pauses so the user can
+  // resume from it. Cleared by the widget's X or Record button.
+  const [sessionTaskId, setSessionTaskId] = useState<string | null>(null);
 
 
   // Prevent background scroll while the drawer is open, and focus the
@@ -270,6 +274,8 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
       if (t.startedAt !== null) return { ...t, timeSpent: elapsed(t), startedAt: null };
       return t;
     }));
+    // Surface this task in the floating widget.
+    setSessionTaskId(id);
   }
 
   async function stopTimer(id: string) {
@@ -454,8 +460,78 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
   const today = new Date();
 
   // ── Render ─────────────────────────────────────────────────────────────
+  const sessionTask = sessionTaskId ? tasks.find((t) => t.id === sessionTaskId) ?? null : null;
+  const sessionElapsed = sessionTask ? elapsed(sessionTask) : 0;
+  const sessionRunning = !!sessionTask && sessionTask.startedAt !== null;
   return (
     <div className="max-w-2xl mx-auto px-4 pt-8 pb-32">
+      {/* Floating "Working on…" widget — fixed near the top so it stays put
+          while the user scrolls the task list. Appears when a timer starts,
+          persists across pauses, dismissed via X or Record. */}
+      {sessionTask && (
+        <div
+          className="fixed left-1/2 -translate-x-1/2 z-40 rounded-2xl shadow-xl border overflow-hidden"
+          style={{
+            top: 12,
+            width: "min(96vw, 420px)",
+            background: "var(--surface)",
+            borderColor: "var(--border-2)",
+          }}
+        >
+          <div className="h-1 w-full" style={{ background: "var(--purple)" }} />
+          <div className="relative px-4 pt-3 pb-3">
+            <button
+              type="button"
+              onClick={() => setSessionTaskId(null)}
+              className="absolute top-2 right-2 w-6 h-6 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+              style={{ color: "var(--text-2)", opacity: 0.6 }}
+              aria-label="Close timer widget"
+              title="Close (timer keeps running if active)"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="6" x2="6" y2="18" />
+                <line x1="6" y1="6" x2="18" y2="18" />
+              </svg>
+            </button>
+            <div className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-1" style={{ color: "var(--purple)" }}>
+              Working on
+            </div>
+            <div className="flex items-center gap-3 pr-6">
+              <span className="text-sm font-medium flex-1 min-w-0 truncate" style={{ color: "var(--text)" }}>
+                {sessionTask.text}
+              </span>
+              <span
+                className="font-mono text-lg tabular-nums flex-shrink-0"
+                style={{ color: sessionRunning ? "var(--purple)" : "var(--text-2)" }}
+              >
+                {formatTime(sessionElapsed)}
+              </span>
+            </div>
+            <div className="flex gap-2 mt-3">
+              <button
+                type="button"
+                onClick={() => sessionRunning ? stopTimer(sessionTask.id) : startTimer(sessionTask.id)}
+                className="flex-1 text-sm font-semibold py-2 rounded-xl border transition-colors"
+                style={{ background: "var(--surface)", borderColor: "var(--purple)", color: "var(--purple)" }}
+              >
+                {sessionRunning ? "Pause" : "Start"}
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (sessionRunning) await stopTimer(sessionTask.id);
+                  setSessionTaskId(null);
+                }}
+                className="flex-1 text-sm font-semibold py-2 rounded-xl text-white"
+                style={{ background: "var(--purple)" }}
+              >
+                Record time
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Header */}
       <div className="pb-5 flex items-end justify-between gap-2">
         <div>
