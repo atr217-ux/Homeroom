@@ -718,7 +718,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                     ]}
                   >
                     <div
-                      className="group flex items-center gap-2.5 px-2 py-2 transition-colors"
+                      className="group flex items-start gap-3 px-3 py-2.5 transition-colors"
                       style={{
                         background: running
                           ? "linear-gradient(rgba(124,58,237,0.06), rgba(124,58,237,0.06)), var(--surface)"
@@ -729,7 +729,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       {!isEditing && tagFilters.length === 0 && sortDir === "custom" && (
                         <button
                           {...dragListeners}
-                          className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-1"
+                          className="flex-shrink-0 cursor-grab active:cursor-grabbing touch-none p-0.5 -ml-1 mt-0.5"
                           style={{ color: "var(--text-3)", opacity: 0.5 }}
                           aria-label="Drag to reorder"
                           title="Drag to reorder"
@@ -746,7 +746,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       )}
                       <button
                         onClick={() => toggleDone(t.id)}
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors"
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center transition-colors mt-0.5"
                         style={{ border: `2px solid ${running ? "var(--purple)" : "var(--border-3)"}` }}
                         aria-label="Mark done"
                       />
@@ -935,10 +935,10 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
                       },
                     ]}
                   >
-                    <div className="group flex items-center gap-2.5 px-2 py-2" style={{ background: "var(--surface)" }}>
+                    <div className="group flex items-start gap-3 px-3 py-2.5" style={{ background: "var(--surface)" }}>
                       <button
                         onClick={() => toggleDone(t.id)}
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
+                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5"
                         style={{ background: "var(--purple)", border: "2px solid var(--purple)", opacity: 0.6 }}
                       >
                         <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5"><polyline points="20 6 9 17 4 12" /></svg>
