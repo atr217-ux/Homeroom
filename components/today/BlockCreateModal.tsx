@@ -303,45 +303,36 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             const setStart = (h12: number, m: number, ampm: "AM" | "PM") => setStartTime(composeClock(h12, m, ampm));
             const bumpSH = (delta: number) => setStart(((start.h12 - 1 + delta + 12) % 12) + 1, start.m, start.ampm);
             const bumpSM = (delta: number) => setStart(start.h12, (start.m + delta + 60) % 60, start.ampm);
-            const stepperBtn = "w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium transition-colors";
+            const stepperBtn = "w-7 h-7 rounded-lg flex items-center justify-center border text-sm font-medium transition-colors flex-shrink-0";
             const numberInput = "w-8 text-center bg-transparent focus:outline-none tabular-nums font-bold";
-            const numberStyle = { color: "var(--purple)", fontSize: "1.15rem", lineHeight: 1 } as const;
+            const numberStyle = { color: "var(--purple)", fontSize: "1.35rem", lineHeight: 1 } as const;
             const stepperStyle = { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" } as const;
-            const sectionCard = "rounded-2xl border px-3 pt-3 pb-2 flex flex-col items-center";
+            const sectionCard = "rounded-2xl border p-3 flex flex-col items-center";
             const sectionStyle = { background: "var(--surface)", borderColor: "var(--border-2)" } as const;
-            const sectionLabel = "text-sm font-bold mb-1.5" as const;
+            const sectionLabel = "text-sm font-bold mb-2" as const;
             return (
               <div>
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Start card */}
+                  {/* Start card — inline [-] N [+] : [-] NN [+]  [AM/PM] */}
                   <div className={sectionCard} style={sectionStyle}>
                     <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
-                    <div className="flex items-start gap-1.5">
-                      <div className="flex flex-col items-center gap-1">
-                        <input type="number" min={1} max={12} value={start.h12}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
-                          className={numberInput} style={numberStyle} aria-label="Start hour" />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => bumpSH(1)} className={stepperBtn} style={stepperStyle} aria-label="Increase start hour">+</button>
-                          <button type="button" onClick={() => bumpSH(-1)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start hour">−</button>
-                        </div>
-                      </div>
-                      <span className="font-bold tabular-nums" style={{ ...numberStyle, marginTop: 2 }}>:</span>
-                      <div className="flex flex-col items-center gap-1">
-                        <input type="number" min={0} max={59} step={5} value={String(start.m).padStart(2, "0")}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
-                          className={numberInput} style={numberStyle} aria-label="Start minutes" />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => bumpSM(5)} className={stepperBtn} style={stepperStyle} aria-label="Increase start minutes">+</button>
-                          <button type="button" onClick={() => bumpSM(-5)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start minutes">−</button>
-                        </div>
-                      </div>
-                      {/* AM/PM chip inline to the right of the time */}
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => bumpSH(-1)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start hour">−</button>
+                      <input type="number" min={1} max={12} value={start.h12}
+                        onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
+                        className={numberInput} style={numberStyle} aria-label="Start hour" />
+                      <button type="button" onClick={() => bumpSH(1)} className={stepperBtn} style={stepperStyle} aria-label="Increase start hour">+</button>
+                      <span className="font-bold tabular-nums mx-0.5" style={numberStyle}>:</span>
+                      <button type="button" onClick={() => bumpSM(-5)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start minutes">−</button>
+                      <input type="number" min={0} max={59} step={5} value={String(start.m).padStart(2, "0")}
+                        onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
+                        className={numberInput} style={numberStyle} aria-label="Start minutes" />
+                      <button type="button" onClick={() => bumpSM(5)} className={stepperBtn} style={stepperStyle} aria-label="Increase start minutes">+</button>
                       <button
                         type="button"
                         onClick={() => setStart(start.h12, start.m, start.ampm === "AM" ? "PM" : "AM")}
-                        className="ml-1 h-6 px-2 rounded-md flex items-center justify-center text-[11px] font-bold transition-colors tabular-nums"
-                        style={{ background: "var(--purple)", color: "white", marginTop: 1 }}
+                        className="ml-1 h-7 px-2 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors tabular-nums flex-shrink-0"
+                        style={{ background: "var(--purple)", color: "white" }}
                         aria-label="Toggle AM/PM"
                       >
                         {start.ampm}
@@ -349,29 +340,21 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     </div>
                   </div>
 
-                  {/* Length card */}
+                  {/* Length card — inline [-] N [+] : [-] NN [+] */}
                   <div className={sectionCard} style={sectionStyle}>
                     <div className={sectionLabel} style={{ color: "var(--text)" }}>Length</div>
-                    <div className="flex items-start gap-1.5">
-                      <div className="flex flex-col items-center gap-1">
-                        <input type="number" min={0} max={23} value={durationH}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v)))); }}
-                          className={numberInput} style={numberStyle} aria-label="Hours" />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setDurationH((h) => Math.min(23, h + 1))} className={stepperBtn} style={stepperStyle} aria-label="Increase hours">+</button>
-                          <button type="button" onClick={() => setDurationH((h) => Math.max(0, h - 1))} className={stepperBtn} style={stepperStyle} aria-label="Decrease hours">−</button>
-                        </div>
-                      </div>
-                      <span className="font-bold tabular-nums" style={{ ...numberStyle, marginTop: 2 }}>:</span>
-                      <div className="flex flex-col items-center gap-1">
-                        <input type="number" min={0} max={59} step={5} value={String(durationM).padStart(2, "0")}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v)))); }}
-                          className={numberInput} style={numberStyle} aria-label="Minutes" />
-                        <div className="flex gap-1">
-                          <button type="button" onClick={() => setDurationM((m) => (m + 5) % 60)} className={stepperBtn} style={stepperStyle} aria-label="Increase minutes">+</button>
-                          <button type="button" onClick={() => setDurationM((m) => (m - 5 + 60) % 60)} className={stepperBtn} style={stepperStyle} aria-label="Decrease minutes">−</button>
-                        </div>
-                      </div>
+                    <div className="flex items-center gap-1">
+                      <button type="button" onClick={() => setDurationH((h) => Math.max(0, h - 1))} className={stepperBtn} style={stepperStyle} aria-label="Decrease hours">−</button>
+                      <input type="number" min={0} max={23} value={durationH}
+                        onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v)))); }}
+                        className={numberInput} style={numberStyle} aria-label="Hours" />
+                      <button type="button" onClick={() => setDurationH((h) => Math.min(23, h + 1))} className={stepperBtn} style={stepperStyle} aria-label="Increase hours">+</button>
+                      <span className="font-bold tabular-nums mx-0.5" style={numberStyle}>:</span>
+                      <button type="button" onClick={() => setDurationM((m) => (m - 5 + 60) % 60)} className={stepperBtn} style={stepperStyle} aria-label="Decrease minutes">−</button>
+                      <input type="number" min={0} max={59} step={5} value={String(durationM).padStart(2, "0")}
+                        onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v)))); }}
+                        className={numberInput} style={numberStyle} aria-label="Minutes" />
+                      <button type="button" onClick={() => setDurationM((m) => (m + 5) % 60)} className={stepperBtn} style={stepperStyle} aria-label="Increase minutes">+</button>
                     </div>
                   </div>
                 </div>
