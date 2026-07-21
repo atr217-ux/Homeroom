@@ -170,6 +170,18 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
     if (!name.trim()) { setError("Give the block a name"); return; }
     if (!startTime) { setError("Pick a start time"); return; }
     if (durationH === 0 && durationM === 0) { setError("Set a block length"); return; }
+    // If the block is scheduled for today, the start time can't already be
+    // in the past — otherwise the block is DOA.
+    if (date === today) {
+      const [sh, sm] = startTime.split(":").map(Number);
+      const startMin = sh * 60 + (sm || 0);
+      const now = new Date();
+      const nowMin = now.getHours() * 60 + now.getMinutes();
+      if (startMin < nowMin) {
+        setError("Start time can't be in the past. Pick a later time or a future date.");
+        return;
+      }
+    }
     const endTime = endTimeFromDuration(startTime, durationH, durationM);
     setSaving(true);
 
