@@ -239,39 +239,18 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
   }
 
   // ── Render ─────────────────────────────────────────────────────────────
-  const filteredTasks = taskSearch.trim()
+  const filteredTasks = (taskSearch.trim()
     ? tasks.filter((t) => t.text.toLowerCase().includes(taskSearch.toLowerCase().trim()))
-    : tasks;
-
-  // Group tasks by primary hashtag (first tag alphabetically) with an
-  // "Untagged" bucket for tasks without any tags. Committed-for-today tasks
-  // get their own "Today" section pinned at the top before the tag groups.
-  type TaskGroup = { key: string; label: string; tagName: string | null; tasks: TaskOption[] };
-  function groupByTag(list: TaskOption[]): TaskGroup[] {
-    const buckets = new Map<string, { tagName: string | null; tasks: TaskOption[] }>();
-    for (const t of list) {
-      const names = t.tagIds
-        .map((id) => allTags.find((tg) => tg.id === id)?.name)
-        .filter(Boolean) as string[];
-      names.sort();
-      const tagName = names[0] ?? null;
-      const key = tagName ?? "__untagged__";
-      const bucket = buckets.get(key) ?? { tagName, tasks: [] };
-      bucket.tasks.push(t);
-      buckets.set(key, bucket);
-    }
-    return Array.from(buckets.entries())
-      .sort(([, a], [, b]) => {
-        if (a.tagName === null) return 1;
-        if (b.tagName === null) return -1;
-        return a.tagName.localeCompare(b.tagName);
-      })
-      .map(([key, v]) => ({ key, label: v.tagName ? `#${v.tagName}` : "Untagged", tagName: v.tagName, tasks: v.tasks }));
-  }
-  const todayList = filteredTasks.filter((t) => t.scheduledFor === today);
-  const otherList = filteredTasks.filter((t) => t.scheduledFor !== today);
-  const todayGroups = groupByTag(todayList);
-  const otherGroups = groupByTag(otherList);
+    : tasks
+  )
+    // Stable sort — committed-for-today tasks bubble to the top; everything
+    // else keeps its original (recent-first) order.
+    .slice()
+    .sort((a, b) => {
+      const at = a.scheduledFor === today ? 0 : 1;
+      const bt = b.scheduledFor === today ? 0 : 1;
+      return at - bt;
+    });
 
   return (
     <div className="fixed inset-0 z-50 flex flex-col" style={{ background: "var(--bg)" }}>
@@ -446,110 +425,82 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
               />
             </div>
 
-            <div className="max-h-72 overflow-y-auto">
+            <div className="space-y-1.5 max-h-72 overflow-y-auto">
               {filteredTasks.length === 0 && (
                 <p className="text-xs text-center py-2" style={{ color: "var(--text-2)" }}>
                   {tasks.length === 0 ? "No open tasks yet" : "No tasks match"}
                 </p>
               )}
-              {(() => {
-                const renderRow = (t: TaskOption) => {
-                  const sel = pickedIds.has(t.id);
-                  const isFuture = t.scheduledFor !== null && t.scheduledFor > today;
-                  return (
-                    <button
-                      key={t.id}
-                      onClick={() => togglePick(t.id)}
-                      className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all"
-                      style={{
-                        background: sel ? "rgba(124,58,237,0.06)" : "var(--surface)",
-                        border: `1.5px solid ${sel ? "var(--purple)" : "var(--border-2)"}`,
-                      }}
-                    >
-                      <div
-                        className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5"
-                        style={sel
-                          ? { background: "var(--purple)", border: "2px solid var(--purple)" }
-                          : { border: "2px solid var(--border-3)" }}
-                      >
-                        {sel && (
-                          <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <span className="text-sm" style={{ color: "var(--text)" }}>{t.text}</span>
-                        {t.tagIds.length > 0 && (
-                          <div className="flex flex-wrap gap-1 mt-1">
-                            {t.tagIds.map((tid) => {
-                              const tag = allTags.find((tg) => tg.id === tid);
-                              if (!tag) return null;
-                              const { bg, fg } = tagColor(tag.name);
-                              return (
-                                <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
-                                  #{tag.name}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        )}
-                      </div>
-                      {isFuture && t.scheduledFor && (
-                        <span
-                          className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 whitespace-nowrap"
-                          style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
-                          title={`Scheduled for ${formatSchedulePill(t.scheduledFor)}`}
-                        >
-                          {formatSchedulePill(t.scheduledFor)}
-                        </span>
-                      )}
-                    </button>
-                  );
-                };
-                const renderGroup = (g: TaskGroup, colorful: boolean) => {
-                  const c = g.tagName ? tagColor(g.tagName) : { bg: "var(--surface-2)", fg: "var(--text-2)" };
-                  return (
-                    <div key={g.key} className="mb-3 last:mb-0">
-                      <div className="flex items-center gap-2 mb-1.5 px-1">
-                        <span
-                          className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide"
-                          style={colorful ? { background: c.bg, color: c.fg } : { color: "var(--text-2)" }}
-                        >
-                          {g.label}
-                        </span>
-                        <span className="text-[10px]" style={{ color: "var(--text-3)" }}>
-                          {g.tasks.length}
-                        </span>
-                      </div>
-                      <div className="space-y-1.5">
-                        {g.tasks.map(renderRow)}
-                      </div>
-                    </div>
-                  );
-                };
+              {filteredTasks.map((t) => {
+                const sel = pickedIds.has(t.id);
+                const isToday = t.scheduledFor === today;
+                const isFuture = t.scheduledFor !== null && t.scheduledFor > today;
                 return (
-                  <>
-                    {todayGroups.length > 0 && (
-                      <div className="mb-3">
-                        <div className="flex items-center gap-2 mb-1.5 px-1">
-                          <span
-                            className="text-[10px] px-1.5 py-0.5 rounded-full font-semibold uppercase tracking-wide"
-                            style={{ background: "rgba(124,58,237,0.14)", color: "var(--purple)" }}
-                          >
-                            Today
-                          </span>
-                          <span className="text-[10px]" style={{ color: "var(--text-3)" }}>
-                            {todayList.length}
-                          </span>
+                  <button
+                    key={t.id}
+                    onClick={() => togglePick(t.id)}
+                    className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left transition-all"
+                    style={{
+                      background: sel ? "rgba(124,58,237,0.06)" : "var(--surface)",
+                      border: `1.5px solid ${sel ? "var(--purple)" : "var(--border-2)"}`,
+                    }}
+                  >
+                    <div
+                      className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center mt-0.5"
+                      style={sel
+                        ? { background: "var(--purple)", border: "2px solid var(--purple)" }
+                        : { border: "2px solid var(--border-3)" }}
+                    >
+                      {sel && (
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm" style={{ color: "var(--text)" }}>{t.text}</span>
+                      {t.tagIds.length > 0 && (
+                        <div className="flex flex-wrap gap-1 mt-1">
+                          {t.tagIds.map((tid) => {
+                            const tag = allTags.find((tg) => tg.id === tid);
+                            if (!tag) return null;
+                            const { bg, fg } = tagColor(tag.name);
+                            return (
+                              <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                                #{tag.name}
+                              </span>
+                            );
+                          })}
                         </div>
-                        {todayGroups.map((g) => renderGroup(g, true))}
-                      </div>
+                      )}
+                    </div>
+                    {isFuture && t.scheduledFor && (
+                      <span
+                        className="text-xs font-semibold px-2 py-0.5 rounded-full flex-shrink-0 mt-0.5 whitespace-nowrap"
+                        style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+                        title={`Scheduled for ${formatSchedulePill(t.scheduledFor)}`}
+                      >
+                        {formatSchedulePill(t.scheduledFor)}
+                      </span>
                     )}
-                    {otherGroups.map((g) => renderGroup(g, true))}
-                  </>
+                    {isToday && (
+                      <span
+                        className="flex-shrink-0 mt-0.5"
+                        style={{ color: "var(--purple)" }}
+                        title="Scheduled for today"
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="4" width="18" height="18" rx="2" />
+                          <line x1="16" y1="2" x2="16" y2="6" />
+                          <line x1="8" y1="2" x2="8" y2="6" />
+                          <line x1="3" y1="10" x2="21" y2="10" />
+                          <polyline points="9 16 11 18 16 13" />
+                        </svg>
+                      </span>
+                    )}
+                  </button>
                 );
-              })()}
+              })}
             </div>
           </div>
 
