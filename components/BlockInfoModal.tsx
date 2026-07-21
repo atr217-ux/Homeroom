@@ -3,6 +3,9 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { createClient } from "@/lib/supabase/client";
+import { getOrCreateTag, parseHashtags, stripHashtags } from "@/lib/utils/tags";
+import BlockEditModal from "@/components/today/BlockEditModal";
+import type { Tag } from "@/lib/db/types";
 
 type Participant = { id: string; username: string; avatar: string | null };
 type BlockTask = { id: string; text: string; done: boolean; user_id: string; isShared: boolean; isPrivate: boolean };
@@ -14,6 +17,7 @@ type BlockInfo = {
   startTime: string;
   endTime: string;
   ownerId: string;
+  invitedIds: string[];
   participants: Participant[];
   tasks: BlockTask[];
 };
@@ -33,15 +37,13 @@ function formatTime12h(t: string): string {
   return `${h12}:${String(m).padStart(2, "0")} ${suffix}`;
 }
 
-function formatDateLong(iso: string): string {
-  const [y, m, d] = iso.split("-").map(Number);
-  const dt = new Date(y, m - 1, d);
-  return dt.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
-}
-
 export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
   const [data, setData] = useState<BlockInfo | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [reloadKey, setReloadKey] = useState(0);
+  const [taskDraft, setTaskDraft] = useState("");
+  const [adding, setAdding] = useState(false);
+  const [editingBlock, setEditingBlock] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +120,7 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
           startTime: b.start_time,
           endTime: b.end_time,
           ownerId: b.user_id,
+          invitedIds: inviteeIds.filter((id) => id !== b.user_id),
           participants,
           tasks,
         });
@@ -125,12 +128,73 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
     }
     load();
     return () => { cancelled = true; };
-  }, [blockId]);
+  }, [blockId, reloadKey]);
+
+  async function toggleDone(taskId: string) {
+    if (!data) return;
+    const t = data.tasks.find((x) => x.id === taskId);
+    if (!t || t.user_id !== userId) return;
+    const next = !t.done;
+    setData({ ...data, tasks: data.tasks.map((x) => x.id === taskId ? { ...x, done: next } : x) });
+    await createClient()
+      .from("tasks")
+      .update({ done: next, completed_at: next ? new Date().toISOString() : null })
+      .eq("id", taskId);
+  }
+
+  async function toggleShared(taskId: string) {
+    if (!data) return;
+    const t = data.tasks.find((x) => x.id === taskId);
+    if (!t || t.user_id !== userId) return;
+    const next = !t.isShared;
+    setData({ ...data, tasks: data.tasks.map((x) => x.id === taskId ? { ...x, isShared: next } : x) });
+    await createClient().from("tasks").update({ is_shared: next }).eq("id", taskId);
+  }
+
+  async function togglePrivate(taskId: string) {
+    if (!data) return;
+    const t = data.tasks.find((x) => x.id === taskId);
+    if (!t || t.user_id !== userId) return;
+    const next = !t.isPrivate;
+    setData({ ...data, tasks: data.tasks.map((x) => x.id === taskId ? { ...x, isPrivate: next } : x) });
+    await createClient().from("tasks").update({ is_private: next }).eq("id", taskId);
+  }
+
+  async function addTask() {
+    const raw = taskDraft.trim();
+    if (!data || !raw || adding) return;
+    const tagNames = parseHashtags(raw);
+    const text = stripHashtags(raw);
+    if (!text) return;
+    setAdding(true);
+    setTaskDraft("");
+    const supabase = createClient();
+    const { data: inserted } = await supabase
+      .from("tasks")
+      .insert({
+        user_id: userId,
+        text,
+        done: false,
+        block_id: data.id,
+        committed_for_date: data.date,
+      })
+      .select("id")
+      .single();
+    if (inserted && tagNames.length > 0) {
+      const tagObjs = (await Promise.all(tagNames.map((n) => getOrCreateTag(n, supabase, userId)))).filter(Boolean) as Tag[];
+      if (tagObjs.length > 0) {
+        await supabase.from("task_tags").insert(tagObjs.map((tg) => ({ task_id: inserted.id, tag_id: tg.id })));
+      }
+    }
+    setAdding(false);
+    setReloadKey((k) => k + 1);
+  }
 
   if (typeof document === "undefined") return null;
 
-  // Render through a portal to escape SwipeableRow's transform, which
-  // otherwise makes `position: fixed` position relative to the row.
+  const doneCount = data?.tasks.filter((t) => t.done).length ?? 0;
+  const isOwner = data?.ownerId === userId;
+
   return createPortal(
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4"
@@ -167,7 +231,7 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
             className="rounded-2xl border overflow-hidden"
             style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
           >
-            {/* Header — matches the collapsed UpcomingBlocks card */}
+            {/* Header — mirrors the collapsed UpcomingBlocks card */}
             <div className="w-full flex items-center gap-3 px-3 py-3">
               <div
                 className="w-9 h-9 rounded-xl flex-shrink-0 flex items-center justify-center"
@@ -181,21 +245,13 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
                 </svg>
               </div>
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
-                  {data.name}
-                </div>
+                <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>{data.name}</div>
                 <div className="text-xs flex items-center gap-2 mt-0.5" style={{ color: "var(--text-2)" }}>
-                  <span className="whitespace-nowrap">
-                    {formatTime12h(data.startTime)}–{formatTime12h(data.endTime)}
-                  </span>
+                  <span className="whitespace-nowrap">{formatTime12h(data.startTime)}–{formatTime12h(data.endTime)}</span>
                   <span aria-hidden style={{ color: "var(--text-3)" }}>·</span>
-                  <span className="whitespace-nowrap">
-                    {data.tasks.length} task{data.tasks.length === 1 ? "" : "s"}
-                  </span>
+                  <span className="whitespace-nowrap">{data.tasks.length} task{data.tasks.length === 1 ? "" : "s"}</span>
                   <span aria-hidden style={{ color: "var(--text-3)" }}>·</span>
-                  <span className="whitespace-nowrap">
-                    {data.participants.length} {data.participants.length === 1 ? "person" : "people"}
-                  </span>
+                  <span className="whitespace-nowrap">{data.participants.length} {data.participants.length === 1 ? "person" : "people"}</span>
                 </div>
               </div>
               <div className="flex items-center -space-x-2 flex-shrink-0">
@@ -232,41 +288,41 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
               </button>
             </div>
 
-            {/* Body — matches the expanded UpcomingBlocks card */}
+            {/* Body — interactive, mirrors the expanded UpcomingBlocks card */}
             <div
               className="border-t px-3 py-3 space-y-3"
               style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}
             >
-              {/* Date line — shown here because a task's block may not be today */}
-              <div className="text-[10px] font-semibold uppercase tracking-wider" style={{ color: "var(--text-3)" }}>
-                {formatDateLong(data.date)}
-              </div>
-
               {/* Tasks */}
               <div>
                 <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--text-2)" }}>
-                  Tasks · {data.tasks.filter((t) => t.done).length}/{data.tasks.length}
+                  Tasks · {doneCount}/{data.tasks.length}
                 </div>
                 {data.tasks.length === 0 ? (
-                  <p className="text-xs" style={{ color: "var(--text-3)" }}>No tasks assigned yet</p>
+                  <p className="text-xs mb-2" style={{ color: "var(--text-3)" }}>No tasks assigned yet</p>
                 ) : (
-                  <div className="space-y-1">
+                  <div className="space-y-1 mb-2">
                     {data.tasks.map((t) => {
-                      const canSeeText = t.user_id === userId || !t.isPrivate;
+                      const ownTask = t.user_id === userId;
+                      const canSeeText = ownTask || !t.isPrivate;
                       return (
                         <div key={t.id} className="flex items-center gap-2 text-sm">
-                          <span
+                          <button
+                            type="button"
+                            onClick={() => ownTask && toggleDone(t.id)}
+                            disabled={!ownTask}
                             className="w-3.5 h-3.5 rounded flex-shrink-0 flex items-center justify-center"
                             style={t.done
                               ? { background: "var(--purple)", border: "2px solid var(--purple)" }
                               : { border: "2px solid var(--border-3)" }}
+                            aria-label={t.done ? "Mark not done" : "Mark done"}
                           >
                             {t.done && (
                               <svg width="7" height="7" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
                                 <polyline points="20 6 9 17 4 12" />
                               </svg>
                             )}
-                          </span>
+                          </button>
                           <span
                             className="flex-1 truncate"
                             style={{
@@ -277,7 +333,48 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
                           >
                             {canSeeText ? t.text : "Private task"}
                           </span>
-                          {t.isShared && (
+                          {ownTask && (
+                            <>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); togglePrivate(t.id); }}
+                                className="w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+                                style={t.isPrivate
+                                  ? { background: "var(--purple)", color: "white" }
+                                  : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
+                                title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+                                aria-label={t.isPrivate ? "Make public" : "Make private"}
+                              >
+                                {t.isPrivate ? (
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                  </svg>
+                                ) : (
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                                  </svg>
+                                )}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={(e) => { e.stopPropagation(); toggleShared(t.id); }}
+                                className="w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+                                style={t.isShared
+                                  ? { background: "var(--purple)", color: "white" }
+                                  : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
+                                title={t.isShared ? "Shared — tap to unshare" : "Mark as shared"}
+                                aria-label={t.isShared ? "Unshare" : "Share"}
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                </svg>
+                              </button>
+                            </>
+                          )}
+                          {!ownTask && t.isShared && (
                             <span style={{ color: "var(--purple)", opacity: 0.7 }} title="Shared task">
                               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                 <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
@@ -290,6 +387,33 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
                     })}
                   </div>
                 )}
+
+                {/* Quick-add */}
+                <div className="flex gap-1.5 mt-1">
+                  <input
+                    type="text"
+                    value={taskDraft}
+                    onChange={(e) => setTaskDraft(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addTask(); } }}
+                    placeholder="Add a task… (try #category)"
+                    className="flex-1 text-sm rounded-lg px-2.5 py-1.5 focus:outline-none border"
+                    style={{
+                      background: "var(--surface)",
+                      borderColor: "var(--border-2)",
+                      color: "var(--text)",
+                      fontSize: "16px",
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={addTask}
+                    disabled={adding || !taskDraft.trim()}
+                    className="text-xs font-semibold px-3 py-1.5 rounded-lg text-white disabled:opacity-40"
+                    style={{ background: "var(--purple)" }}
+                  >
+                    {adding ? "…" : "Add"}
+                  </button>
+                </div>
               </div>
 
               {/* Participants */}
@@ -313,10 +437,40 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
                   ))}
                 </div>
               </div>
+
+              {/* Owner action */}
+              {isOwner && (
+                <div className="pt-1">
+                  <button
+                    type="button"
+                    onClick={() => setEditingBlock(true)}
+                    className="w-full text-xs font-semibold py-2 rounded-xl border transition-colors"
+                    style={{ background: "var(--surface)", borderColor: "var(--purple)", color: "var(--purple)" }}
+                  >
+                    Edit block
+                  </button>
+                </div>
+              )}
             </div>
           </div>
         )}
       </div>
+
+      {editingBlock && data && (
+        <BlockEditModal
+          userId={userId}
+          block={{
+            id: data.id,
+            name: data.name,
+            startTime: data.startTime,
+            endTime: data.endTime,
+            invitedIds: data.invitedIds,
+          }}
+          onClose={() => setEditingBlock(false)}
+          onSaved={() => { setEditingBlock(false); setReloadKey((k) => k + 1); }}
+          onDeleted={() => { setEditingBlock(false); onClose(); }}
+        />
+      )}
     </div>,
     document.body,
   );
