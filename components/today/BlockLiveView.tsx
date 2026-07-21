@@ -43,6 +43,48 @@ export default function BlockLiveView({ block, userId }: Props) {
   const [newTaskInput, setNewTaskInput] = useState("");
   const [addingTask, setAddingTask] = useState(false);
 
+  // "Add from my list" — pull an existing personal task into this block.
+  type AvailableTask = { id: string; text: string; isPrivate: boolean; tagIds: string[]; createdAt: string };
+  const [available, setAvailable] = useState<AvailableTask[]>([]);
+  const [showAvailable, setShowAvailable] = useState(false);
+  const [availableSearch, setAvailableSearch] = useState("");
+
+  async function loadAvailable() {
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .select("id, text, is_private, created_at, block_id, task_tags(tag_id)")
+      .eq("user_id", userId)
+      .eq("done", false)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    // Exclude tasks already attached to any block (a task belongs to at
+    // most one block at a time).
+    setAvailable(((data ?? []) as { id: string; text: string; is_private: boolean | null; created_at: string; block_id: string | null; task_tags: { tag_id: string }[] | null }[])
+      .filter((r) => !r.block_id)
+      .map((r) => ({
+        id: r.id,
+        text: r.text,
+        isPrivate: r.is_private ?? false,
+        tagIds: (r.task_tags ?? []).map((tt) => tt.tag_id),
+        createdAt: r.created_at,
+      })));
+  }
+
+  async function openAvailable() {
+    setShowAvailable(true);
+    await loadAvailable();
+  }
+
+  async function importIntoBlock(av: AvailableTask) {
+    setAvailable((prev) => prev.filter((t) => t.id !== av.id));
+    await createClient()
+      .from("tasks")
+      .update({ block_id: block.id, committed_for_date: block.date })
+      .eq("id", av.id);
+    // Realtime subscription refreshes the task list below.
+  }
+
   async function addMyTaskToBlock() {
     const raw = newTaskInput.trim();
     if (!raw || addingTask) return;
@@ -423,6 +465,114 @@ export default function BlockLiveView({ block, userId }: Props) {
               {addingTask ? "…" : "Add"}
             </button>
           </div>
+
+          {/* Pull an existing task from your master list into this block */}
+          <button
+            type="button"
+            onClick={showAvailable ? () => setShowAvailable(false) : openAvailable}
+            className="w-full text-sm font-medium py-2 rounded-xl border mt-2 flex items-center justify-center gap-1.5 transition-colors"
+            style={showAvailable
+              ? { borderColor: "var(--purple)", color: "var(--purple)", background: "rgba(124,58,237,0.06)" }
+              : { borderColor: "var(--border-3)", color: "var(--text-2)", background: "transparent" }}
+          >
+            <svg
+              width="13"
+              height="13"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2.5"
+              style={{ transform: showAvailable ? "rotate(45deg)" : "rotate(0deg)", transition: "transform 0.15s" }}
+            >
+              <line x1="12" y1="5" x2="12" y2="19" />
+              <line x1="5" y1="12" x2="19" y2="12" />
+            </svg>
+            {showAvailable ? "Close" : "Add from my list"}
+          </button>
+
+          {showAvailable && (
+            <div
+              className="rounded-2xl border p-3 space-y-2 mt-2"
+              style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+            >
+              <div className="relative">
+                <svg className="absolute left-3 top-1/2 -translate-y-1/2 pointer-events-none" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--text-2)" }}>
+                  <circle cx="11" cy="11" r="8" /><path d="M21 21l-4.35-4.35" />
+                </svg>
+                <input
+                  type="text"
+                  value={availableSearch}
+                  onChange={(e) => setAvailableSearch(e.target.value)}
+                  placeholder="Search your list…"
+                  className="w-full text-sm rounded-xl pl-8 pr-3 py-2 focus:outline-none border"
+                  style={{
+                    background: "var(--bg)",
+                    borderColor: availableSearch ? "var(--purple)" : "var(--border-2)",
+                    color: "var(--text)",
+                    fontSize: "16px",
+                  }}
+                />
+              </div>
+              <div className="space-y-1.5 max-h-72 overflow-y-auto">
+                {(() => {
+                  const filtered = availableSearch.trim()
+                    ? available.filter((t) => t.text.toLowerCase().includes(availableSearch.toLowerCase().trim()))
+                    : available;
+                  if (available.length === 0) {
+                    return (
+                      <p className="text-xs text-center py-3" style={{ color: "var(--text-2)" }}>
+                        No unassigned open tasks in your list
+                      </p>
+                    );
+                  }
+                  if (filtered.length === 0) {
+                    return (
+                      <p className="text-xs text-center py-3" style={{ color: "var(--text-2)" }}>
+                        No tasks match
+                      </p>
+                    );
+                  }
+                  return filtered.map((t) => (
+                    <button
+                      key={t.id}
+                      onClick={() => importIntoBlock(t)}
+                      className="w-full flex items-start gap-2.5 px-3 py-2.5 rounded-xl text-left transition-opacity hover:opacity-80"
+                      style={{ background: "var(--bg)", border: "1px solid var(--border-2)" }}
+                    >
+                      <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0, marginTop: 2 }}>
+                        <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+                      </svg>
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-sm" style={{ color: "var(--text)" }}>{t.text}</span>
+                          {t.isPrivate && (
+                            <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" style={{ color: "var(--purple)", flexShrink: 0 }}>
+                              <rect x="3" y="11" width="18" height="11" rx="2" />
+                              <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                            </svg>
+                          )}
+                        </div>
+                        {t.tagIds.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-1">
+                            {t.tagIds.map((tid) => {
+                              const tag = allTags.find((tg) => tg.id === tid);
+                              if (!tag) return null;
+                              const { bg, fg } = tagColor(tag.name);
+                              return (
+                                <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                                  #{tag.name}
+                                </span>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                    </button>
+                  ));
+                })()}
+              </div>
+            </div>
+          )}
         </section>
       )}
 
