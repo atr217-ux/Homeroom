@@ -529,14 +529,19 @@ function TaskSection({
           </button>
         )}
 
-        {/* Active share state — chain-link icon matches the toggle used
-            on /today's upcoming-blocks card so the meaning is consistent. */}
-        {!isEditing && !readonly && hasHover && onToggleShared && t.isShared && (
+        {/* Share toggle — always visible on every task in the block so
+            it's a one-tap action rather than hidden behind a menu.
+            Purple when the task is currently shared, muted otherwise. */}
+        {!isEditing && !readonly && onToggleShared && (
           <button
             onClick={() => onToggleShared(t.id)}
-            className="p-1 rounded transition-opacity flex-shrink-0"
-            style={{ color: "var(--purple)" }}
-            title="Currently shared — tap to unshare"
+            className="p-1 rounded transition-opacity hover:opacity-100 flex-shrink-0"
+            style={{
+              color: t.isShared ? "var(--purple)" : "var(--purple-light)",
+              opacity: t.isShared ? 1 : 0.55,
+            }}
+            title={t.isShared ? "Currently shared — tap to unshare" : "Make shareable"}
+            aria-label={t.isShared ? "Unshare task" : "Share task"}
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
               <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
@@ -545,23 +550,10 @@ function TaskSection({
           </button>
         )}
 
-        {!isEditing && !readonly && hasHover && (onToggleShared || onRemoveFromBlock) && (
+        {!isEditing && !readonly && hasHover && onRemoveFromBlock && (
           <MoreMenu
             items={[
-              ...(onToggleShared && !t.isShared ? [{
-                label: "Make shareable",
-                onClick: () => onToggleShared(t.id),
-                icon: (
-                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="9" cy="12" r="3" />
-                    <circle cx="17" cy="6" r="3" />
-                    <circle cx="17" cy="18" r="3" />
-                    <line x1="11.6" y1="10.6" x2="14.4" y2="7.4" />
-                    <line x1="11.6" y1="13.4" x2="14.4" y2="16.6" />
-                  </svg>
-                ),
-              }] : []),
-              ...(onRemoveFromBlock ? [{
+              {
                 label: "Remove from block",
                 destructive: true,
                 onClick: () => onRemoveFromBlock(t.id),
@@ -572,7 +564,7 @@ function TaskSection({
                     <line x1="9" y1="16" x2="15" y2="16" />
                   </svg>
                 ),
-              }] : []),
+              },
             ]}
           />
         )}
