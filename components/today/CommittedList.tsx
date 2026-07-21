@@ -43,6 +43,9 @@ type CommittedTask = {
 type Props = {
   userId: string;
   onOpenSchedule: () => void;
+  // Forwarded to UpcomingBlocks so the parent /today page can force a
+  // refetch (e.g. right after a block is created).
+  blockReloadKey?: number;
 };
 
 type AvailableTask = {
@@ -53,7 +56,7 @@ type AvailableTask = {
   createdAt: string;
 };
 
-export default function CommittedList({ userId, onOpenSchedule }: Props) {
+export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }: Props) {
   const [tasks, setTasks] = useState<CommittedTask[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(true);
@@ -1277,7 +1280,7 @@ export default function CommittedList({ userId, onOpenSchedule }: Props) {
         </button>
       )}
 
-      {!loading && <UpcomingBlocks userId={userId} />}
+      {!loading && <UpcomingBlocks userId={userId} externalReload={blockReloadKey} />}
 
       {/* Notes popup — centered on desktop, bottom sheet on mobile */}
       {notesOpen && (

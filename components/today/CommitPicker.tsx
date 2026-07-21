@@ -19,9 +19,12 @@ type PickerTask = {
 type Props = {
   userId: string;
   onCommitted: () => void; // re-fetch today's tasks after commit
+  // Forwarded to UpcomingBlocks so the parent /today page can force a
+  // refetch (e.g. right after a block is created).
+  blockReloadKey?: number;
 };
 
-export default function CommitPicker({ userId, onCommitted }: Props) {
+export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Props) {
   const [tasks, setTasks] = useState<PickerTask[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -545,7 +548,7 @@ export default function CommitPicker({ userId, onCommitted }: Props) {
         );
       })()}
 
-      {!loading && <UpcomingBlocks userId={userId} />}
+      {!loading && <UpcomingBlocks userId={userId} externalReload={blockReloadKey} />}
 
       {/* Commit button — fixed above bottom nav */}
       <div className="fixed bottom-24 left-0 right-0 px-4 max-w-2xl mx-auto z-30 pointer-events-none">

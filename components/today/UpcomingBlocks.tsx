@@ -23,6 +23,9 @@ type UpcomingBlock = {
 
 type Props = {
   userId: string;
+  // Optional external counter — bump it from a parent to force this
+  // component to refetch (e.g. right after a block is created).
+  externalReload?: number;
 };
 
 // "HH:MM[:SS]" -> "1:00 PM"
@@ -42,7 +45,7 @@ function toMinutes(t: string | null): number {
   return h * 60 + (m || 0);
 }
 
-export default function UpcomingBlocks({ userId }: Props) {
+export default function UpcomingBlocks({ userId, externalReload = 0 }: Props) {
   const [blocks, setBlocks] = useState<UpcomingBlock[]>([]);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
@@ -248,7 +251,7 @@ export default function UpcomingBlocks({ userId }: Props) {
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-  }, [userId, reloadKey]);
+  }, [userId, reloadKey, externalReload]);
 
   if (loading || blocks.length === 0) return null;
 

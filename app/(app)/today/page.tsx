@@ -115,10 +115,10 @@ export default function TodayPage() {
       ) : (
         <>
           {phase === "picker" && (
-            <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} />
+            <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} blockReloadKey={reloadKey} />
           )}
           {phase === "committed" && (
-            <CommittedList userId={userId} onOpenSchedule={() => setScheduleOpen(true)} />
+            <CommittedList userId={userId} onOpenSchedule={() => setScheduleOpen(true)} blockReloadKey={reloadKey} />
           )}
         </>
       )}
