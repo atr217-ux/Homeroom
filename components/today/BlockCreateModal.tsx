@@ -307,7 +307,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             const numberInput = "w-8 text-center bg-transparent focus:outline-none tabular-nums font-bold";
             const numberStyle = { color: "var(--purple)", fontSize: "1.15rem", lineHeight: 1 } as const;
             const stepperStyle = { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" } as const;
-            const sectionCard = "rounded-2xl border p-3 flex flex-col items-center";
+            const sectionCard = "rounded-2xl border px-3 pt-3 pb-2 flex flex-col items-center";
             const sectionStyle = { background: "var(--surface)", borderColor: "var(--border-2)" } as const;
             const sectionLabel = "text-sm font-bold mb-1.5" as const;
             return (
@@ -336,16 +336,17 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                           <button type="button" onClick={() => bumpSM(-5)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start minutes">−</button>
                         </div>
                       </div>
+                      {/* AM/PM chip inline to the right of the time */}
+                      <button
+                        type="button"
+                        onClick={() => setStart(start.h12, start.m, start.ampm === "AM" ? "PM" : "AM")}
+                        className="ml-1 h-6 px-2 rounded-md flex items-center justify-center text-[11px] font-bold transition-colors tabular-nums"
+                        style={{ background: "var(--purple)", color: "white", marginTop: 1 }}
+                        aria-label="Toggle AM/PM"
+                      >
+                        {start.ampm}
+                      </button>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => setStart(start.h12, start.m, start.ampm === "AM" ? "PM" : "AM")}
-                      className="mt-2 h-7 px-3 rounded-full flex items-center justify-center text-xs font-bold transition-colors tabular-nums"
-                      style={{ background: "var(--purple)", color: "white" }}
-                      aria-label="Toggle AM/PM"
-                    >
-                      {start.ampm}
-                    </button>
                   </div>
 
                   {/* Length card */}
