@@ -39,6 +39,39 @@ export default function BlockLiveView({ block, userId }: Props) {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editingText, setEditingText] = useState("");
   const editInputRef = useRef<HTMLInputElement>(null);
+  // Quick-add input for the current user's tasks in this block.
+  const [newTaskInput, setNewTaskInput] = useState("");
+  const [addingTask, setAddingTask] = useState(false);
+
+  async function addMyTaskToBlock() {
+    const raw = newTaskInput.trim();
+    if (!raw || addingTask) return;
+    const tagNames = parseHashtags(raw);
+    const text = stripHashtags(raw);
+    if (!text) return;
+    setAddingTask(true);
+    setNewTaskInput("");
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .insert({
+        user_id: userId,
+        text,
+        done: false,
+        block_id: block.id,
+        committed_for_date: block.date,
+      })
+      .select("id")
+      .single();
+    if (data && tagNames.length > 0) {
+      const tagObjs = (await Promise.all(tagNames.map((n) => getOrCreateTag(n, supabase, userId)))).filter(Boolean) as Tag[];
+      if (tagObjs.length > 0) {
+        await supabase.from("task_tags").insert(tagObjs.map((tg) => ({ task_id: data.id, tag_id: tg.id })));
+      }
+    }
+    setAddingTask(false);
+    // Realtime subscription in this component will pick up the new row.
+  }
 
   // ── Load ───────────────────────────────────────────────────────────────
   useEffect(() => {
@@ -363,6 +396,33 @@ export default function BlockLiveView({ block, userId }: Props) {
             editInputRef={editInputRef}
             currentUserId={userId}
           />
+          {/* Inline quick-add so anyone in the block (not just the host) can
+              drop tasks in for themselves. Tags parsed from #hashtags. */}
+          <div className="flex gap-2 mt-2">
+            <input
+              type="text"
+              value={newTaskInput}
+              onChange={(e) => setNewTaskInput(e.target.value)}
+              onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addMyTaskToBlock(); } }}
+              placeholder="Add a task to this block… (try #category)"
+              className="flex-1 text-sm rounded-xl px-3 py-2 focus:outline-none border"
+              style={{
+                background: "var(--surface)",
+                borderColor: "var(--border-2)",
+                color: "var(--text)",
+                fontSize: "16px",
+              }}
+            />
+            <button
+              type="button"
+              onClick={addMyTaskToBlock}
+              disabled={addingTask || !newTaskInput.trim()}
+              className="text-sm font-semibold px-3 py-2 rounded-xl text-white disabled:opacity-40"
+              style={{ background: "var(--purple)" }}
+            >
+              {addingTask ? "…" : "Add"}
+            </button>
+          </div>
         </section>
       )}
 
