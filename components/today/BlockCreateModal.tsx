@@ -307,15 +307,15 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             const numberInput = "w-10 text-center bg-transparent focus:outline-none tabular-nums font-bold";
             const numberStyle = { color: "var(--purple)", fontSize: "1.5rem", lineHeight: 1 } as const;
             const stepperStyle = { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" } as const;
+            const sectionCard = "rounded-2xl border p-4 flex flex-col items-center";
+            const sectionStyle = { background: "var(--surface)", borderColor: "var(--border-2)" } as const;
+            const sectionLabel = "text-sm font-bold mb-2" as const;
             return (
-              <div
-                className="rounded-2xl border p-4"
-                style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
-              >
+              <div>
                 <div className="grid grid-cols-2 gap-3">
-                  {/* Start column */}
-                  <div className="flex flex-col items-center">
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-2" style={{ color: "var(--text-2)" }}>Start</div>
+                  {/* Start card */}
+                  <div className={sectionCard} style={sectionStyle}>
+                    <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
                     <div className="flex items-start gap-1.5">
                       <div className="flex flex-col items-center gap-1">
                         <input type="number" min={1} max={12} value={start.h12}
@@ -348,9 +348,9 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     </button>
                   </div>
 
-                  {/* Length column */}
-                  <div className="flex flex-col items-center" style={{ borderLeft: "1px solid var(--border)" }}>
-                    <div className="text-[10px] font-semibold uppercase tracking-[0.2em] mb-2" style={{ color: "var(--text-2)" }}>Length</div>
+                  {/* Length card */}
+                  <div className={sectionCard} style={sectionStyle}>
+                    <div className={sectionLabel} style={{ color: "var(--text)" }}>Length</div>
                     <div className="flex items-start gap-1.5">
                       <div className="flex flex-col items-center gap-1">
                         <input type="number" min={0} max={23} value={durationH}
