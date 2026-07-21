@@ -339,6 +339,23 @@ export default function BlockLiveView({ block, userId }: Props) {
     ? isWithinTimeRange(block.start_time, block.end_time)
     : true;
 
+  // Progress + elapsed helpers for the header + section counters.
+  const myDone = myTasks.filter((t) => t.done).length;
+  const totalDone = tasks.filter((t) => t.done).length;
+  function timeToMin(t: string | null | undefined): number {
+    if (!t) return 0;
+    const [h, m] = t.split(":").map(Number);
+    return h * 60 + (m || 0);
+  }
+  const startMin = timeToMin(block.start_time);
+  const endMin = timeToMin(block.end_time);
+  const totalMin = Math.max(1, endMin - startMin);
+  const now = new Date();
+  const nowMin = now.getHours() * 60 + now.getMinutes();
+  const elapsedMin = Math.max(0, Math.min(totalMin, nowMin - startMin));
+  const remainingMin = Math.max(0, totalMin - elapsedMin);
+  const pct = Math.min(100, Math.round((elapsedMin / totalMin) * 100));
+
   // ── Render ─────────────────────────────────────────────────────────────
   return (
     <div className="max-w-2xl mx-auto px-4 pt-8 pb-32">
@@ -350,7 +367,7 @@ export default function BlockLiveView({ block, userId }: Props) {
               <span className="w-1.5 h-1.5 rounded-full bg-white animate-pulse" />
               {stillLive ? "LIVE" : "BLOCK ENDED"}
             </span>
-            <span className="text-xs opacity-80">
+            <span className="text-xs opacity-80 tabular-nums">
               {block.start_time?.slice(0, 5)} – {block.end_time?.slice(0, 5)}
             </span>
           </div>
@@ -367,6 +384,36 @@ export default function BlockLiveView({ block, userId }: Props) {
                   <span>{p.username}</span>
                 </span>
               ))}
+            </div>
+          )}
+
+          {/* Elapsed timer + progress bar */}
+          <div className="mt-3">
+            <div className="flex items-center justify-between text-[11px] opacity-90 tabular-nums mb-1">
+              <span>
+                {stillLive
+                  ? `${elapsedMin} of ${totalMin} min in`
+                  : `${totalMin} of ${totalMin} min — done`}
+              </span>
+              <span>
+                {stillLive ? `${remainingMin} min left` : "wrap it up"}
+              </span>
+            </div>
+            <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ background: "rgba(255,255,255,0.2)" }}>
+              <div
+                className="h-full transition-all"
+                style={{ width: `${pct}%`, background: "white" }}
+              />
+            </div>
+          </div>
+
+          {/* Celebratory tally — grows as tasks are completed */}
+          {totalDone > 0 && (
+            <div className="mt-3 text-sm font-semibold flex items-center gap-1.5">
+              <span aria-hidden>🎉</span>
+              <span>
+                You&apos;ve completed {totalDone} {totalDone === 1 ? "task" : "tasks"} in this block!
+              </span>
             </div>
           )}
         </div>
@@ -414,8 +461,14 @@ export default function BlockLiveView({ block, userId }: Props) {
       {/* My tasks */}
       {!loading && (
         <section className="mb-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1" style={{ color: "var(--text-2)" }}>
-            My tasks ({myTasks.length})
+          <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
+            <span>My tasks</span>
+            <span
+              className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
+              style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+            >
+              {myDone}/{myTasks.length} done
+            </span>
           </h2>
           <TaskSection
             tasks={myTasks}
@@ -579,11 +632,18 @@ export default function BlockLiveView({ block, userId }: Props) {
       {/* Each participant's tasks */}
       {!loading && Array.from(othersByUser.entries()).map(([ownerId, ownerTasks]) => {
         const profile = participants.find((p) => p.id === ownerId);
+        const ownerDone = ownerTasks.filter((t) => t.done).length;
         return (
           <section key={ownerId} className="mb-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-1.5" style={{ color: "var(--text-2)" }}>
+            <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
               <span>{profile?.avatar ?? "🙂"}</span>
-              <span>{profile?.username ?? "Someone"} ({ownerTasks.length})</span>
+              <span>{profile?.username ?? "Someone"}</span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
+                style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+              >
+                {ownerDone}/{ownerTasks.length} done
+              </span>
             </h2>
             <TaskSection
               tasks={ownerTasks}
