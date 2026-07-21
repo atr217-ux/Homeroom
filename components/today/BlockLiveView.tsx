@@ -529,17 +529,18 @@ function TaskSection({
           </button>
         )}
 
-        {/* Active share state — always visible as state indicator */}
+        {/* Active share state — chain-link icon matches the toggle used
+            on /today's upcoming-blocks card so the meaning is consistent. */}
         {!isEditing && !readonly && hasHover && onToggleShared && t.isShared && (
           <button
             onClick={() => onToggleShared(t.id)}
             className="p-1 rounded transition-opacity flex-shrink-0"
-            style={{ color: "#059669" }}
+            style={{ color: "var(--purple)" }}
             title="Currently shared — tap to unshare"
           >
             <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-              <circle cx="9" cy="12" r="3" />
-              <line x1="5" y1="5" x2="19" y2="19" />
+              <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+              <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
             </svg>
           </button>
         )}
