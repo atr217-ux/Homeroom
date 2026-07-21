@@ -303,13 +303,13 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             const setStart = (h12: number, m: number, ampm: "AM" | "PM") => setStartTime(composeClock(h12, m, ampm));
             const bumpSH = (delta: number) => setStart(((start.h12 - 1 + delta + 12) % 12) + 1, start.m, start.ampm);
             const bumpSM = (delta: number) => setStart(start.h12, (start.m + delta + 60) % 60, start.ampm);
-            const stepperBtn = "w-7 h-7 rounded-lg flex items-center justify-center border-2 text-sm font-medium transition-colors";
-            const numberInput = "w-10 text-center bg-transparent focus:outline-none tabular-nums font-bold";
-            const numberStyle = { color: "var(--purple)", fontSize: "1.5rem", lineHeight: 1 } as const;
+            const stepperBtn = "w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium transition-colors";
+            const numberInput = "w-8 text-center bg-transparent focus:outline-none tabular-nums font-bold";
+            const numberStyle = { color: "var(--purple)", fontSize: "1.15rem", lineHeight: 1 } as const;
             const stepperStyle = { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" } as const;
-            const sectionCard = "rounded-2xl border p-4 flex flex-col items-center";
+            const sectionCard = "rounded-2xl border p-3 flex flex-col items-center";
             const sectionStyle = { background: "var(--surface)", borderColor: "var(--border-2)" } as const;
-            const sectionLabel = "text-sm font-bold mb-2" as const;
+            const sectionLabel = "text-sm font-bold mb-1.5" as const;
             return (
               <div>
                 <div className="grid grid-cols-2 gap-3">
