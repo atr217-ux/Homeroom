@@ -458,19 +458,25 @@ export default function BlockLiveView({ block, userId }: Props) {
         </section>
       )}
 
-      {/* My tasks */}
+      {/* My tasks — wrapped in its own card, matching the /today task
+          block styling (rounded, bordered, purple top strip). */}
       {!loading && (
-        <section className="mb-4">
-          <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
-            <span>My tasks</span>
-            <span
-              className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
-              style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
-            >
-              {myDone}/{myTasks.length} done
-            </span>
-          </h2>
-          <TaskSection
+        <section
+          className="rounded-2xl border overflow-hidden mb-4"
+          style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+        >
+          <div className="h-1 w-full" style={{ background: "var(--purple)" }} />
+          <div className="p-3">
+            <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
+              <span>My tasks</span>
+              <span
+                className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
+                style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+              >
+                {myDone}/{myTasks.length} done
+              </span>
+            </h2>
+            <TaskSection
             tasks={myTasks}
             allTags={allTags}
             elapsed={elapsed}
@@ -626,36 +632,44 @@ export default function BlockLiveView({ block, userId }: Props) {
               </div>
             </div>
           )}
+          </div>
         </section>
       )}
 
-      {/* Each participant's tasks */}
+      {/* Each participant's tasks — mirrored card styling (no purple top
+          strip, so mine reads as the primary card and theirs as secondary). */}
       {!loading && Array.from(othersByUser.entries()).map(([ownerId, ownerTasks]) => {
         const profile = participants.find((p) => p.id === ownerId);
         const ownerDone = ownerTasks.filter((t) => t.done).length;
         return (
-          <section key={ownerId} className="mb-4">
-            <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
-              <span>{profile?.avatar ?? "🙂"}</span>
-              <span>{profile?.username ?? "Someone"}</span>
-              <span
-                className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
-                style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
-              >
-                {ownerDone}/{ownerTasks.length} done
-              </span>
-            </h2>
-            <TaskSection
-              tasks={ownerTasks}
-              allTags={allTags}
-              elapsed={elapsed}
-              onToggle={undefined}
-              onStart={undefined}
-              onStop={undefined}
-              onUnclaim={undefined}
-              currentUserId={userId}
-              readonly
-            />
+          <section
+            key={ownerId}
+            className="rounded-2xl border overflow-hidden mb-4"
+            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+          >
+            <div className="p-3">
+              <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
+                <span>{profile?.avatar ?? "🙂"}</span>
+                <span>{profile?.username ?? "Someone"}</span>
+                <span
+                  className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
+                  style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+                >
+                  {ownerDone}/{ownerTasks.length} done
+                </span>
+              </h2>
+              <TaskSection
+                tasks={ownerTasks}
+                allTags={allTags}
+                elapsed={elapsed}
+                onToggle={undefined}
+                onStart={undefined}
+                onStop={undefined}
+                onUnclaim={undefined}
+                currentUserId={userId}
+                readonly
+              />
+            </div>
           </section>
         );
       })}
