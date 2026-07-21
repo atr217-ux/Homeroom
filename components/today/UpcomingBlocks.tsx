@@ -427,15 +427,14 @@ export default function UpcomingBlocks({ userId, externalReload = 0 }: Props) {
                                 <button
                                   type="button"
                                   onClick={(e) => { e.stopPropagation(); toggleShared(t.id, !t.isShared); }}
-                                  className="flex-shrink-0 p-1 rounded transition-opacity hover:opacity-100"
-                                  style={{
-                                    color: t.isShared ? "var(--purple)" : "var(--text-3)",
-                                    opacity: t.isShared ? 1 : 0.5,
-                                  }}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+                                  style={t.isShared
+                                    ? { background: "var(--purple)", color: "white" }
+                                    : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
                                   title={t.isShared ? "Shared — tap to make private to you" : "Mark as shared so anyone in the block can claim it"}
                                   aria-label={t.isShared ? "Unshare task" : "Share task"}
                                 >
-                                  <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                                     <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
                                     <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
                                   </svg>
