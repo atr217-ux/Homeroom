@@ -636,26 +636,37 @@ export default function BlockLiveView({ block, userId }: Props) {
         </section>
       )}
 
-      {/* Each participant's tasks — mirrored card styling (no purple top
-          strip, so mine reads as the primary card and theirs as secondary). */}
+      {/* Divider — visually separate "you" from "them". */}
+      {!loading && othersByUser.size > 0 && (
+        <div className="flex items-center gap-3 mt-8 mb-3 px-1">
+          <div className="flex-1 h-px" style={{ background: "var(--border-2)" }} />
+          <span className="text-[10px] font-semibold uppercase tracking-[0.25em]" style={{ color: "var(--text-3)" }}>
+            Others in this block
+          </span>
+          <div className="flex-1 h-px" style={{ background: "var(--border-2)" }} />
+        </div>
+      )}
+
+      {/* Each participant's tasks — muted surface-2 card, no purple strip,
+          slimmer header, so they read as secondary next to My tasks. */}
       {!loading && Array.from(othersByUser.entries()).map(([ownerId, ownerTasks]) => {
         const profile = participants.find((p) => p.id === ownerId);
         const ownerDone = ownerTasks.filter((t) => t.done).length;
         return (
           <section
             key={ownerId}
-            className="rounded-2xl border overflow-hidden mb-4"
-            style={{ background: "var(--surface)", borderColor: "var(--border)" }}
+            className="rounded-2xl border overflow-hidden mb-3"
+            style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
           >
             <div className="p-3">
-              <h2 className="text-xs font-semibold uppercase tracking-wide mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
-                <span>{profile?.avatar ?? "🙂"}</span>
+              <h2 className="text-xs font-semibold mb-2 px-1 flex items-center gap-2" style={{ color: "var(--text-2)" }}>
+                <span className="text-base">{profile?.avatar ?? "🙂"}</span>
                 <span>{profile?.username ?? "Someone"}</span>
                 <span
-                  className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums"
-                  style={{ background: "rgba(124,58,237,0.12)", color: "var(--purple)" }}
+                  className="text-[10px] px-1.5 py-0.5 rounded-full tabular-nums ml-auto"
+                  style={{ background: "var(--surface)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}
                 >
-                  {ownerDone}/{ownerTasks.length} done
+                  {ownerDone}/{ownerTasks.length}
                 </span>
               </h2>
               <TaskSection
