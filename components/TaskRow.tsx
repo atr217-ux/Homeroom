@@ -89,6 +89,17 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
             bg: isToday ? SwipeColors.remove : "var(--purple)",
             onClick: () => onSchedule(isToday ? null : today),
           },
+          {
+            label: isPrivate ? "Public" : "Private",
+            icon: (
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="11" width="18" height="11" rx="2" />
+                <path d={isPrivate ? "M7 11V7a5 5 0 0 1 9.9-1" : "M7 11V7a5 5 0 0 1 10 0v4"} />
+              </svg>
+            ),
+            bg: "var(--purple)",
+            onClick: onTogglePrivate,
+          },
         ];
       })()}
       rightActions={[{
@@ -160,6 +171,19 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
           {!editing && (
             <div className="flex items-center justify-between gap-2 mt-1.5">
               <div className="flex flex-wrap items-center gap-1.5 min-w-0">
+                {isPrivate && (
+                  <span
+                    className="flex-shrink-0"
+                    style={{ color: "var(--purple)" }}
+                    title="Private — only you can see this"
+                    aria-label="Private task"
+                  >
+                    <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                  </span>
+                )}
                 {!blockName && (
                   <ScheduleButton scheduledFor={scheduledFor} onChange={onSchedule} />
                 )}
@@ -196,27 +220,33 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
                 </span>
               </div>
               <div className="flex items-center gap-2 flex-shrink-0">
-                <button
-                  onClick={onTogglePrivate}
-                  className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                  style={isPrivate
-                    ? { background: "var(--purple)", color: "white" }
-                    : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
-                  title={isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
-                  aria-label={isPrivate ? "Make public" : "Make private"}
-                >
-                  {isPrivate ? (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" />
-                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                    </svg>
-                  ) : (
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <rect x="3" y="11" width="18" height="11" rx="2" />
-                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                    </svg>
-                  )}
-                </button>
+                {/* Padlock only on hover-capable devices (desktop). On touch,
+                    users flip privacy via the "Private/Public" left-swipe
+                    action; the small purple lock in the metadata row above
+                    signals state without eating right-column space. */}
+                {hasHover && (
+                  <button
+                    onClick={onTogglePrivate}
+                    className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                    style={isPrivate
+                      ? { background: "var(--purple)", color: "white" }
+                      : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
+                    title={isPrivate ? "Private — only you can see this. Tap to make public." : "Public — friends can see when completed. Tap to make private."}
+                    aria-label={isPrivate ? "Make public" : "Make private"}
+                  >
+                    {isPrivate ? (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                      </svg>
+                    ) : (
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <rect x="3" y="11" width="18" height="11" rx="2" />
+                        <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                      </svg>
+                    )}
+                  </button>
+                )}
                 {hasHover && (
                   <MoreMenu
                     items={[

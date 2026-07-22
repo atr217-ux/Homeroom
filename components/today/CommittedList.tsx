@@ -874,12 +874,25 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                     {(dragListeners, isDragging) => (
                   <SwipeableRow
                     key={t.id}
-                    leftActions={isEditing ? [] : [{
-                      label: "Edit",
-                      icon: SwipeIcons.Edit,
-                      bg: SwipeColors.edit,
-                      onClick: () => { setEditingId(t.id); setEditingText(t.text); },
-                    }]}
+                    leftActions={isEditing ? [] : [
+                      {
+                        label: "Edit",
+                        icon: SwipeIcons.Edit,
+                        bg: SwipeColors.edit,
+                        onClick: () => { setEditingId(t.id); setEditingText(t.text); },
+                      },
+                      {
+                        label: t.isPrivate ? "Public" : "Private",
+                        icon: (
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                            <rect x="3" y="11" width="18" height="11" rx="2" />
+                            <path d={t.isPrivate ? "M7 11V7a5 5 0 0 1 9.9-1" : "M7 11V7a5 5 0 0 1 10 0v4"} />
+                          </svg>
+                        ),
+                        bg: "var(--purple)",
+                        onClick: () => togglePrivate(t.id),
+                      },
+                    ]}
                     rightActions={isEditing ? [] : [
                       {
                         label: "Off today",
@@ -951,6 +964,19 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                         {!isEditing && (
                           <div className="flex items-center justify-between gap-2 mt-1.5">
                             <div className="flex flex-wrap items-center gap-1 min-w-0">
+                              {t.isPrivate && (
+                                <span
+                                  className="flex-shrink-0"
+                                  style={{ color: "var(--purple)" }}
+                                  title="Private — only you can see this"
+                                  aria-label="Private task"
+                                >
+                                  <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                    <rect x="3" y="11" width="18" height="11" rx="2" />
+                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                  </svg>
+                                </span>
+                              )}
                               {t.tagIds.map((tid) => {
                                 const tag = allTags.find((tg) => tg.id === tid);
                                 if (!tag) return null;
@@ -982,27 +1008,32 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                                   <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
                                 </svg>
                               </button>
-                              <button
-                                onClick={() => togglePrivate(t.id)}
-                                className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
-                                style={t.isPrivate
-                                  ? { background: "var(--purple)", color: "white" }
-                                  : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
-                                title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
-                                aria-label={t.isPrivate ? "Make public" : "Make private"}
-                              >
-                                {t.isPrivate ? (
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" />
-                                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-                                  </svg>
-                                ) : (
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                                    <rect x="3" y="11" width="18" height="11" rx="2" />
-                                    <path d="M7 11V7a5 5 0 0 1 9.9-1" />
-                                  </svg>
-                                )}
-                              </button>
+                              {/* Padlock only on hover-capable devices. Touch users
+                                  swipe left → "Private/Public" instead; the small
+                                  purple lock at the start of this row signals state. */}
+                              {hasHover && (
+                                <button
+                                  onClick={() => togglePrivate(t.id)}
+                                  className="w-6 h-6 rounded-full flex items-center justify-center transition-colors"
+                                  style={t.isPrivate
+                                    ? { background: "var(--purple)", color: "white" }
+                                    : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
+                                  title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+                                  aria-label={t.isPrivate ? "Make public" : "Make private"}
+                                >
+                                  {t.isPrivate ? (
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                                      <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                                    </svg>
+                                  ) : (
+                                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                      <rect x="3" y="11" width="18" height="11" rx="2" />
+                                      <path d="M7 11V7a5 5 0 0 1 9.9-1" />
+                                    </svg>
+                                  )}
+                                </button>
+                              )}
                               {hasHover && (
                                 <MoreMenu
                                   items={[
