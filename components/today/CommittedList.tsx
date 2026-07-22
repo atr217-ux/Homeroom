@@ -473,11 +473,11 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
       <div className="pb-5 flex items-end justify-between gap-2">
         <div>
           <h1
-            className="font-display italic leading-none"
-            style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
+            className="font-display italic leading-none whitespace-nowrap"
+            style={{ color: "var(--text)", fontSize: "clamp(2rem, 8vw, 4.5rem)" }}
           >
             {today.toLocaleDateString(undefined, { weekday: "long" })}{" "}
-            <span className="tabular-nums" style={{ color: "var(--text)", fontSize: "0.7em" }}>
+            <span className="tabular-nums" style={{ color: "var(--text)", fontSize: "0.6em" }}>
               {String(today.getMonth() + 1).padStart(2, "0")}/{String(today.getDate()).padStart(2, "0")}
             </span>
           </h1>
