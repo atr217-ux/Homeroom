@@ -65,6 +65,9 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
     return `${String(d.getHours()).padStart(2, "0")}:00`;
   }, []);
   const [name, setName] = useState("Focus block");
+  // "now" = start immediately, only pick length. "schedule" = pick date +
+  // start time + length as before.
+  const [mode, setMode] = useState<"now" | "schedule">("now");
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState(defaultStart);
   // Duration replaces the raw end-time picker — the user chooses a length
@@ -168,21 +171,31 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
   async function save() {
     setError(null);
     if (!name.trim()) { setError("Give the block a name"); return; }
-    if (!startTime) { setError("Pick a start time"); return; }
     if (durationH === 0 && durationM === 0) { setError("Set a block length"); return; }
-    // If the block is scheduled for today, the start time can't already be
-    // in the past — otherwise the block is DOA.
-    if (date === today) {
-      const [sh, sm] = startTime.split(":").map(Number);
-      const startMin = sh * 60 + (sm || 0);
-      const now = new Date();
-      const nowMin = now.getHours() * 60 + now.getMinutes();
-      if (startMin < nowMin) {
-        setError("Start time can't be in the past. Pick a later time or a future date.");
-        return;
+
+    // Resolve the effective date + start_time based on mode.
+    let effectiveDate = date;
+    let effectiveStart = startTime;
+    if (mode === "now") {
+      // Start = current wall clock (nearest minute), date = today.
+      const nowD = new Date();
+      effectiveDate = today;
+      effectiveStart = `${String(nowD.getHours()).padStart(2, "0")}:${String(nowD.getMinutes()).padStart(2, "0")}`;
+    } else {
+      if (!startTime) { setError("Pick a start time"); return; }
+      // If scheduling for today, the start time can't already be in the past.
+      if (date === today) {
+        const [sh, sm] = startTime.split(":").map(Number);
+        const startMin = sh * 60 + (sm || 0);
+        const now = new Date();
+        const nowMin = now.getHours() * 60 + now.getMinutes();
+        if (startMin < nowMin) {
+          setError("Start time can't be in the past. Pick a later time or a future date.");
+          return;
+        }
       }
     }
-    const endTime = endTimeFromDuration(startTime, durationH, durationM);
+    const endTime = endTimeFromDuration(effectiveStart, durationH, durationM);
     setSaving(true);
 
     const supabase = createClient();
@@ -192,9 +205,9 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
       .from("blocks")
       .insert({
         user_id: userId,
-        date,
+        date: effectiveDate,
         name: name.trim(),
-        start_time: startTime,
+        start_time: effectiveStart,
         end_time: endTime,
         visibility,
         position: 0,
@@ -220,7 +233,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
     if (pickedArr.length > 0) {
       await supabase
         .from("tasks")
-        .update({ block_id: block.id, committed_for_date: date })
+        .update({ block_id: block.id, committed_for_date: effectiveDate })
         .in("id", pickedArr);
     }
 
@@ -233,7 +246,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
           text: extra.text,
           done: false,
           block_id: block.id,
-          committed_for_date: date,
+          committed_for_date: effectiveDate,
           is_private: autoPrivate,
         })
         .select("id")
@@ -291,6 +304,37 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
 
       <div className="flex-1 overflow-y-auto pb-32">
         <div className="max-w-2xl mx-auto px-4 py-5 space-y-5">
+          {/* When? — pick Start now vs Schedule mode. Start-now hides the
+              date/start pickers and computes start = current wall clock. */}
+          <div>
+            <label className="text-sm font-bold mb-2 block" style={{ color: "var(--text)" }}>When?</label>
+            <div
+              className="flex rounded-full border p-1 gap-1"
+              style={{ background: "var(--surface)", borderColor: "var(--border-2)" }}
+            >
+              <button
+                type="button"
+                onClick={() => setMode("now")}
+                className="flex-1 text-sm font-semibold py-2 rounded-full transition-colors"
+                style={mode === "now"
+                  ? { background: "var(--purple)", color: "white" }
+                  : { background: "transparent", color: "var(--text-2)" }}
+              >
+                Start now
+              </button>
+              <button
+                type="button"
+                onClick={() => setMode("schedule")}
+                className="flex-1 text-sm font-semibold py-2 rounded-full transition-colors"
+                style={mode === "schedule"
+                  ? { background: "var(--purple)", color: "white" }
+                  : { background: "transparent", color: "var(--text-2)" }}
+              >
+                Schedule
+              </button>
+            </div>
+          </div>
+
           {/* Name */}
           <div>
             <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>
@@ -305,20 +349,22 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             />
           </div>
 
-          {/* Date */}
-          <div>
-            <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>Date</label>
-            <input
-              type="date"
-              value={date}
-              onChange={(e) => setDate(e.target.value)}
-              className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border"
-              style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
-            />
-          </div>
+          {/* Date — Schedule mode only */}
+          {mode === "schedule" && (
+            <div>
+              <label className="text-xs font-semibold mb-1.5 block" style={{ color: "var(--text-2)" }}>Date</label>
+              <input
+                type="date"
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                className="w-full text-sm rounded-xl px-3 py-2.5 focus:outline-none border"
+                style={{ background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+              />
+            </div>
+          )}
 
-          {/* Start + Length share one card, two columns, divided by a rule.
-              Each column has its own clock-style [HH][+/-] : [MM][+/-] group. */}
+          {/* Start + Length — Start card only renders in Schedule mode. Now
+              mode goes straight to Length with a note explaining. */}
           {(() => {
             const start = parseClock(startTime);
             const setStart = (h12: number, m: number, ampm: "AM" | "PM") => setStartTime(composeClock(h12, m, ampm));
@@ -333,8 +379,9 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             const sectionLabel = "text-sm font-bold mb-2" as const;
             return (
               <div>
-                <div className="grid grid-cols-2 gap-3">
-                  {/* Start card — inline [-] N [+] : [-] NN [+]  [AM/PM] */}
+                <div className={mode === "schedule" ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
+                  {/* Start card — Schedule mode only */}
+                  {mode === "schedule" && (
                   <div className={sectionCard} style={sectionStyle}>
                     <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
                     <div className="flex items-center gap-1">
@@ -360,6 +407,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                       </button>
                     </div>
                   </div>
+                  )}
 
                   {/* Length card — inline [-] N [+] : [-] NN [+] */}
                   <div className={sectionCard} style={sectionStyle}>
@@ -380,7 +428,12 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                   </div>
                 </div>
                 <div className="text-xs text-center mt-3 tabular-nums" style={{ color: "var(--text-3)" }}>
-                  Ends at {to12h(endTimeFromDuration(startTime, durationH, durationM))}
+                  {(() => {
+                    const nowD = new Date();
+                    const nowHHMM = `${String(nowD.getHours()).padStart(2, "0")}:${String(nowD.getMinutes()).padStart(2, "0")}`;
+                    const src = mode === "now" ? nowHHMM : startTime;
+                    return `Ends at ${to12h(endTimeFromDuration(src, durationH, durationM))}`;
+                  })()}
                 </div>
               </div>
             );
