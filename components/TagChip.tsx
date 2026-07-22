@@ -15,6 +15,7 @@ type Props = {
 
 export default function TagChip({ tag, hasHover, onRemove, forceVisible = false }: Props) {
   const { bg, fg } = tagColor(tag.name);
+  const [hovered, setHovered] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const timerRef = useRef<number | null>(null);
 
@@ -22,11 +23,11 @@ export default function TagChip({ tag, hasHover, onRemove, forceVisible = false 
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
-  // Always show the little corner X when onRemove is wired — the swipe
-  // Edit action is gone so this is the only way to peel a category off.
-  // hasHover / forceVisible retained for API parity but no longer gate.
-  const showX = !!onRemove;
-  void hasHover; void forceVisible;
+  // Touch (no hover): always show the corner X so mobile users can peel a
+  // category off. Desktop (hasHover): only reveal on chip hover — matches
+  // the pre-swipe-edit behaviour. forceVisible still overrides during inline
+  // edit for parity.
+  const showX = !!onRemove && (forceVisible || !hasHover || hovered);
 
   function armConfirm(e: React.MouseEvent) {
     e.stopPropagation();
@@ -50,6 +51,8 @@ export default function TagChip({ tag, hasHover, onRemove, forceVisible = false 
     <span
       className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium transition-colors"
       style={{ background: bgColor, color: fgColor }}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => { setHovered(false); if (confirming) { setConfirming(false); if (timerRef.current) clearTimeout(timerRef.current); } }}
     >
       {confirming ? (
         <button
