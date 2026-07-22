@@ -691,83 +691,105 @@ export default function BlockLiveView({ block, userId }: Props) {
         </h3>
       )}
 
-      {/* Each participant — collapsed persistent card by default: avatar,
-          name, task count. Tap to expand and see their non-private tasks. */}
-      {!loading && Array.from(othersByUser.entries()).map(([ownerId, ownerTasks]) => {
-        const profile = participants.find((p) => p.id === ownerId);
-        // Private tasks from other people are hidden even in the expanded view.
-        const visibleTasks = ownerTasks.filter((t) => !t.isPrivate);
-        const ownerDone = ownerTasks.filter((t) => t.done).length;
-        const isExpanded = expandedParticipants.has(ownerId);
+      {/* Each participant — a compact light-purple card with a stacked
+          avatar/name/count header. Cards live in a grid that grows to at
+          most three columns (1 friend = full width, 2 = 2 cols, 3+ = 3
+          cols with wrap). Tap to expand and see their non-private tasks. */}
+      {!loading && othersByUser.size > 0 && (() => {
+        const cols = Math.min(3, othersByUser.size);
+        const gridColsClass = cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-2" : "grid-cols-3";
         return (
-          <section
-            key={ownerId}
-            className="rounded-2xl border overflow-hidden mb-2"
-            style={{ background: "var(--surface-2)", borderColor: "var(--border)" }}
-          >
-            <button
-              type="button"
-              onClick={() => toggleParticipantExpanded(ownerId)}
-              className="w-full flex items-center gap-3 px-3 py-3 text-left transition-opacity hover:opacity-100"
-              aria-expanded={isExpanded}
-            >
-              <div
-                className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0"
-                style={{ background: "var(--surface)", border: "1px solid var(--border-2)" }}
-              >
-                {profile?.avatar ?? "🙂"}
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
-                  {profile?.username ?? "Someone"}
-                </div>
-                <div className="text-xs tabular-nums" style={{ color: "var(--text-2)" }}>
-                  {ownerDone}/{ownerTasks.length} done · {ownerTasks.length} task{ownerTasks.length === 1 ? "" : "s"}
-                </div>
-              </div>
-              <svg
-                width="12"
-                height="12"
-                viewBox="0 0 24 24"
-                fill="none"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                className="flex-shrink-0"
-                style={{
-                  color: "var(--text-3)",
-                  transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
-                  transition: "transform 0.15s",
-                }}
-              >
-                <polyline points="6 9 12 15 18 9" />
-              </svg>
-            </button>
-            {isExpanded && (
-              <div className="border-t px-3 py-3" style={{ borderColor: "var(--border)", background: "var(--surface)" }}>
-                {visibleTasks.length === 0 ? (
-                  <p className="text-xs text-center py-2" style={{ color: "var(--text-3)" }}>
-                    {ownerTasks.length > visibleTasks.length ? "All private" : "No tasks yet"}
-                  </p>
-                ) : (
-                  <TaskSection
-                    tasks={visibleTasks}
-                    allTags={allTags}
-                    elapsed={elapsed}
-                    onToggle={undefined}
-                    onStart={undefined}
-                    onStop={undefined}
-                    onUnclaim={undefined}
-                    currentUserId={userId}
-                    readonly
-                  />
-                )}
-              </div>
-            )}
-          </section>
+          <div className={`grid ${gridColsClass} gap-2`}>
+            {Array.from(othersByUser.entries()).map(([ownerId, ownerTasks]) => {
+              const profile = participants.find((p) => p.id === ownerId);
+              const visibleTasks = ownerTasks.filter((t) => !t.isPrivate);
+              const ownerDone = ownerTasks.filter((t) => t.done).length;
+              const isExpanded = expandedParticipants.has(ownerId);
+              return (
+                <section
+                  key={ownerId}
+                  className="rounded-2xl border overflow-hidden"
+                  style={{ background: "var(--purple-bg)", borderColor: "var(--purple-border)" }}
+                >
+                  <button
+                    type="button"
+                    onClick={() => toggleParticipantExpanded(ownerId)}
+                    className="w-full flex flex-col items-center gap-1.5 px-2 py-3 text-center transition-opacity hover:opacity-100"
+                    aria-expanded={isExpanded}
+                  >
+                    <div
+                      className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                      style={{ background: "var(--surface)", border: "1px solid var(--purple-border)" }}
+                    >
+                      {profile?.avatar ?? "🙂"}
+                    </div>
+                    <div className="text-[11px] font-semibold truncate max-w-full" style={{ color: "var(--text)" }}>
+                      {profile?.username ?? "Someone"}
+                    </div>
+                    <div className="text-[10px] tabular-nums" style={{ color: "var(--text-2)" }}>
+                      {ownerDone}/{ownerTasks.length} done
+                    </div>
+                    <svg
+                      width="10"
+                      height="10"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2.5"
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      style={{
+                        color: "var(--purple)",
+                        transform: isExpanded ? "rotate(180deg)" : "rotate(0deg)",
+                        transition: "transform 0.15s",
+                      }}
+                    >
+                      <polyline points="6 9 12 15 18 9" />
+                    </svg>
+                  </button>
+                  {isExpanded && (
+                    <div className="border-t px-2 py-2" style={{ borderColor: "var(--purple-border)", background: "var(--surface)" }}>
+                      {visibleTasks.length === 0 ? (
+                        <p className="text-[10px] text-center py-1" style={{ color: "var(--text-3)" }}>
+                          {ownerTasks.length > visibleTasks.length ? "All private" : "No tasks yet"}
+                        </p>
+                      ) : (
+                        <ul className="space-y-1">
+                          {visibleTasks.map((t) => (
+                            <li key={t.id} className="flex items-start gap-1.5 text-[11px] leading-snug">
+                              <span
+                                className="w-2.5 h-2.5 rounded-sm flex-shrink-0 flex items-center justify-center mt-[3px]"
+                                style={t.done
+                                  ? { background: "var(--purple)", border: "1.5px solid var(--purple)" }
+                                  : { border: "1.5px solid var(--border-3)" }}
+                              >
+                                {t.done && (
+                                  <svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
+                                    <polyline points="20 6 9 17 4 12" />
+                                  </svg>
+                                )}
+                              </span>
+                              <span
+                                className="flex-1 break-words"
+                                style={{
+                                  color: t.done ? "var(--text-3)" : "var(--text)",
+                                  textDecoration: t.done ? "line-through" : "none",
+                                }}
+                              >
+                                {t.text}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
+                      )}
+                    </div>
+                  )}
+                </section>
+              );
+            })}
+          </div>
         );
-      })}
+      })()}
 
       {!loading && tasks.length === 0 && (
         <p className="text-sm text-center py-12" style={{ color: "var(--text-2)" }}>
