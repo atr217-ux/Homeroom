@@ -254,26 +254,26 @@ export default function BlockInfoModal({ blockId, userId, onClose }: Props) {
                   <span className="whitespace-nowrap">{data.participants.length} {data.participants.length === 1 ? "person" : "people"}</span>
                 </div>
               </div>
-              <div className="flex items-center -space-x-2 flex-shrink-0">
-                {data.participants.slice(0, 3).map((p) => (
+              {data.participants.length > 0 && (
+                <div className="flex items-center -space-x-1.5 flex-shrink-0">
                   <div
-                    key={p.id}
                     className="w-7 h-7 rounded-full flex items-center justify-center text-sm border-2"
                     style={{ background: "var(--surface-2)", borderColor: "var(--surface)" }}
-                    title={p.username}
+                    title={data.participants[0].username}
                   >
-                    {p.avatar ?? "🙂"}
+                    {data.participants[0].avatar ?? "🙂"}
                   </div>
-                ))}
-                {data.participants.length > 3 && (
-                  <div
-                    className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold border-2"
-                    style={{ background: "var(--surface-2)", borderColor: "var(--surface)", color: "var(--text-2)" }}
-                  >
-                    +{data.participants.length - 3}
-                  </div>
-                )}
-              </div>
+                  {data.participants.length > 1 && (
+                    <div
+                      className="h-7 min-w-7 px-1.5 rounded-full flex items-center justify-center text-[11px] font-semibold border-2"
+                      style={{ background: "var(--surface-2)", borderColor: "var(--surface)", color: "var(--text-2)" }}
+                      title={data.participants.slice(1).map((p) => p.username).join(", ")}
+                    >
+                      +{data.participants.length - 1}
+                    </div>
+                  )}
+                </div>
+              )}
               <button
                 type="button"
                 onClick={onClose}

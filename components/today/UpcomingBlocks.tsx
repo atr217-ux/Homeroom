@@ -315,26 +315,28 @@ export default function UpcomingBlocks({ userId, externalReload = 0 }: Props) {
                     </span>
                   </div>
                 </div>
-                <div className="flex items-center -space-x-2 flex-shrink-0">
-                  {b.participants.slice(0, 3).map((p) => (
+                {/* Show one representative avatar + a "+N" chip for the rest
+                    so the card header stops getting crowded by 3+ emojis. */}
+                {b.participants.length > 0 && (
+                  <div className="flex items-center -space-x-1.5 flex-shrink-0">
                     <div
-                      key={p.id}
                       className="w-7 h-7 rounded-full flex items-center justify-center text-sm border-2"
                       style={{ background: "var(--surface-2)", borderColor: "var(--surface)" }}
-                      title={p.username}
+                      title={b.participants[0].username}
                     >
-                      {p.avatar ?? "🙂"}
+                      {b.participants[0].avatar ?? "🙂"}
                     </div>
-                  ))}
-                  {b.participants.length > 3 && (
-                    <div
-                      className="w-7 h-7 rounded-full flex items-center justify-center text-[10px] font-semibold border-2"
-                      style={{ background: "var(--surface-2)", borderColor: "var(--surface)", color: "var(--text-2)" }}
-                    >
-                      +{b.participants.length - 3}
-                    </div>
-                  )}
-                </div>
+                    {b.participants.length > 1 && (
+                      <div
+                        className="h-7 min-w-7 px-1.5 rounded-full flex items-center justify-center text-[11px] font-semibold border-2"
+                        style={{ background: "var(--surface-2)", borderColor: "var(--surface)", color: "var(--text-2)" }}
+                        title={b.participants.slice(1).map((p) => p.username).join(", ")}
+                      >
+                        +{b.participants.length - 1}
+                      </div>
+                    )}
+                  </div>
+                )}
                 <svg
                   width="12"
                   height="12"
