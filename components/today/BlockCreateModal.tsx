@@ -70,9 +70,6 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
   const [mode, setMode] = useState<"now" | "schedule">("now");
   const [date, setDate] = useState(today);
   const [startTime, setStartTime] = useState(defaultStart);
-  // Preset chips vs fine-tune +/- toggle for the Length + Start pickers.
-  const [customLength, setCustomLength] = useState(false);
-  const [customStart, setCustomStart] = useState(false);
   // Duration replaces the raw end-time picker — the user chooses a length
   // (in hours + minutes) and we compute end_time from start + duration.
   const [durationH, setDurationH] = useState(1);
@@ -383,136 +380,128 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             return (
               <div>
                 <div className={mode === "schedule" ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
-                  {/* Start — preset chips + optional custom fine-tune. Schedule mode only. */}
-                  {mode === "schedule" && (() => {
-                    const START_PRESETS: { label: string; h12: number; m: number; ampm: "AM" | "PM" }[] = [
-                      { label: "9 AM", h12: 9, m: 0, ampm: "AM" },
-                      { label: "12 PM", h12: 12, m: 0, ampm: "PM" },
-                      { label: "3 PM", h12: 3, m: 0, ampm: "PM" },
-                      { label: "6 PM", h12: 6, m: 0, ampm: "PM" },
-                      { label: "9 PM", h12: 9, m: 0, ampm: "PM" },
-                    ];
-                    const matchesPreset = START_PRESETS.find((p) => p.h12 === start.h12 && p.m === start.m && p.ampm === start.ampm);
-                    const showCustom = customStart || !matchesPreset;
-                    return (
-                      <div className={sectionCard} style={sectionStyle}>
-                        <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5">
-                          {START_PRESETS.map((p) => {
-                            const active = !customStart && matchesPreset?.label === p.label;
-                            return (
-                              <button
-                                key={p.label}
-                                type="button"
-                                onClick={() => { setStart(p.h12, p.m, p.ampm); setCustomStart(false); }}
-                                className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors"
-                                style={active
-                                  ? { background: "var(--purple)", borderColor: "var(--purple)", color: "white" }
-                                  : { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                              >
-                                {p.label}
-                              </button>
-                            );
-                          })}
+                  {/* Start — Material-style big tap-to-edit tiles + vertical
+                      AM/PM segmented control. Schedule mode only. */}
+                  {mode === "schedule" && (
+                    <div className={sectionCard} style={sectionStyle}>
+                      <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
+                      <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-1">
+                          <input
+                            type="number"
+                            min={1}
+                            max={12}
+                            value={start.h12}
+                            onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
+                            className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
+                            style={{
+                              background: "rgba(124,58,237,0.12)",
+                              color: "var(--purple)",
+                              fontSize: "1.75rem",
+                              lineHeight: 1,
+                            }}
+                            aria-label="Start hour"
+                          />
+                          <span className="font-bold tabular-nums" style={{ color: "var(--text)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
+                          <input
+                            type="number"
+                            min={0}
+                            max={59}
+                            step={5}
+                            value={String(start.m).padStart(2, "0")}
+                            onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
+                            className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
+                            style={{
+                              background: "var(--surface-2)",
+                              color: "var(--text)",
+                              fontSize: "1.75rem",
+                              lineHeight: 1,
+                            }}
+                            aria-label="Start minutes"
+                          />
+                        </div>
+                        {/* Vertical AM/PM segmented control */}
+                        <div
+                          className="flex flex-col rounded-xl overflow-hidden border"
+                          style={{ borderColor: "var(--purple-muted)" }}
+                        >
                           <button
                             type="button"
-                            onClick={() => setCustomStart(true)}
-                            className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors"
-                            style={showCustom
-                              ? { background: "var(--purple)", borderColor: "var(--purple)", color: "white" }
-                              : { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
+                            onClick={() => setStart(start.h12, start.m, "AM")}
+                            className="px-2.5 py-1.5 text-xs font-bold transition-colors"
+                            style={start.ampm === "AM"
+                              ? { background: "rgba(124,58,237,0.14)", color: "var(--purple)" }
+                              : { background: "var(--surface)", color: "var(--text-2)" }}
                           >
-                            Custom
+                            AM
+                          </button>
+                          <div className="h-px" style={{ background: "var(--purple-muted)" }} />
+                          <button
+                            type="button"
+                            onClick={() => setStart(start.h12, start.m, "PM")}
+                            className="px-2.5 py-1.5 text-xs font-bold transition-colors"
+                            style={start.ampm === "PM"
+                              ? { background: "rgba(124,58,237,0.14)", color: "var(--purple)" }
+                              : { background: "var(--surface)", color: "var(--text-2)" }}
+                          >
+                            PM
                           </button>
                         </div>
-                        {showCustom && (
-                          <div className="flex items-center gap-1 mt-2">
-                            <button type="button" onClick={() => bumpSH(-1)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start hour">−</button>
-                            <input type="number" min={1} max={12} value={start.h12}
-                              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
-                              className={numberInput} style={numberStyle} aria-label="Start hour" />
-                            <button type="button" onClick={() => bumpSH(1)} className={stepperBtn} style={stepperStyle} aria-label="Increase start hour">+</button>
-                            <span className="font-bold tabular-nums mx-0.5" style={numberStyle}>:</span>
-                            <button type="button" onClick={() => bumpSM(-5)} className={stepperBtn} style={stepperStyle} aria-label="Decrease start minutes">−</button>
-                            <input type="number" min={0} max={59} step={5} value={String(start.m).padStart(2, "0")}
-                              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
-                              className={numberInput} style={numberStyle} aria-label="Start minutes" />
-                            <button type="button" onClick={() => bumpSM(5)} className={stepperBtn} style={stepperStyle} aria-label="Increase start minutes">+</button>
-                            <button
-                              type="button"
-                              onClick={() => setStart(start.h12, start.m, start.ampm === "AM" ? "PM" : "AM")}
-                              className="ml-1 h-7 px-2 rounded-lg flex items-center justify-center text-[11px] font-bold transition-colors tabular-nums flex-shrink-0"
-                              style={{ background: "var(--purple)", color: "white" }}
-                              aria-label="Toggle AM/PM"
-                            >
-                              {start.ampm}
-                            </button>
-                          </div>
-                        )}
                       </div>
-                    );
-                  })()}
+                    </div>
+                  )}
 
-                  {/* Length — preset chips + optional custom fine-tune */}
-                  {(() => {
-                    const LENGTH_PRESETS = [
-                      { label: "15m", h: 0, m: 15 },
-                      { label: "30m", h: 0, m: 30 },
-                      { label: "1h", h: 1, m: 0 },
-                      { label: "1h 30m", h: 1, m: 30 },
-                      { label: "2h", h: 2, m: 0 },
-                    ];
-                    const matchesPreset = LENGTH_PRESETS.find((p) => p.h === durationH && p.m === durationM);
-                    const showCustom = customLength || !matchesPreset;
-                    return (
-                      <div className={sectionCard} style={sectionStyle}>
-                        <div className={sectionLabel} style={{ color: "var(--text)" }}>Length</div>
-                        <div className="flex flex-wrap items-center justify-center gap-1.5">
-                          {LENGTH_PRESETS.map((p) => {
-                            const active = !customLength && matchesPreset?.label === p.label;
-                            return (
-                              <button
-                                key={p.label}
-                                type="button"
-                                onClick={() => { setDurationH(p.h); setDurationM(p.m); setCustomLength(false); }}
-                                className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors"
-                                style={active
-                                  ? { background: "var(--purple)", borderColor: "var(--purple)", color: "white" }
-                                  : { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                              >
-                                {p.label}
-                              </button>
-                            );
-                          })}
-                          <button
-                            type="button"
-                            onClick={() => setCustomLength(true)}
-                            className="text-xs font-semibold px-2.5 py-1 rounded-full border transition-colors"
-                            style={showCustom
-                              ? { background: "var(--purple)", borderColor: "var(--purple)", color: "white" }
-                              : { background: "var(--surface)", borderColor: "var(--purple-muted)", color: "var(--purple)" }}
-                          >
-                            Custom
-                          </button>
+                  {/* Length — big tap-to-edit tiles with +/- steppers.
+                      Minutes step by 15 to match the requested cadence. */}
+                  <div className={sectionCard} style={sectionStyle}>
+                    <div className={sectionLabel} style={{ color: "var(--text)" }}>Length</div>
+                    <div className="flex items-center gap-2">
+                      <div className="flex flex-col items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={23}
+                          value={durationH}
+                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v)))); }}
+                          className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
+                          style={{
+                            background: "rgba(124,58,237,0.12)",
+                            color: "var(--purple)",
+                            fontSize: "1.75rem",
+                            lineHeight: 1,
+                          }}
+                          aria-label="Hours"
+                        />
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setDurationH((h) => Math.max(0, h - 1))} className="w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium" style={stepperStyle} aria-label="Decrease hours">−</button>
+                          <button type="button" onClick={() => setDurationH((h) => Math.min(23, h + 1))} className="w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium" style={stepperStyle} aria-label="Increase hours">+</button>
                         </div>
-                        {showCustom && (
-                          <div className="flex items-center gap-1 mt-2">
-                            <button type="button" onClick={() => setDurationH((h) => Math.max(0, h - 1))} className={stepperBtn} style={stepperStyle} aria-label="Decrease hours">−</button>
-                            <input type="number" min={0} max={23} value={durationH}
-                              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v)))); }}
-                              className={numberInput} style={numberStyle} aria-label="Hours" />
-                            <button type="button" onClick={() => setDurationH((h) => Math.min(23, h + 1))} className={stepperBtn} style={stepperStyle} aria-label="Increase hours">+</button>
-                            <span className="font-bold tabular-nums mx-0.5" style={numberStyle}>:</span>
-                            <button type="button" onClick={() => setDurationM((m) => (m - 5 + 60) % 60)} className={stepperBtn} style={stepperStyle} aria-label="Decrease minutes">−</button>
-                            <input type="number" min={0} max={59} step={5} value={String(durationM).padStart(2, "0")}
-                              onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v)))); }}
-                              className={numberInput} style={numberStyle} aria-label="Minutes" />
-                            <button type="button" onClick={() => setDurationM((m) => (m + 5) % 60)} className={stepperBtn} style={stepperStyle} aria-label="Increase minutes">+</button>
-                          </div>
-                        )}
                       </div>
-                    );
-                  })()}
+                      <span className="font-bold tabular-nums" style={{ color: "var(--text)", fontSize: "1.75rem", lineHeight: 1, marginTop: -14 }}>:</span>
+                      <div className="flex flex-col items-center gap-1">
+                        <input
+                          type="number"
+                          min={0}
+                          max={59}
+                          step={15}
+                          value={String(durationM).padStart(2, "0")}
+                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v)))); }}
+                          className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
+                          style={{
+                            background: "var(--surface-2)",
+                            color: "var(--text)",
+                            fontSize: "1.75rem",
+                            lineHeight: 1,
+                          }}
+                          aria-label="Minutes"
+                        />
+                        <div className="flex gap-1">
+                          <button type="button" onClick={() => setDurationM((m) => (m - 15 + 60) % 60)} className="w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium" style={stepperStyle} aria-label="Decrease minutes">−</button>
+                          <button type="button" onClick={() => setDurationM((m) => (m + 15) % 60)} className="w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium" style={stepperStyle} aria-label="Increase minutes">+</button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
                 </div>
                 <div className="text-xs text-center mt-3 tabular-nums" style={{ color: "var(--text-3)" }}>
                   {(() => {
