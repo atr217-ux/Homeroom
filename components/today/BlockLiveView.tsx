@@ -383,8 +383,14 @@ export default function BlockLiveView({ block, userId }: Props) {
     othersByUser.get(ownerId)!.push(t);
   }
 
-  const stillLive = block.start_time && block.end_time
-    ? isWithinTimeRange(block.start_time, block.end_time)
+  // Local end_time override so the "Extend +10m" button reflects instantly.
+  const [endTimeOverride, setEndTimeOverride] = useState<string | null>(null);
+  useEffect(() => { setEndTimeOverride(null); }, [block.id, block.end_time]);
+  const effectiveEnd = endTimeOverride ?? block.end_time;
+  const [extending, setExtending] = useState(false);
+
+  const stillLive = block.start_time && effectiveEnd
+    ? isWithinTimeRange(block.start_time, effectiveEnd)
     : true;
 
   // Progress + elapsed helpers for the header + section counters.
@@ -396,13 +402,25 @@ export default function BlockLiveView({ block, userId }: Props) {
     return h * 60 + (m || 0);
   }
   const startMin = timeToMin(block.start_time);
-  const endMin = timeToMin(block.end_time);
+  const endMin = timeToMin(effectiveEnd);
   const totalMin = Math.max(1, endMin - startMin);
   const now = new Date();
   const nowMin = now.getHours() * 60 + now.getMinutes();
   const elapsedMin = Math.max(0, Math.min(totalMin, nowMin - startMin));
   const remainingMin = Math.max(0, totalMin - elapsedMin);
   const pct = Math.min(100, Math.round((elapsedMin / totalMin) * 100));
+
+  async function extend10() {
+    if (extending || !effectiveEnd) return;
+    setExtending(true);
+    const nextEndMin = (endMin + 10) % (24 * 60);
+    const eh = Math.floor(nextEndMin / 60);
+    const em = nextEndMin % 60;
+    const nextEnd = `${String(eh).padStart(2, "0")}:${String(em).padStart(2, "0")}`;
+    setEndTimeOverride(nextEnd);
+    await createClient().from("blocks").update({ end_time: nextEnd }).eq("id", block.id);
+    setExtending(false);
+  }
 
   // ── Render ─────────────────────────────────────────────────────────────
   return (
@@ -416,7 +434,7 @@ export default function BlockLiveView({ block, userId }: Props) {
               {stillLive ? "LIVE" : "BLOCK ENDED"}
             </span>
             <span className="text-xs opacity-80 tabular-nums">
-              {block.start_time?.slice(0, 5)} – {block.end_time?.slice(0, 5)}
+              {block.start_time?.slice(0, 5)} – {effectiveEnd?.slice(0, 5)}
             </span>
           </div>
           <h1 className="text-xl font-bold">{block.name}</h1>
@@ -453,6 +471,20 @@ export default function BlockLiveView({ block, userId }: Props) {
                 style={{ width: `${pct}%`, background: "white" }}
               />
             </div>
+            {/* Extend the block by 10 min — only while it's still live. */}
+            {stillLive && (
+              <div className="flex justify-center mt-2">
+                <button
+                  type="button"
+                  onClick={extend10}
+                  disabled={extending}
+                  className="text-[11px] font-semibold px-3 py-1 rounded-full border transition-colors disabled:opacity-60"
+                  style={{ background: "rgba(255,255,255,0.15)", borderColor: "rgba(255,255,255,0.3)", color: "white" }}
+                >
+                  {extending ? "…" : "+10 min"}
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Celebratory tally — grows as tasks are completed */}
