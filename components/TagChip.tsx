@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { tagColor } from "@/lib/utils/tags";
 import type { Tag } from "@/lib/db/types";
 
@@ -15,34 +15,83 @@ type Props = {
 
 export default function TagChip({ tag, hasHover, onRemove, forceVisible = false }: Props) {
   const { bg, fg } = tagColor(tag.name);
-  const [hovered, setHovered] = useState(false);
-  const showX = !!onRemove && (forceVisible || (hasHover && hovered));
+  const [confirming, setConfirming] = useState(false);
+  const timerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => { if (timerRef.current) clearTimeout(timerRef.current); };
+  }, []);
+
+  // Always show the little corner X when onRemove is wired — the swipe
+  // Edit action is gone so this is the only way to peel a category off.
+  // hasHover / forceVisible retained for API parity but no longer gate.
+  const showX = !!onRemove;
+  void hasHover; void forceVisible;
+
+  function armConfirm(e: React.MouseEvent) {
+    e.stopPropagation();
+    setConfirming(true);
+    if (timerRef.current) clearTimeout(timerRef.current);
+    // Auto-cancel after a few seconds so the chip doesn't sit stuck in
+    // "Remove?" if the user walks away.
+    timerRef.current = window.setTimeout(() => setConfirming(false), 4000);
+  }
+
+  function doRemove(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (timerRef.current) clearTimeout(timerRef.current);
+    onRemove?.();
+  }
+
+  const bgColor = confirming ? "var(--red)" : bg;
+  const fgColor = confirming ? "white" : fg;
 
   return (
     <span
-      className="inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium gap-1"
-      style={{ background: bg, color: fg }}
-      onMouseEnter={() => setHovered(true)}
-      onMouseLeave={() => setHovered(false)}
+      className="relative inline-flex items-center text-xs px-1.5 py-0.5 rounded-full font-medium transition-colors"
+      style={{ background: bgColor, color: fgColor }}
     >
-      <span>#{tag.name}</span>
+      {confirming ? (
+        <button
+          type="button"
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={doRemove}
+          className="text-xs font-semibold"
+          title={`Confirm remove #${tag.name}`}
+          data-tag-remove
+        >
+          Remove #{tag.name}?
+        </button>
+      ) : (
+        <span>#{tag.name}</span>
+      )}
       {showX && (
         <button
           type="button"
-          // Prevent focus shift from a currently-focused edit input so its
-          // onBlur doesn't fire before our onClick gets a chance to run.
           onMouseDown={(e) => e.preventDefault()}
-          onClick={(e) => { e.stopPropagation(); onRemove?.(); }}
-          className="rounded-full flex items-center justify-center transition-opacity hover:opacity-90"
-          style={{ width: 16, height: 16, background: fg, color: "white" }}
-          title={`Remove #${tag.name}`}
-          aria-label={`Remove #${tag.name}`}
+          onClick={confirming ? doRemove : armConfirm}
+          className="absolute -top-1 -right-1 rounded-full flex items-center justify-center transition-transform hover:scale-110"
+          style={{
+            width: 14,
+            height: 14,
+            background: confirming ? "white" : fg,
+            color: confirming ? "var(--red)" : "white",
+            border: confirming ? "1px solid white" : "1px solid var(--surface)",
+          }}
+          title={confirming ? "Confirm remove" : `Remove #${tag.name}`}
+          aria-label={confirming ? "Confirm remove" : `Remove #${tag.name}`}
           data-tag-remove
         >
-          <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3.5" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="6" x2="6" y2="18" />
-            <line x1="6" y1="6" x2="18" y2="18" />
-          </svg>
+          {confirming ? (
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+              <polyline points="20 6 9 17 4 12" />
+            </svg>
+          ) : (
+            <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="4" strokeLinecap="round" strokeLinejoin="round">
+              <line x1="18" y1="6" x2="6" y2="18" />
+              <line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+          )}
         </button>
       )}
     </span>
