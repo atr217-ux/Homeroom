@@ -888,16 +888,22 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                     }]}
                     rightActions={isEditing ? [] : [
                       {
+                        label: "Delete",
+                        icon: SwipeIcons.Trash,
+                        bg: SwipeColors.delete,
+                        onClick: () => deleteTask(t.id),
+                      },
+                      {
                         label: "Off today",
                         icon: SwipeIcons.RemoveFromDay,
                         bg: SwipeColors.remove,
                         onClick: () => removeFromToday(t.id),
                       },
                       {
-                        label: "Delete",
-                        icon: SwipeIcons.Trash,
-                        bg: SwipeColors.delete,
-                        onClick: () => deleteTask(t.id),
+                        label: "Edit",
+                        icon: SwipeIcons.Edit,
+                        bg: SwipeColors.edit,
+                        onClick: () => { setEditingId(t.id); setEditingText(t.text); },
                       },
                     ]}
                   >
@@ -1105,16 +1111,16 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                     key={t.id}
                     rightActions={[
                       {
-                        label: "Off today",
-                        icon: SwipeIcons.RemoveFromDay,
-                        bg: SwipeColors.remove,
-                        onClick: () => removeFromToday(t.id),
-                      },
-                      {
                         label: "Delete",
                         icon: SwipeIcons.Trash,
                         bg: SwipeColors.delete,
                         onClick: () => deleteTask(t.id),
+                      },
+                      {
+                        label: "Off today",
+                        icon: SwipeIcons.RemoveFromDay,
+                        bg: SwipeColors.remove,
+                        onClick: () => removeFromToday(t.id),
                       },
                     ]}
                   >

@@ -29,8 +29,10 @@ const COMMIT_THRESHOLD_PX = 60; // How much overshoot before release triggers th
 export default function SwipeableRow({ children, leftActions = [], rightActions = [], commitOnFullSwipe = false }: Props) {
   const leftWidth = leftActions.length * ACTION_WIDTH;
   const rightWidth = rightActions.length * ACTION_WIDTH;
+  // Full-swipe auto-commit only applies to the LEFT-side (safe) action;
+  // right-swipe never auto-fires so accidental delete-swipes stay parked.
   const leftMax = commitOnFullSwipe ? leftWidth + OVER_SWIPE_PX : leftWidth;
-  const rightMax = commitOnFullSwipe ? rightWidth + OVER_SWIPE_PX : rightWidth;
+  const rightMax = rightWidth;
 
   const [tx, setTx] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -72,14 +74,9 @@ export default function SwipeableRow({ children, leftActions = [], rightActions 
   function endDrag() {
     if (!dragging) return;
     setDragging(false);
-    // Auto-commit on a big enough over-swipe.
+    // Auto-commit on a big enough over-swipe — LEFT direction only.
     if (commitOnFullSwipe && tx > leftWidth + COMMIT_THRESHOLD_PX && leftActions.length > 0) {
       leftActions[0].onClick();
-      setTx(0);
-      return;
-    }
-    if (commitOnFullSwipe && tx < -(rightWidth + COMMIT_THRESHOLD_PX) && rightActions.length > 0) {
-      rightActions[0].onClick();
       setTx(0);
       return;
     }

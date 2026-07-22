@@ -77,12 +77,20 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
         bg: "var(--purple)",
         onClick: onTogglePrivate,
       }]}
-      rightActions={[{
-        label: "Delete",
-        icon: SwipeIcons.Trash,
-        bg: SwipeColors.delete,
-        onClick: onDelete,
-      }]}
+      rightActions={[
+        {
+          label: "Delete",
+          icon: SwipeIcons.Trash,
+          bg: SwipeColors.delete,
+          onClick: onDelete,
+        },
+        {
+          label: "Edit",
+          icon: SwipeIcons.Edit,
+          bg: SwipeColors.edit,
+          onClick: () => { setDraft(text); setEditing(true); },
+        },
+      ]}
     >
       <div
         className="group flex items-start gap-3 px-3 py-2.5 rounded-xl"

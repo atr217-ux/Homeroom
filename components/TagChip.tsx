@@ -23,11 +23,10 @@ export default function TagChip({ tag, hasHover, onRemove, forceVisible = false 
     return () => { if (timerRef.current) clearTimeout(timerRef.current); };
   }, []);
 
-  // Touch (no hover): always show the corner X so mobile users can peel a
-  // category off. Desktop (hasHover): only reveal on chip hover — matches
-  // the pre-swipe-edit behaviour. forceVisible still overrides during inline
-  // edit for parity.
-  const showX = !!onRemove && (forceVisible || !hasHover || hovered);
+  // Hover-only reveal on both desktop and touch — mobile users peel tags
+  // off via the Edit right-swipe action instead. forceVisible still
+  // overrides during inline edit for parity.
+  const showX = !!onRemove && (forceVisible || (hasHover && hovered));
 
   function armConfirm(e: React.MouseEvent) {
     e.stopPropagation();
