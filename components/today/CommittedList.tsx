@@ -473,27 +473,16 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
       <div className="pb-5 flex items-end justify-between gap-2">
         <div>
           <h1
-            className="font-display italic leading-none whitespace-nowrap"
-            style={{ color: "var(--text)", fontSize: "clamp(2rem, 8vw, 4.5rem)" }}
+            className="font-display italic leading-none"
+            style={{ color: "var(--text)", fontSize: "clamp(3rem, 12vw, 4.5rem)" }}
           >
             {today.toLocaleDateString(undefined, { weekday: "long" })}{" "}
-            <span className="tabular-nums" style={{ color: "var(--text)", fontSize: "0.6em" }}>
+            <span className="tabular-nums" style={{ color: "var(--text)", fontSize: "0.7em" }}>
               {String(today.getMonth() + 1).padStart(2, "0")}/{String(today.getDate()).padStart(2, "0")}
             </span>
           </h1>
         </div>
         <div className="flex items-center gap-2 mb-1 flex-shrink-0">
-          {tasks.length > 0 && (
-            <span
-              className="text-sm font-semibold px-3 py-1 rounded-full"
-              style={{
-                background: done.length === tasks.length ? "rgba(124,58,237,0.15)" : "rgba(124,58,237,0.08)",
-                color: "var(--purple)",
-              }}
-            >
-              {done.length}/{tasks.length} done
-            </span>
-          )}
           {!loading && (
             <button
               type="button"
@@ -631,6 +620,22 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
               Declare today&apos;s focus
             </button>
           )}
+        </div>
+      )}
+
+      {/* Progress badge — moved out of the header so the big day/date can
+          breathe. Sits just under the Focus bar, right-justified. */}
+      {!loading && tasks.length > 0 && (
+        <div className="flex justify-end -mt-3 mb-3">
+          <span
+            className="text-xs font-semibold px-2.5 py-0.5 rounded-full"
+            style={{
+              background: done.length === tasks.length ? "rgba(124,58,237,0.15)" : "rgba(124,58,237,0.08)",
+              color: "var(--purple)",
+            }}
+          >
+            {done.length}/{tasks.length} done
+          </span>
         </div>
       )}
 
