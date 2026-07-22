@@ -380,73 +380,71 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
             return (
               <div>
                 <div className={mode === "schedule" ? "grid grid-cols-2 gap-3" : "grid grid-cols-1 gap-3"}>
-                  {/* Start — Material-style big tap-to-edit tiles + vertical
-                      AM/PM segmented control. Schedule mode only. */}
+                  {/* Start — big tap-to-edit tiles with a horizontal AM/PM
+                      segmented control underneath. Schedule mode only. */}
                   {mode === "schedule" && (
                     <div className={sectionCard} style={sectionStyle}>
                       <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
                       <div className="flex items-center gap-2">
-                        <div className="flex items-center gap-1">
-                          <input
-                            type="number"
-                            min={1}
-                            max={12}
-                            value={start.h12}
-                            onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
-                            className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
-                            style={{
-                              background: "rgba(124,58,237,0.12)",
-                              color: "var(--purple)",
-                              fontSize: "1.75rem",
-                              lineHeight: 1,
-                            }}
-                            aria-label="Start hour"
-                          />
-                          <span className="font-bold tabular-nums" style={{ color: "var(--text)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
-                          <input
-                            type="number"
-                            min={0}
-                            max={59}
-                            step={5}
-                            value={String(start.m).padStart(2, "0")}
-                            onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
-                            className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
-                            style={{
-                              background: "var(--surface-2)",
-                              color: "var(--text)",
-                              fontSize: "1.75rem",
-                              lineHeight: 1,
-                            }}
-                            aria-label="Start minutes"
-                          />
-                        </div>
-                        {/* Vertical AM/PM segmented control */}
-                        <div
-                          className="flex flex-col rounded-xl overflow-hidden border"
-                          style={{ borderColor: "var(--purple-muted)" }}
+                        <input
+                          type="number"
+                          min={1}
+                          max={12}
+                          value={start.h12}
+                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
+                          className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
+                          style={{
+                            background: "rgba(124,58,237,0.12)",
+                            color: "var(--purple)",
+                            fontSize: "1.75rem",
+                            lineHeight: 1,
+                          }}
+                          aria-label="Start hour"
+                        />
+                        <span className="font-bold tabular-nums" style={{ color: "var(--text)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
+                        <input
+                          type="number"
+                          min={0}
+                          max={59}
+                          step={5}
+                          value={String(start.m).padStart(2, "0")}
+                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
+                          className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
+                          style={{
+                            background: "var(--surface-2)",
+                            color: "var(--text)",
+                            fontSize: "1.75rem",
+                            lineHeight: 1,
+                          }}
+                          aria-label="Start minutes"
+                        />
+                      </div>
+                      {/* Horizontal AM/PM segmented control below the time */}
+                      <div
+                        className="flex rounded-lg overflow-hidden border mt-2"
+                        style={{ borderColor: "var(--purple-muted)" }}
+                      >
+                        <button
+                          type="button"
+                          onClick={() => setStart(start.h12, start.m, "AM")}
+                          className="px-4 py-1 text-xs font-bold transition-colors"
+                          style={start.ampm === "AM"
+                            ? { background: "rgba(124,58,237,0.14)", color: "var(--purple)" }
+                            : { background: "var(--surface)", color: "var(--text-2)" }}
                         >
-                          <button
-                            type="button"
-                            onClick={() => setStart(start.h12, start.m, "AM")}
-                            className="px-2.5 py-1.5 text-xs font-bold transition-colors"
-                            style={start.ampm === "AM"
-                              ? { background: "rgba(124,58,237,0.14)", color: "var(--purple)" }
-                              : { background: "var(--surface)", color: "var(--text-2)" }}
-                          >
-                            AM
-                          </button>
-                          <div className="h-px" style={{ background: "var(--purple-muted)" }} />
-                          <button
-                            type="button"
-                            onClick={() => setStart(start.h12, start.m, "PM")}
-                            className="px-2.5 py-1.5 text-xs font-bold transition-colors"
-                            style={start.ampm === "PM"
-                              ? { background: "rgba(124,58,237,0.14)", color: "var(--purple)" }
-                              : { background: "var(--surface)", color: "var(--text-2)" }}
-                          >
-                            PM
-                          </button>
-                        </div>
+                          AM
+                        </button>
+                        <div className="w-px" style={{ background: "var(--purple-muted)" }} />
+                        <button
+                          type="button"
+                          onClick={() => setStart(start.h12, start.m, "PM")}
+                          className="px-4 py-1 text-xs font-bold transition-colors"
+                          style={start.ampm === "PM"
+                            ? { background: "rgba(124,58,237,0.14)", color: "var(--purple)" }
+                            : { background: "var(--surface)", color: "var(--text-2)" }}
+                        >
+                          PM
+                        </button>
                       </div>
                     </div>
                   )}
