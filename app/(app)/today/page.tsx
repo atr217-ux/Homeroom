@@ -17,8 +17,14 @@ export default function TodayPage() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
-  const [viewMode, setViewMode] = useState<ViewMode>("today");
+  // Manual override — set only when the user taps the toggle, cleared when
+  // a new active block arrives so the auto default kicks in again.
+  const [viewOverride, setViewOverride] = useState<ViewMode | null>(null);
   const { activeBlock, loading: blockLoading } = useBlockClock(userId);
+  // Default view derives from block state so /today opens into the block
+  // when one is live — no "Today first, then Block" flash on load.
+  const viewMode: ViewMode = viewOverride ?? (activeBlock ? "block" : "today");
+  const setViewMode = setViewOverride;
 
   const refreshCommitState = useCallback(async () => {
     if (!userId) return;
@@ -48,13 +54,16 @@ export default function TodayPage() {
     if (userId) refreshCommitState();
   }, [userId, reloadKey, refreshCommitState]);
 
-  // When a block becomes active, jump to block view — unless the user just
-  // navigated here from the DailyRecap "carry unfinished" flow, in which case
-  // CommitPicker needs to be visible to consume the sessionStorage key.
+  // Reset any manual override whenever the active block changes so the
+  // derived default takes over. If the user came in via a carry-preselect,
+  // force Today so CommitPicker mounts and consumes the sessionStorage.
   useEffect(() => {
-    if (!activeBlock) { setViewMode("today"); return; }
     const carryPending = typeof window !== "undefined" && !!sessionStorage.getItem("homeroom-carry-preselect");
-    setViewMode(carryPending ? "today" : "block");
+    if (carryPending && activeBlock) {
+      setViewOverride("today");
+    } else {
+      setViewOverride(null);
+    }
   }, [activeBlock?.id]);
 
   if (!userId || phase === "loading" || blockLoading) {

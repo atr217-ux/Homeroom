@@ -45,6 +45,10 @@ export default function BlockLiveView({ block, userId }: Props) {
   // Quick-add input for the current user's tasks in this block.
   const [newTaskInput, setNewTaskInput] = useState("");
   const [addingTask, setAddingTask] = useState(false);
+  // Bumped after mutations that inserts/updates on tasks so the load effect
+  // re-runs immediately — realtime doesn't always fire fast enough (or at
+  // all when a filter/RLS combo trips it up).
+  const [reloadKey, setReloadKey] = useState(0);
 
   // "Add from my list" — pull an existing personal task into this block.
   type AvailableTask = { id: string; text: string; isPrivate: boolean; tagIds: string[]; createdAt: string };
@@ -85,7 +89,7 @@ export default function BlockLiveView({ block, userId }: Props) {
       .from("tasks")
       .update({ block_id: block.id, committed_for_date: block.date })
       .eq("id", av.id);
-    // Realtime subscription refreshes the task list below.
+    setReloadKey((k) => k + 1);
   }
 
   async function addMyTaskToBlock() {
@@ -115,7 +119,7 @@ export default function BlockLiveView({ block, userId }: Props) {
       }
     }
     setAddingTask(false);
-    // Realtime subscription in this component will pick up the new row.
+    setReloadKey((k) => k + 1);
   }
 
   // ── Load ───────────────────────────────────────────────────────────────
@@ -224,7 +228,7 @@ export default function BlockLiveView({ block, userId }: Props) {
       supabase.removeChannel(channel);
       clearInterval(ticker);
     };
-  }, [block.id, block.user_id]);
+  }, [block.id, block.user_id, reloadKey]);
 
   async function toggleReaction(taskId: string, emoji: string) {
     const list = reactions.get(taskId) ?? [];
