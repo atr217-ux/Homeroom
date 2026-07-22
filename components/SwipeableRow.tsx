@@ -13,17 +13,24 @@ type Props = {
   children: ReactNode;
   leftActions?: SwipeAction[];
   rightActions?: SwipeAction[];
+  // When true, dragging past a small threshold beyond the fully-revealed
+  // action area auto-fires the first action on release (iOS mail style).
+  commitOnFullSwipe?: boolean;
 };
 
 const ACTION_WIDTH = 54; // px per action button
 const ACTION_INSET = 6;  // px — pulls buttons in from the container edges so their corners stay tucked behind the row's rounded corners
+const OVER_SWIPE_PX = 100; // How far past the reveal you can drag before it caps
+const COMMIT_THRESHOLD_PX = 60; // How much overshoot before release triggers the action
 
 // SwipeableRow — touch-friendly row that reveals action buttons when swiped
 // left or right. Acts as a transparent wrapper on desktop unless the user
 // horizontally drags (mouse drag is supported but rare on desktop).
-export default function SwipeableRow({ children, leftActions = [], rightActions = [] }: Props) {
+export default function SwipeableRow({ children, leftActions = [], rightActions = [], commitOnFullSwipe = false }: Props) {
   const leftWidth = leftActions.length * ACTION_WIDTH;
   const rightWidth = rightActions.length * ACTION_WIDTH;
+  const leftMax = commitOnFullSwipe ? leftWidth + OVER_SWIPE_PX : leftWidth;
+  const rightMax = commitOnFullSwipe ? rightWidth + OVER_SWIPE_PX : rightWidth;
 
   const [tx, setTx] = useState(0);
   const [dragging, setDragging] = useState(false);
@@ -57,14 +64,25 @@ export default function SwipeableRow({ children, leftActions = [], rightActions 
     }
 
     let next = startTx.current + dx;
-    if (next > leftWidth) next = leftWidth;
-    if (next < -rightWidth) next = -rightWidth;
+    if (next > leftMax) next = leftMax;
+    if (next < -rightMax) next = -rightMax;
     setTx(next);
   }
 
   function endDrag() {
     if (!dragging) return;
     setDragging(false);
+    // Auto-commit on a big enough over-swipe.
+    if (commitOnFullSwipe && tx > leftWidth + COMMIT_THRESHOLD_PX && leftActions.length > 0) {
+      leftActions[0].onClick();
+      setTx(0);
+      return;
+    }
+    if (commitOnFullSwipe && tx < -(rightWidth + COMMIT_THRESHOLD_PX) && rightActions.length > 0) {
+      rightActions[0].onClick();
+      setTx(0);
+      return;
+    }
     if (tx > leftWidth / 2 && leftActions.length > 0) {
       setTx(leftWidth);
     } else if (tx < -rightWidth / 2 && rightActions.length > 0) {

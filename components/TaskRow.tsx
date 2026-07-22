@@ -65,43 +65,18 @@ export default function TaskRow({ text, done, isPrivate, scheduledFor, blockId, 
 
   return (
     <SwipeableRow
-      leftActions={done ? [] : (() => {
-        const today = dateKey(new Date());
-        const isToday = scheduledFor === today;
-        return [
-          {
-            label: "Edit",
-            icon: SwipeIcons.Edit,
-            bg: SwipeColors.edit,
-            onClick: () => { setDraft(text); setEditing(true); },
-          },
-          {
-            label: isToday ? "Off today" : "To today",
-            icon: isToday ? SwipeIcons.RemoveFromDay : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="4" width="18" height="18" rx="2" />
-                <line x1="16" y1="2" x2="16" y2="6" />
-                <line x1="8" y1="2" x2="8" y2="6" />
-                <line x1="3" y1="10" x2="21" y2="10" />
-                <polyline points="9 16 11 18 16 13" />
-              </svg>
-            ),
-            bg: isToday ? SwipeColors.remove : "var(--purple)",
-            onClick: () => onSchedule(isToday ? null : today),
-          },
-          {
-            label: isPrivate ? "Public" : "Private",
-            icon: (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <rect x="3" y="11" width="18" height="11" rx="2" />
-                <path d={isPrivate ? "M7 11V7a5 5 0 0 1 9.9-1" : "M7 11V7a5 5 0 0 1 10 0v4"} />
-              </svg>
-            ),
-            bg: "var(--purple)",
-            onClick: onTogglePrivate,
-          },
-        ];
-      })()}
+      commitOnFullSwipe
+      leftActions={done ? [] : [{
+        label: isPrivate ? "Public" : "Private",
+        icon: (
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="3" y="11" width="18" height="11" rx="2" />
+            <path d={isPrivate ? "M7 11V7a5 5 0 0 1 9.9-1" : "M7 11V7a5 5 0 0 1 10 0v4"} />
+          </svg>
+        ),
+        bg: "var(--purple)",
+        onClick: onTogglePrivate,
+      }]}
       rightActions={[{
         label: "Delete",
         icon: SwipeIcons.Trash,

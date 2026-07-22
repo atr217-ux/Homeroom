@@ -874,25 +874,18 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                     {(dragListeners, isDragging) => (
                   <SwipeableRow
                     key={t.id}
-                    leftActions={isEditing ? [] : [
-                      {
-                        label: "Edit",
-                        icon: SwipeIcons.Edit,
-                        bg: SwipeColors.edit,
-                        onClick: () => { setEditingId(t.id); setEditingText(t.text); },
-                      },
-                      {
-                        label: t.isPrivate ? "Public" : "Private",
-                        icon: (
-                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                            <rect x="3" y="11" width="18" height="11" rx="2" />
-                            <path d={t.isPrivate ? "M7 11V7a5 5 0 0 1 9.9-1" : "M7 11V7a5 5 0 0 1 10 0v4"} />
-                          </svg>
-                        ),
-                        bg: "var(--purple)",
-                        onClick: () => togglePrivate(t.id),
-                      },
-                    ]}
+                    commitOnFullSwipe
+                    leftActions={isEditing ? [] : [{
+                      label: t.isPrivate ? "Public" : "Private",
+                      icon: (
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" />
+                          <path d={t.isPrivate ? "M7 11V7a5 5 0 0 1 9.9-1" : "M7 11V7a5 5 0 0 1 10 0v4"} />
+                        </svg>
+                      ),
+                      bg: "var(--purple)",
+                      onClick: () => togglePrivate(t.id),
+                    }]}
                     rightActions={isEditing ? [] : [
                       {
                         label: "Off today",
