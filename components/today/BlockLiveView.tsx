@@ -32,6 +32,9 @@ type Props = {
 
 export default function BlockLiveView({ block, userId }: Props) {
   const [tasks, setTasks] = useState<LiveTask[]>([]);
+  // Reactions keyed by task id — each entry a list of { userId, emoji }.
+  const [reactions, setReactions] = useState<Map<string, { userId: string; emoji: string }[]>>(new Map());
+  const REACTION_EMOJIS = ["🎉", "🔥", "👏", "💪", "❤️"] as const;
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [tick, setTick] = useState(0);
@@ -161,7 +164,7 @@ export default function BlockLiveView({ block, userId }: Props) {
         setAllTags((tagData ?? []) as Tag[]);
       }
 
-      setTasks(((tasksRes.data ?? []) as {
+      const loadedTasks = ((tasksRes.data ?? []) as {
         id: string;
         user_id: string;
         text: string;
@@ -183,7 +186,27 @@ export default function BlockLiveView({ block, userId }: Props) {
         timeSpent: r.time_spent ?? 0,
         startedAt: r.timer_started_at ? new Date(r.timer_started_at).getTime() : null,
         tagIds: (r.task_tags ?? []).map((tt) => tt.tag_id),
-      })));
+      }));
+      setTasks(loadedTasks);
+
+      // Reactions for these tasks
+      const taskIds = loadedTasks.map((t) => t.id);
+      if (taskIds.length > 0) {
+        const { data: rxRes } = await supabase
+          .from("task_reactions")
+          .select("task_id, user_id, emoji")
+          .in("task_id", taskIds);
+        const rxMap = new Map<string, { userId: string; emoji: string }[]>();
+        for (const r of (rxRes ?? []) as { task_id: string; user_id: string; emoji: string }[]) {
+          const arr = rxMap.get(r.task_id) ?? [];
+          arr.push({ userId: r.user_id, emoji: r.emoji });
+          rxMap.set(r.task_id, arr);
+        }
+        setReactions(rxMap);
+      } else {
+        setReactions(new Map());
+      }
+
       setLoading(false);
     }
     load();
@@ -192,6 +215,7 @@ export default function BlockLiveView({ block, userId }: Props) {
     const channel = supabase
       .channel(`block-live-${block.id}`)
       .on("postgres_changes", { event: "*", schema: "public", table: "tasks", filter: `block_id=eq.${block.id}` }, load)
+      .on("postgres_changes", { event: "*", schema: "public", table: "task_reactions" }, load)
       .subscribe();
 
     const ticker = setInterval(() => setTick((t) => t + 1), 1000);
@@ -201,6 +225,30 @@ export default function BlockLiveView({ block, userId }: Props) {
       clearInterval(ticker);
     };
   }, [block.id, block.user_id]);
+
+  async function toggleReaction(taskId: string, emoji: string) {
+    const list = reactions.get(taskId) ?? [];
+    const mine = list.find((r) => r.userId === userId && r.emoji === emoji);
+    const nextList = mine
+      ? list.filter((r) => !(r.userId === userId && r.emoji === emoji))
+      : [...list, { userId, emoji }];
+    const nextMap = new Map(reactions);
+    nextMap.set(taskId, nextList);
+    setReactions(nextMap);
+    const supabase = createClient();
+    if (mine) {
+      await supabase
+        .from("task_reactions")
+        .delete()
+        .eq("task_id", taskId)
+        .eq("user_id", userId)
+        .eq("emoji", emoji);
+    } else {
+      await supabase
+        .from("task_reactions")
+        .insert({ task_id: taskId, user_id: userId, emoji });
+    }
+  }
 
   function elapsed(t: LiveTask): number {
     return t.startedAt === null ? t.timeSpent : t.timeSpent + Math.floor((Date.now() - t.startedAt) / 1000);
@@ -496,6 +544,9 @@ export default function BlockLiveView({ block, userId }: Props) {
             onEditingTextChange={setEditingText}
             editInputRef={editInputRef}
             currentUserId={userId}
+            reactions={reactions}
+            reactionEmojis={REACTION_EMOJIS}
+            onToggleReaction={toggleReaction}
           />
           {/* Inline quick-add so anyone in the block (not just the host) can
               drop tasks in for themselves. Tags parsed from #hashtags. */}
@@ -678,6 +729,9 @@ export default function BlockLiveView({ block, userId }: Props) {
                 onStop={undefined}
                 onUnclaim={undefined}
                 currentUserId={userId}
+                reactions={reactions}
+                reactionEmojis={REACTION_EMOJIS}
+                onToggleReaction={toggleReaction}
                 readonly
               />
             </div>
@@ -714,6 +768,9 @@ function TaskSection({
   onEditingTextChange,
   editInputRef,
   currentUserId,
+  reactions,
+  reactionEmojis,
+  onToggleReaction,
   readonly = false,
 }: {
   tasks: LiveTask[];
@@ -735,6 +792,9 @@ function TaskSection({
   onEditingTextChange?: (text: string) => void;
   editInputRef?: React.RefObject<HTMLInputElement | null>;
   currentUserId: string;
+  reactions?: Map<string, { userId: string; emoji: string }[]>;
+  reactionEmojis?: readonly string[];
+  onToggleReaction?: (taskId: string, emoji: string) => void;
   readonly?: boolean;
 }) {
   const hasHover = useHasHover();
@@ -916,6 +976,58 @@ function TaskSection({
     );
   }
 
+  function ReactionBar({ taskId }: { taskId: string }) {
+    if (!reactions || !reactionEmojis || !onToggleReaction) return null;
+    const list = reactions.get(taskId) ?? [];
+    // Group by emoji, ordered by REACTION_EMOJIS
+    const counts = new Map<string, { count: number; mine: boolean }>();
+    for (const r of list) {
+      const cur = counts.get(r.emoji) ?? { count: 0, mine: false };
+      cur.count += 1;
+      if (r.userId === currentUserId) cur.mine = true;
+      counts.set(r.emoji, cur);
+    }
+    const active = reactionEmojis.filter((e) => (counts.get(e)?.count ?? 0) > 0);
+    return (
+      <div className="flex flex-wrap items-center gap-1 mt-1 pl-6 pr-2">
+        {active.map((emoji) => {
+          const c = counts.get(emoji)!;
+          return (
+            <button
+              key={emoji}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleReaction(taskId, emoji); }}
+              className="text-xs px-1.5 py-0.5 rounded-full border transition-colors flex items-center gap-1"
+              style={c.mine
+                ? { background: "rgba(124,58,237,0.14)", borderColor: "var(--purple)", color: "var(--purple)" }
+                : { background: "var(--surface)", borderColor: "var(--border-2)", color: "var(--text-2)" }}
+              title={c.mine ? "Remove your reaction" : "Join this reaction"}
+            >
+              <span>{emoji}</span>
+              <span className="tabular-nums text-[10px]">{c.count}</span>
+            </button>
+          );
+        })}
+        {/* Compact picker — show remaining emojis as faint buttons the user
+            can tap to react. Kept always visible so anyone can jump in. */}
+        {reactionEmojis
+          .filter((e) => !active.includes(e))
+          .map((emoji) => (
+            <button
+              key={emoji}
+              type="button"
+              onClick={(e) => { e.stopPropagation(); onToggleReaction(taskId, emoji); }}
+              className="text-xs w-6 h-6 rounded-full flex items-center justify-center transition-opacity hover:opacity-100"
+              style={{ opacity: 0.35 }}
+              title={`React with ${emoji}`}
+            >
+              {emoji}
+            </button>
+          ))}
+      </div>
+    );
+  }
+
   return (
     <div
       className="rounded-2xl border p-2 space-y-1"
@@ -924,34 +1036,41 @@ function TaskSection({
       {tasks.map((t) => {
         const isEditing = !readonly && editingId === t.id;
         if (readonly || isEditing || !onEdit || !onToggleShared || !onRemoveFromBlock) {
-          return <div key={t.id} className="rounded-xl overflow-hidden">{rowContent(t)}</div>;
+          return (
+            <div key={t.id}>
+              <div className="rounded-xl overflow-hidden">{rowContent(t)}</div>
+              <ReactionBar taskId={t.id} />
+            </div>
+          );
         }
         return (
-          <SwipeableRow
-            key={t.id}
-            leftActions={[
-              {
-                label: "Edit",
-                icon: SwipeIcons.Edit,
-                bg: SwipeColors.edit,
-                onClick: () => onEdit(t.id, t.text),
-              },
-              {
-                label: t.isShared ? "Unshare" : "Share",
-                icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
-                bg: SwipeColors.share,
-                onClick: () => onToggleShared(t.id),
-              },
-            ]}
-            rightActions={[{
-              label: "Off block",
-              icon: SwipeIcons.RemoveFromDay,
-              bg: SwipeColors.remove,
-              onClick: () => onRemoveFromBlock(t.id),
-            }]}
-          >
-            {rowContent(t)}
-          </SwipeableRow>
+          <div key={t.id}>
+            <SwipeableRow
+              leftActions={[
+                {
+                  label: "Edit",
+                  icon: SwipeIcons.Edit,
+                  bg: SwipeColors.edit,
+                  onClick: () => onEdit(t.id, t.text),
+                },
+                {
+                  label: t.isShared ? "Unshare" : "Share",
+                  icon: t.isShared ? SwipeIcons.Unshare : SwipeIcons.Share,
+                  bg: SwipeColors.share,
+                  onClick: () => onToggleShared(t.id),
+                },
+              ]}
+              rightActions={[{
+                label: "Off block",
+                icon: SwipeIcons.RemoveFromDay,
+                bg: SwipeColors.remove,
+                onClick: () => onRemoveFromBlock(t.id),
+              }]}
+            >
+              {rowContent(t)}
+            </SwipeableRow>
+            <ReactionBar taskId={t.id} />
+          </div>
         );
       })}
     </div>
