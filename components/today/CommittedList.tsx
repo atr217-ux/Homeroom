@@ -957,6 +957,25 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                             {t.text}
                           </button>
                         )}
+                        {/* Edit-mode tag row — surfaces the chips (with the ×
+                            forceVisible so users can peel them off during edit). */}
+                        {isEditing && t.tagIds.length > 0 && (
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {t.tagIds.map((tid) => {
+                              const tag = allTags.find((tg) => tg.id === tid);
+                              if (!tag) return null;
+                              return (
+                                <TagChip
+                                  key={tid}
+                                  tag={tag}
+                                  hasHover={hasHover}
+                                  forceVisible={isEditing}
+                                  onRemove={() => removeTagFromTask(t.id, tid)}
+                                />
+                              );
+                            })}
+                          </div>
+                        )}
                         {/* Bottom row — tags + added-at on the left, timer +
                             lock + more on the right. Task text above stays on
                             its own line. */}
