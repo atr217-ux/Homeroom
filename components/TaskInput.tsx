@@ -24,6 +24,7 @@ type Props = {
 export default function TaskInput({ value, onChange, onSubmit, placeholder = "Add a task… (try #category)", allTags }: Props) {
   const inputRef = useRef<HTMLDivElement>(null);
   const [focused, setFocused] = useState(false);
+  const [highlight, setHighlight] = useState(0);
   const dropdownRef = useRef<HTMLDivElement>(null);
 
   // Re-render the colored HTML when value changes from outside (e.g., after submit clears it)
@@ -43,6 +44,12 @@ export default function TaskInput({ value, onChange, onSubmit, placeholder = "Ad
     ? allTags.filter(t => t.name.toLowerCase().startsWith(tagQuery)).slice(0, 6)
     : [];
   const showDropdown = focused && completions.length > 0 && tagQuery !== null;
+
+  // Reset the highlight cursor whenever the query changes so the top result
+  // is always selected by default.
+  useEffect(() => {
+    setHighlight(0);
+  }, [tagQuery]);
 
   function applyCompletion(name: string) {
     const next = value.replace(/#\w*$/, `#${name} `);
@@ -113,17 +120,37 @@ export default function TaskInput({ value, onChange, onSubmit, placeholder = "Ad
               sel.addRange(r);
             }}
             onKeyDown={(e) => {
+              if (showDropdown && e.key === "ArrowDown") {
+                e.preventDefault();
+                setHighlight((h) => (h + 1) % completions.length);
+                return;
+              }
+              if (showDropdown && e.key === "ArrowUp") {
+                e.preventDefault();
+                setHighlight((h) => (h - 1 + completions.length) % completions.length);
+                return;
+              }
               if (e.key === "Enter") {
                 e.preventDefault();
-                if (showDropdown && completions[0]) {
-                  applyCompletion(completions[0].name);
+                if (showDropdown) {
+                  const pick = completions[highlight] ?? completions[0];
+                  if (pick) applyCompletion(pick.name);
                 } else {
                   onSubmit();
                 }
+                return;
               }
-              if (e.key === "Tab" && showDropdown && completions[0]) {
+              if (e.key === "Tab" && showDropdown) {
                 e.preventDefault();
-                applyCompletion(completions[0].name);
+                const pick = completions[highlight] ?? completions[0];
+                if (pick) applyCompletion(pick.name);
+                return;
+              }
+              if (e.key === "Escape" && showDropdown) {
+                // Bail out of autocomplete without accepting
+                e.preventDefault();
+                setFocused(false);
+                setTimeout(() => setFocused(true), 0);
               }
             }}
             onPaste={(e) => {
@@ -141,14 +168,16 @@ export default function TaskInput({ value, onChange, onSubmit, placeholder = "Ad
           className="absolute left-0 right-0 top-full mt-1 z-30 border rounded-xl shadow-lg overflow-hidden"
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
-          {completions.map((tag) => {
+          {completions.map((tag, i) => {
             const { bg, fg } = tagColor(tag.name);
+            const isActive = i === highlight;
             return (
               <button
                 key={tag.id}
                 onMouseDown={(e) => { e.preventDefault(); applyCompletion(tag.name); }}
-                className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors hover:opacity-80"
-                style={{ background: "var(--surface)" }}
+                onMouseEnter={() => setHighlight(i)}
+                className="w-full flex items-center gap-2 px-3 py-2 text-left transition-colors"
+                style={{ background: isActive ? "rgba(124,58,237,0.08)" : "var(--surface)" }}
               >
                 <span
                   className="text-xs px-2 py-0.5 rounded-full font-medium"
