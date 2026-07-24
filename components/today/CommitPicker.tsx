@@ -58,6 +58,7 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
   useEffect(() => { autoGrowFocus(); }, [commitment]);
 
   useEffect(() => {
+    let cancelled = false;
     async function load() {
       const supabase = createClient();
       const today = dateKey(new Date());
@@ -78,6 +79,7 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
           .maybeSingle(),
         supabase.from("profiles").select("auto_private_tasks").eq("id", userId).maybeSingle(),
       ]);
+      if (cancelled) return;
       const loaded = (tasksRes.data ?? []).map((r) => ({
         id: r.id as string,
         text: r.text as string,
@@ -103,7 +105,10 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
       }
     }
     document.addEventListener("mousedown", onOutside);
-    return () => document.removeEventListener("mousedown", onOutside);
+    return () => {
+      cancelled = true;
+      document.removeEventListener("mousedown", onOutside);
+    };
   }, [userId]);
 
   // Extracted so it can also be called when DailyRecap broadcasts that a
@@ -112,13 +117,17 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
   // is a no-op and this effect doesn't re-run.
   function consumeCarryPreselect(currentTasks?: PickerTask[]) {
     if (typeof window === "undefined") return;
+    const source = currentTasks ?? tasks;
+    // Wait until tasks are actually loaded — otherwise we'd wipe the
+    // sessionStorage key with nothing to filter against, and the initial
+    // load's consume call later would find it already gone.
+    if (source.length === 0) return;
     const raw = sessionStorage.getItem("homeroom-carry-preselect");
     if (!raw) return;
     sessionStorage.removeItem("homeroom-carry-preselect");
     try {
       const ids = JSON.parse(raw) as string[];
       if (!Array.isArray(ids) || ids.length === 0) return;
-      const source = currentTasks ?? tasks;
       const known = new Set(source.map((t) => t.id));
       const usable = ids.filter((id) => known.has(id));
       if (usable.length > 0) {
