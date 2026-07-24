@@ -91,24 +91,7 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
       setAutoPrivate((profileRes.data as { auto_private_tasks: boolean } | null)?.auto_private_tasks ?? false);
 
       // Consume the DailyRecap "carry unfinished" hand-off, if present.
-      if (typeof window !== "undefined") {
-        const raw = sessionStorage.getItem("homeroom-carry-preselect");
-        if (raw) {
-          sessionStorage.removeItem("homeroom-carry-preselect");
-          try {
-            const ids = JSON.parse(raw) as string[];
-            if (Array.isArray(ids) && ids.length > 0) {
-              const known = new Set(loaded.map((t) => t.id));
-              const usable = ids.filter((id) => known.has(id));
-              if (usable.length > 0) {
-                setCarryPreselect(new Set(usable));
-                setSelected(new Set(usable));
-                if (usable.length > LIMIT) setShowAll(true);
-              }
-            }
-          } catch { /* ignore malformed payload */ }
-        }
-      }
+      consumeCarryPreselect(loaded);
 
       setLoading(false);
     }
@@ -122,6 +105,38 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
     document.addEventListener("mousedown", onOutside);
     return () => document.removeEventListener("mousedown", onOutside);
   }, [userId]);
+
+  // Extracted so it can also be called when DailyRecap broadcasts that a
+  // fresh carry-preselect payload has been written — covers the case where
+  // /today (and CommitPicker) is already mounted so router.push("/today")
+  // is a no-op and this effect doesn't re-run.
+  function consumeCarryPreselect(currentTasks?: PickerTask[]) {
+    if (typeof window === "undefined") return;
+    const raw = sessionStorage.getItem("homeroom-carry-preselect");
+    if (!raw) return;
+    sessionStorage.removeItem("homeroom-carry-preselect");
+    try {
+      const ids = JSON.parse(raw) as string[];
+      if (!Array.isArray(ids) || ids.length === 0) return;
+      const source = currentTasks ?? tasks;
+      const known = new Set(source.map((t) => t.id));
+      const usable = ids.filter((id) => known.has(id));
+      if (usable.length > 0) {
+        setCarryPreselect(new Set(usable));
+        setSelected(new Set(usable));
+        if (usable.length > LIMIT) setShowAll(true);
+      }
+    } catch { /* ignore malformed payload */ }
+  }
+
+  // Listen for the "carry set" broadcast so an already-mounted picker
+  // grabs the sessionStorage payload without needing a manual refresh.
+  useEffect(() => {
+    function onCarrySet() { consumeCarryPreselect(); }
+    window.addEventListener("homeroom:carry-preselect-set", onCarrySet);
+    return () => window.removeEventListener("homeroom:carry-preselect-set", onCarrySet);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [tasks]);
 
   const filtered = useMemo(() => {
     let list = tasks;

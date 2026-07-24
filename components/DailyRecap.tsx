@@ -203,6 +203,11 @@ export default function DailyRecap() {
       // Hand the IDs to CommitPicker so it can pre-select them at the top of
       // the list. Don't commit yet — the user should confirm on the picker.
       sessionStorage.setItem("homeroom-carry-preselect", JSON.stringify(ids));
+      // If we're already on /today (or the picker is already mounted somewhere
+      // in the app), the router.push below is a no-op and the picker never
+      // re-runs its consume-on-mount effect. Broadcast an event so any live
+      // instance grabs the sessionStorage payload right now.
+      window.dispatchEvent(new CustomEvent("homeroom:carry-preselect-set"));
     }
     close();
     router.push("/today");
