@@ -8,6 +8,7 @@ import CommitPicker from "@/components/today/CommitPicker";
 import CommittedList from "@/components/today/CommittedList";
 import BlockCreateModal from "@/components/today/BlockCreateModal";
 import BlockLiveView from "@/components/today/BlockLiveView";
+import HabitTracker from "@/components/HabitTracker";
 
 type Phase = "loading" | "picker" | "committed";
 type ViewMode = "block" | "today";
@@ -123,6 +124,9 @@ export default function TodayPage() {
         <BlockLiveView block={activeBlock} userId={userId} />
       ) : (
         <>
+          <div className="max-w-2xl mx-auto px-4 pt-6">
+            <HabitTracker userId={userId} />
+          </div>
           {phase === "picker" && (
             <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} blockReloadKey={reloadKey} />
           )}

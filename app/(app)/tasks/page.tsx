@@ -5,6 +5,7 @@ import { createClient } from "@/lib/supabase/client";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import TaskRow from "@/components/TaskRow";
+import HabitTracker from "@/components/HabitTracker";
 import type { Tag } from "@/lib/db/types";
 
 type Task = {
@@ -290,6 +291,9 @@ export default function TasksPage() {
           Tip: type <span className="font-mono">#category</span> to tag a task. Lock icon = private.
         </p>
       </div>
+
+      {/* Habits */}
+      {userId && <HabitTracker userId={userId} />}
 
       {/* Add task input */}
       <div className="mb-4">
