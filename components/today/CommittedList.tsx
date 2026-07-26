@@ -9,6 +9,7 @@ import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow
 import TagChip from "@/components/TagChip";
 import MoreMenu from "@/components/MoreMenu";
 import UpcomingBlocks from "@/components/today/UpcomingBlocks";
+import HabitTracker from "@/components/HabitTracker";
 import { useHasHover } from "@/lib/hooks/useHasHover";
 import {
   DndContext,
@@ -1335,6 +1336,12 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
       )}
 
       {!loading && <UpcomingBlocks userId={userId} externalReload={blockReloadKey} />}
+
+      {!loading && (
+        <div className="mt-6">
+          <HabitTracker userId={userId} />
+        </div>
+      )}
 
       {/* Notes popup — centered on desktop, bottom sheet on mobile */}
       {notesOpen && (

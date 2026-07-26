@@ -6,6 +6,7 @@ import { dateKey } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import UpcomingBlocks from "@/components/today/UpcomingBlocks";
+import HabitTracker from "@/components/HabitTracker";
 import type { Tag } from "@/lib/db/types";
 
 type PickerTask = {
@@ -573,6 +574,12 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
       })()}
 
       {!loading && <UpcomingBlocks userId={userId} externalReload={blockReloadKey} />}
+
+      {!loading && (
+        <div className="mt-6">
+          <HabitTracker userId={userId} />
+        </div>
+      )}
 
       {/* Commit button — fixed above bottom nav */}
       <div className="fixed bottom-24 left-0 right-0 px-4 max-w-2xl mx-auto z-30 pointer-events-none">
