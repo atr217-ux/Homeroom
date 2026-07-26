@@ -292,9 +292,6 @@ export default function TasksPage() {
         </p>
       </div>
 
-      {/* Habits */}
-      {userId && <HabitTracker userId={userId} />}
-
       {/* Add task input */}
       <div className="mb-4">
         <TaskInput
@@ -516,6 +513,13 @@ export default function TasksPage() {
               ))}
             </div>
           )}
+        </div>
+      )}
+
+      {/* Habits — below the task list so it doesn't push tasks down */}
+      {!loading && userId && (
+        <div className="mt-8 pt-4 border-t" style={{ borderColor: "var(--border-2)" }}>
+          <HabitTracker userId={userId} />
         </div>
       )}
 

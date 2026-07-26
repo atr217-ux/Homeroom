@@ -197,7 +197,10 @@ export default function HabitTracker({ userId }: Props) {
                     className="flex-1 min-w-0 text-left flex items-center gap-2"
                     aria-expanded={isExpanded}
                   >
-                    <span className="text-sm font-medium truncate" style={{ color: "var(--text)" }}>
+                    <span
+                      className={`text-sm font-medium ${isExpanded ? "break-words" : "truncate"}`}
+                      style={{ color: "var(--text)" }}
+                    >
                       {h.name}
                     </span>
                     <span
