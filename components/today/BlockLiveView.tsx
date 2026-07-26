@@ -691,19 +691,22 @@ export default function BlockLiveView({ block, userId }: Props) {
         </h3>
       )}
 
-      {/* Each participant — a compact light-purple card with a stacked
-          avatar/name/count header. Cards live in a grid that grows to at
-          most three columns (1 friend = full width, 2 = 2 cols, 3+ = 3
-          cols with wrap). Tap to expand and see their non-private tasks. */}
+      {/* Each participant — a purple friend card. One friend gets a
+          full-width horizontal layout (avatar left, name + progress in the
+          middle, done pill right, chevron far right). Multiple friends drop
+          to a 2-col grid so the horizontal layout still breathes. Tap to
+          expand — non-private tasks unfurl inside the same purple card
+          with a soft inset divider, no hard white block. */}
       {!loading && othersByUser.size > 0 && (() => {
-        const cols = Math.min(3, othersByUser.size);
-        const gridColsClass = cols === 1 ? "grid-cols-1" : cols === 2 ? "grid-cols-2" : "grid-cols-3";
+        const gridColsClass = othersByUser.size === 1 ? "grid-cols-1" : "grid-cols-1 sm:grid-cols-2";
         return (
           <div className={`grid ${gridColsClass} gap-2`}>
             {Array.from(othersByUser.entries()).map(([ownerId, ownerTasks]) => {
               const profile = participants.find((p) => p.id === ownerId);
               const visibleTasks = ownerTasks.filter((t) => !t.isPrivate);
               const ownerDone = ownerTasks.filter((t) => t.done).length;
+              const total = ownerTasks.length;
+              const pct = total > 0 ? Math.round((ownerDone / total) * 100) : 0;
               const isExpanded = expandedParticipants.has(ownerId);
               return (
                 <section
@@ -714,24 +717,38 @@ export default function BlockLiveView({ block, userId }: Props) {
                   <button
                     type="button"
                     onClick={() => toggleParticipantExpanded(ownerId)}
-                    className="w-full flex flex-col items-center gap-1.5 px-2 py-3 text-center transition-opacity hover:opacity-100"
+                    className="w-full flex items-center gap-3 px-3 py-3 text-left transition-opacity"
                     aria-expanded={isExpanded}
                   >
                     <div
-                      className="w-9 h-9 rounded-full flex items-center justify-center text-lg flex-shrink-0"
+                      className="w-10 h-10 rounded-full flex items-center justify-center text-xl flex-shrink-0"
                       style={{ background: "var(--surface)", border: "1px solid var(--purple-border)" }}
                     >
                       {profile?.avatar ?? "🙂"}
                     </div>
-                    <div className="text-[11px] font-semibold truncate max-w-full" style={{ color: "var(--text)" }}>
-                      {profile?.username ?? "Someone"}
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-semibold truncate" style={{ color: "var(--text)" }}>
+                        {profile?.username ?? "Someone"}
+                      </div>
+                      <div
+                        className="h-1 rounded-full mt-1.5 overflow-hidden"
+                        style={{ background: "var(--purple-muted)", opacity: 0.35 }}
+                      >
+                        <div
+                          className="h-full rounded-full transition-all"
+                          style={{ width: `${pct}%`, background: "var(--purple)" }}
+                        />
+                      </div>
                     </div>
-                    <div className="text-[10px] tabular-nums" style={{ color: "var(--text-2)" }}>
-                      {ownerDone}/{ownerTasks.length} done
+                    <div
+                      className="text-[11px] font-semibold tabular-nums px-2 py-0.5 rounded-full flex-shrink-0"
+                      style={{ background: "rgba(255,255,255,0.55)", color: "var(--purple)" }}
+                    >
+                      {ownerDone}/{total}
                     </div>
                     <svg
-                      width="10"
-                      height="10"
+                      width="12"
+                      height="12"
                       viewBox="0 0 24 24"
                       fill="none"
                       stroke="currentColor"
@@ -748,23 +765,26 @@ export default function BlockLiveView({ block, userId }: Props) {
                     </svg>
                   </button>
                   {isExpanded && (
-                    <div className="border-t px-2 py-2" style={{ borderColor: "var(--purple-border)", background: "var(--surface)" }}>
+                    <div
+                      className="px-3 py-2.5"
+                      style={{ borderTop: "1px solid var(--purple-border)", background: "rgba(255,255,255,0.4)" }}
+                    >
                       {visibleTasks.length === 0 ? (
-                        <p className="text-[10px] text-center py-1" style={{ color: "var(--text-3)" }}>
-                          {ownerTasks.length > visibleTasks.length ? "All private" : "No tasks yet"}
+                        <p className="text-xs text-center py-1" style={{ color: "var(--text-3)" }}>
+                          {total > visibleTasks.length ? "All private" : "No tasks yet"}
                         </p>
                       ) : (
-                        <ul className="space-y-1">
+                        <ul className="space-y-1.5">
                           {visibleTasks.map((t) => (
-                            <li key={t.id} className="flex items-start gap-1.5 text-[11px] leading-snug">
+                            <li key={t.id} className="flex items-start gap-2 text-xs leading-snug">
                               <span
-                                className="w-2.5 h-2.5 rounded-sm flex-shrink-0 flex items-center justify-center mt-[3px]"
+                                className="w-3.5 h-3.5 rounded flex-shrink-0 flex items-center justify-center mt-[2px]"
                                 style={t.done
                                   ? { background: "var(--purple)", border: "1.5px solid var(--purple)" }
-                                  : { border: "1.5px solid var(--border-3)" }}
+                                  : { background: "var(--surface)", border: "1.5px solid var(--purple-muted)" }}
                               >
                                 {t.done && (
-                                  <svg width="6" height="6" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
+                                  <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="4">
                                     <polyline points="20 6 9 17 4 12" />
                                   </svg>
                                 )}
