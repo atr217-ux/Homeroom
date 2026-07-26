@@ -13,7 +13,11 @@ type RecapData = {
   incomplete: Task[];
   coworkedMinutes: number;
   streak: number;
-  yesterdayLabel: string;
+  // Human-readable dateline for the target day, e.g. "Yesterday · July 25"
+  // or "Friday · July 24" if the user skipped yesterday.
+  dateLabel: string;
+  // Small caption above the focus in the modal ("YESTERDAY" or "FRIDAY").
+  dayCaption: string;
 };
 
 // Sum the duration of a block, using its start_time / end_time (HH:MM[:SS]).
@@ -62,50 +66,65 @@ export default function DailyRecap() {
         return;
       }
 
-      const yd = new Date();
-      yd.setDate(yd.getDate() - 1);
-      const yesterday = dateKey(yd);
-
-      // Fetch yesterday's tasks + focus + blocks + 30 days of activity for streak.
+      // Look back 30 days for activity so we can find the most recent day
+      // the user actually engaged, even if they skipped yesterday.
       const thirtyAgo = new Date();
       thirtyAgo.setDate(thirtyAgo.getDate() - 30);
       const thirtyAgoKey = dateKey(thirtyAgo);
 
-      const [tasksRes, commitRes, ownedBlocksRes, invitedBlocksRes, activityCommitsRes, activityTasksRes] = await Promise.all([
+      const [tasksAllRes, commitsAllRes] = await Promise.all([
         supabase.from("tasks")
-          .select("id, text, done")
+          .select("id, text, done, committed_for_date")
           .eq("user_id", uid)
-          .eq("committed_for_date", yesterday),
-        supabase.from("daily_commitments")
-          .select("commitment")
-          .eq("user_id", uid)
-          .eq("date", yesterday)
-          .maybeSingle(),
-        supabase.from("blocks")
-          .select("id, start_time, end_time, block_invites(status)")
-          .eq("user_id", uid)
-          .eq("date", yesterday),
-        supabase.from("block_invites")
-          .select("status, blocks!inner(id, start_time, end_time, date)")
-          .eq("invited_user_id", uid)
-          .eq("status", "joined")
-          .eq("blocks.date", yesterday),
+          .not("committed_for_date", "is", null)
+          .gte("committed_for_date", thirtyAgoKey),
         supabase.from("daily_commitments")
           .select("date, commitment")
           .eq("user_id", uid)
           .gte("date", thirtyAgoKey),
-        supabase.from("tasks")
-          .select("committed_for_date")
-          .eq("user_id", uid)
-          .not("committed_for_date", "is", null)
-          .gte("committed_for_date", thirtyAgoKey),
       ]);
 
-      const tasks = (tasksRes.data ?? []) as Task[];
-      const focus = ((commitRes.data as { commitment: string } | null)?.commitment ?? "").trim();
+      type TaskWithDate = Task & { committed_for_date: string | null };
+      const allTasks = (tasksAllRes.data ?? []) as TaskWithDate[];
+      const allCommits = (commitsAllRes.data ?? []) as { date: string; commitment: string }[];
 
-      // No activity yesterday → nothing to recap.
-      if (tasks.length === 0 && !focus) return;
+      // Build the set of days with any real activity (task committed OR
+      // non-empty focus).
+      const activeDays = new Set<string>();
+      for (const t of allTasks) {
+        if (t.committed_for_date) activeDays.add(t.committed_for_date);
+      }
+      for (const c of allCommits) {
+        if ((c.commitment ?? "").trim().length > 0) activeDays.add(c.date);
+      }
+
+      // Pick the most recent past active day — walks past a skipped
+      // yesterday to whatever the last real session was.
+      const targetDate = Array.from(activeDays)
+        .filter((d) => d < today)
+        .sort()
+        .reverse()[0];
+      if (!targetDate) return; // Nothing to summarize.
+
+      // Filter the pre-fetched data to the target day.
+      const tasksForDay = allTasks
+        .filter((t) => t.committed_for_date === targetDate)
+        .map((t) => ({ id: t.id, text: t.text, done: t.done }));
+      const focus = (allCommits.find((c) => c.date === targetDate)?.commitment ?? "").trim();
+
+      // Fetch coworked-block data for the target day. Not pre-loaded because
+      // we didn't know which date we'd need until now.
+      const [ownedBlocksRes, invitedBlocksRes] = await Promise.all([
+        supabase.from("blocks")
+          .select("id, start_time, end_time, block_invites(status)")
+          .eq("user_id", uid)
+          .eq("date", targetDate),
+        supabase.from("block_invites")
+          .select("status, blocks!inner(id, start_time, end_time, date)")
+          .eq("invited_user_id", uid)
+          .eq("status", "joined")
+          .eq("blocks.date", targetDate),
+      ]);
 
       // Coworked minutes: blocks I owned that had ≥1 joined invitee, plus blocks I joined.
       const owned = (ownedBlocksRes.data ?? []) as Array<{
@@ -119,42 +138,44 @@ export default function DailyRecap() {
         const hasJoinedGuest = (b.block_invites ?? []).some((i) => i.status === "joined");
         if (hasJoinedGuest) cow += blockMinutes(b.start_time, b.end_time);
       }
-      const invited = (invitedBlocksRes.data ?? []) as unknown as Array<{
+      const invitedRows = (invitedBlocksRes.data ?? []) as unknown as Array<{
         blocks: { start_time: string | null; end_time: string | null } | { start_time: string | null; end_time: string | null }[] | null;
       }>;
-      for (const row of invited) {
+      for (const row of invitedRows) {
         const b = Array.isArray(row.blocks) ? row.blocks[0] : row.blocks;
         if (b) cow += blockMinutes(b.start_time, b.end_time);
       }
 
-      // Streak: consecutive days ending yesterday with any activity.
-      const activeDays = new Set<string>();
-      for (const c of (activityCommitsRes.data ?? []) as { date: string; commitment: string }[]) {
-        if ((c.commitment ?? "").trim().length > 0) activeDays.add(c.date);
-      }
-      for (const t of (activityTasksRes.data ?? []) as { committed_for_date: string }[]) {
-        if (t.committed_for_date) activeDays.add(t.committed_for_date);
-      }
+      // Streak: consecutive days ending at targetDate with any activity.
       let streak = 0;
-      if (activeDays.has(yesterday)) {
-        const cursor = new Date(yd);
-        while (activeDays.has(dateKey(cursor))) {
-          streak += 1;
-          cursor.setDate(cursor.getDate() - 1);
-        }
+      const [ty, tm, td] = targetDate.split("-").map(Number);
+      const cursor = new Date(ty, tm - 1, td);
+      while (activeDays.has(dateKey(cursor))) {
+        streak += 1;
+        cursor.setDate(cursor.getDate() - 1);
       }
 
-      const yesterdayLabel = yd.toLocaleDateString(undefined, { weekday: "long", month: "long", day: "numeric" });
+      // Human labels — "Yesterday" if it was actually yesterday, otherwise
+      // the weekday name (e.g. "Friday"). Full date follows.
+      const targetD = new Date(ty, tm - 1, td);
+      const yd = new Date();
+      yd.setDate(yd.getDate() - 1);
+      const isYesterday = dateKey(yd) === targetDate;
+      const weekday = targetD.toLocaleDateString(undefined, { weekday: "long" });
+      const monthDay = targetD.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+      const dayCaption = isYesterday ? "Yesterday" : weekday;
+      const dateLabel = `${dayCaption} · ${monthDay}`;
 
       if (cancelled) return;
       setUserId(uid);
       setData({
         focus,
-        completed: tasks.filter((t) => t.done),
-        incomplete: tasks.filter((t) => !t.done),
+        completed: tasksForDay.filter((t) => t.done),
+        incomplete: tasksForDay.filter((t) => !t.done),
         coworkedMinutes: cow,
         streak,
-        yesterdayLabel,
+        dateLabel,
+        dayCaption,
       });
     }
     run();
@@ -258,12 +279,16 @@ export default function DailyRecap() {
 
         <div className="px-6 pt-6 pb-5">
           <div className="text-[10px] font-semibold uppercase tracking-[0.25em] mb-1 text-center" style={{ color: "var(--purple)" }}>
-            Yesterday · {data.yesterdayLabel}
+            {data.dateLabel}
           </div>
 
           {data.focus ? (
             <div className="text-center">
-              <div className="text-sm mb-1" style={{ color: "var(--text-2)" }}>Yesterday&apos;s focus</div>
+              <div className="text-sm mb-1" style={{ color: "var(--text-2)" }}>
+                {data.dayCaption === "Yesterday"
+                  ? "Yesterday's focus"
+                  : `${data.dayCaption}'s focus`}
+              </div>
               <div
                 className="font-display italic leading-tight break-words"
                 style={{ color: "var(--text)", fontSize: "clamp(1.5rem, 6vw, 2.1rem)" }}
