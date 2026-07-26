@@ -6,6 +6,46 @@ import { dateKey } from "@/lib/utils/date";
 import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import type { Tag } from "@/lib/db/types";
 
+// A numeric tile that allows a transient empty state while editing so
+// backspace fully clears the field and the user can type a new digit
+// without the controlled value snapping back to min on every keystroke.
+function NumberTile(props: {
+  value: number;
+  min: number;
+  max: number;
+  onChange: (v: number) => void;
+  pad?: boolean;
+  ariaLabel: string;
+  className?: string;
+  style?: React.CSSProperties;
+}) {
+  const { value, min, max, onChange, pad, ariaLabel, className, style } = props;
+  const [draft, setDraft] = useState<string | null>(null);
+  const display = draft ?? (pad ? String(value).padStart(2, "0") : String(value));
+  return (
+    <input
+      type="number"
+      min={min}
+      max={max}
+      value={display}
+      onFocus={(e) => e.currentTarget.select()}
+      onChange={(e) => {
+        const raw = e.target.value;
+        setDraft(raw);
+        if (raw === "") return; // keep numeric state, show empty draft
+        const n = Number(raw);
+        if (!Number.isFinite(n)) return;
+        const clamped = Math.max(min, Math.min(max, Math.floor(n)));
+        onChange(clamped);
+      }}
+      onBlur={() => setDraft(null)}
+      className={className}
+      style={style}
+      aria-label={ariaLabel}
+    />
+  );
+}
+
 type FriendOption = { id: string; username: string; avatar: string | null };
 type TaskOption = { id: string; text: string; isPrivate: boolean; tagIds: string[]; scheduledFor: string | null };
 
@@ -386,12 +426,12 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     <div className={sectionCard} style={sectionStyle}>
                       <div className={sectionLabel} style={{ color: "var(--text)" }}>Start</div>
                       <div className="flex items-center gap-2">
-                        <input
-                          type="number"
+                        <NumberTile
                           min={1}
                           max={12}
                           value={start.h12}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(Math.max(1, Math.min(12, Math.floor(v))), start.m, start.ampm); }}
+                          onChange={(v) => setStart(v, start.m, start.ampm)}
+                          ariaLabel="Start hour"
                           className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
                           style={{
                             background: "rgba(124,58,237,0.12)",
@@ -399,16 +439,15 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                             fontSize: "1.75rem",
                             lineHeight: 1,
                           }}
-                          aria-label="Start hour"
                         />
                         <span className="font-bold tabular-nums" style={{ color: "var(--text)", fontSize: "1.75rem", lineHeight: 1 }}>:</span>
-                        <input
-                          type="number"
+                        <NumberTile
                           min={0}
                           max={59}
-                          step={5}
-                          value={String(start.m).padStart(2, "0")}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setStart(start.h12, Math.max(0, Math.min(59, Math.floor(v))), start.ampm); }}
+                          value={start.m}
+                          onChange={(v) => setStart(start.h12, v, start.ampm)}
+                          pad
+                          ariaLabel="Start minutes"
                           className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
                           style={{
                             background: "var(--surface-2)",
@@ -416,7 +455,6 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                             fontSize: "1.75rem",
                             lineHeight: 1,
                           }}
-                          aria-label="Start minutes"
                         />
                       </div>
                       {/* Horizontal AM/PM segmented control below the time */}
@@ -455,12 +493,12 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                     <div className={sectionLabel} style={{ color: "var(--text)" }}>Length</div>
                     <div className="flex items-center gap-2">
                       <div className="flex flex-col items-center gap-1">
-                        <input
-                          type="number"
+                        <NumberTile
                           min={0}
                           max={23}
                           value={durationH}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationH(Math.max(0, Math.min(23, Math.floor(v)))); }}
+                          onChange={setDurationH}
+                          ariaLabel="Hours"
                           className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
                           style={{
                             background: "rgba(124,58,237,0.12)",
@@ -468,7 +506,6 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                             fontSize: "1.75rem",
                             lineHeight: 1,
                           }}
-                          aria-label="Hours"
                         />
                         <div className="flex gap-1">
                           <button type="button" onClick={() => setDurationH((h) => Math.max(0, h - 1))} className="w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium" style={stepperStyle} aria-label="Decrease hours">−</button>
@@ -477,13 +514,13 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                       </div>
                       <span className="font-bold tabular-nums" style={{ color: "var(--text)", fontSize: "1.75rem", lineHeight: 1, marginTop: -14 }}>:</span>
                       <div className="flex flex-col items-center gap-1">
-                        <input
-                          type="number"
+                        <NumberTile
                           min={0}
                           max={59}
-                          step={15}
-                          value={String(durationM).padStart(2, "0")}
-                          onChange={(e) => { const v = Number(e.target.value); if (Number.isFinite(v)) setDurationM(Math.max(0, Math.min(59, Math.floor(v)))); }}
+                          value={durationM}
+                          onChange={setDurationM}
+                          pad
+                          ariaLabel="Minutes"
                           className="w-14 h-14 text-center rounded-xl bg-transparent focus:outline-none tabular-nums font-bold"
                           style={{
                             background: "var(--surface-2)",
@@ -491,7 +528,6 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                             fontSize: "1.75rem",
                             lineHeight: 1,
                           }}
-                          aria-label="Minutes"
                         />
                         <div className="flex gap-1">
                           <button type="button" onClick={() => setDurationM((m) => (m - 15 + 60) % 60)} className="w-6 h-6 rounded-md flex items-center justify-center border text-sm font-medium" style={stepperStyle} aria-label="Decrease minutes">−</button>
