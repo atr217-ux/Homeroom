@@ -124,15 +124,15 @@ export default function TodayPage() {
         <BlockLiveView block={activeBlock} userId={userId} />
       ) : (
         <>
-          <div className="max-w-2xl mx-auto px-4 pt-6">
-            <HabitTracker userId={userId} />
-          </div>
           {phase === "picker" && (
             <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} blockReloadKey={reloadKey} />
           )}
           {phase === "committed" && (
             <CommittedList userId={userId} onOpenSchedule={() => setScheduleOpen(true)} blockReloadKey={reloadKey} />
           )}
+          <div className="max-w-2xl mx-auto px-4 mt-6">
+            <HabitTracker userId={userId} />
+          </div>
         </>
       )}
 
