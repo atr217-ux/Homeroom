@@ -121,10 +121,11 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
   const [tasks, setTasks] = useState<TaskOption[]>([]);
   const [allTags, setAllTags] = useState<Tag[]>([]);
   const [pickedIds, setPickedIds] = useState<Set<string>>(new Set());
+  const [sharedIds, setSharedIds] = useState<Set<string>>(new Set());
   const [taskSearch, setTaskSearch] = useState("");
 
   const [newTaskInput, setNewTaskInput] = useState("");
-  const [extraTasks, setExtraTasks] = useState<{ text: string; tagNames: string[] }[]>([]);
+  const [extraTasks, setExtraTasks] = useState<{ text: string; tagNames: string[]; isShared: boolean }[]>([]);
 
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -199,7 +200,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
     const text = stripHashtags(raw);
     const tagNames = parseHashtags(raw);
     if (!text) return;
-    setExtraTasks((prev) => [...prev, { text, tagNames }]);
+    setExtraTasks((prev) => [...prev, { text, tagNames, isShared: false }]);
     setNewTaskInput("");
   }
 
@@ -268,13 +269,22 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
       );
     }
 
-    // Attach picked existing tasks
+    // Attach picked existing tasks. Tasks flagged as shared get is_shared=true;
+    // the rest keep whatever they already had (defaulting to unshared).
     const pickedArr = Array.from(pickedIds);
-    if (pickedArr.length > 0) {
+    const sharedArr = pickedArr.filter((id) => sharedIds.has(id));
+    const unsharedArr = pickedArr.filter((id) => !sharedIds.has(id));
+    if (sharedArr.length > 0) {
+      await supabase
+        .from("tasks")
+        .update({ block_id: block.id, committed_for_date: effectiveDate, is_shared: true })
+        .in("id", sharedArr);
+    }
+    if (unsharedArr.length > 0) {
       await supabase
         .from("tasks")
         .update({ block_id: block.id, committed_for_date: effectiveDate })
-        .in("id", pickedArr);
+        .in("id", unsharedArr);
     }
 
     // Create extra new tasks under this block
@@ -288,6 +298,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
           block_id: block.id,
           committed_for_date: effectiveDate,
           is_private: autoPrivate,
+          is_shared: extra.isShared,
         })
         .select("id")
         .single();
@@ -673,6 +684,45 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                         </svg>
                       </span>
                     )}
+                    {/* Share toggle — chain-link chip. Only active when the
+                        task is picked; tap to mark shared so friends can
+                        claim it once the block goes live. */}
+                    <span
+                      role="button"
+                      tabIndex={0}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setSharedIds((prev) => {
+                          const next = new Set(prev);
+                          if (next.has(t.id)) next.delete(t.id);
+                          else next.add(t.id);
+                          return next;
+                        });
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter" || e.key === " ") {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          setSharedIds((prev) => {
+                            const next = new Set(prev);
+                            if (next.has(t.id)) next.delete(t.id);
+                            else next.add(t.id);
+                            return next;
+                          });
+                        }
+                      }}
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0 cursor-pointer"
+                      style={sharedIds.has(t.id)
+                        ? { background: "var(--purple)", color: "white" }
+                        : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
+                      title={sharedIds.has(t.id) ? "Shared — friends can claim it in the block" : "Mark as shared so friends can claim it"}
+                      aria-label={sharedIds.has(t.id) ? "Unshare task" : "Share task"}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                    </span>
                   </button>
                 );
               })}
@@ -727,6 +777,21 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                         );
                       })}
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setExtraTasks((prev) => prev.map((x, ix) => ix === i ? { ...x, isShared: !x.isShared } : x))}
+                      className="w-6 h-6 rounded-full flex items-center justify-center transition-colors flex-shrink-0"
+                      style={t.isShared
+                        ? { background: "var(--purple)", color: "white" }
+                        : { background: "rgba(124,58,237,0.10)", color: "var(--purple-light)" }}
+                      title={t.isShared ? "Shared — friends can claim it in the block" : "Mark as shared so friends can claim it"}
+                      aria-label={t.isShared ? "Unshare task" : "Share task"}
+                    >
+                      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                        <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                      </svg>
+                    </button>
                     <button
                       onClick={() => removeExtra(i)}
                       className="p-1 rounded transition-opacity hover:opacity-100"
