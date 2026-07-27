@@ -54,6 +54,15 @@ export default function TodayPage() {
     if (userId) refreshCommitState();
   }, [userId, reloadKey, refreshCommitState]);
 
+  // DailyRecap commits carried tasks straight to today before dispatching
+  // this event — bumping reloadKey forces a phase re-check + CommittedList
+  // refetch so the carried rows appear without a manual reload.
+  useEffect(() => {
+    function onCarrySet() { setReloadKey((k) => k + 1); }
+    window.addEventListener("homeroom:carry-preselect-set", onCarrySet);
+    return () => window.removeEventListener("homeroom:carry-preselect-set", onCarrySet);
+  }, []);
+
   // Reset any manual override whenever the active block changes so the
   // derived default takes over. If the user came in via a carry-preselect,
   // force Today so CommitPicker mounts and consumes the sessionStorage.
