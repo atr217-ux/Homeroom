@@ -22,6 +22,8 @@ type InviteRow = {
 
 type Props = { userId: string };
 
+type AvailableTask = { id: string; text: string; tagIds: string[]; isPrivate: boolean };
+
 function formatTime12h(t: string): string {
   const [hStr, mStr] = t.split(":");
   const h = Number(hStr);
@@ -42,6 +44,50 @@ export default function BlockInvites({ userId }: Props) {
   const [loading, setLoading] = useState(true);
   const [drafts, setDrafts] = useState<Record<string, string>>({});
   const [busy, setBusy] = useState<string | null>(null);
+  // Per-block toggles that apply to whatever the user adds next (typed
+  // task or one pulled from the list).
+  const [taskFlags, setTaskFlags] = useState<Record<string, { priv: boolean; shared: boolean }>>({});
+  // Per-block: whether the "Add from my list" panel is expanded, the loaded
+  // available tasks, and the current search query.
+  const [listOpen, setListOpen] = useState<Set<string>>(new Set());
+  const [available, setAvailable] = useState<Record<string, AvailableTask[]>>({});
+  const [listSearch, setListSearch] = useState<Record<string, string>>({});
+
+  function flagsFor(blockId: string) {
+    return taskFlags[blockId] ?? { priv: false, shared: false };
+  }
+  function toggleFlag(blockId: string, key: "priv" | "shared") {
+    setTaskFlags((prev) => {
+      const cur = prev[blockId] ?? { priv: false, shared: false };
+      return { ...prev, [blockId]: { ...cur, [key]: !cur[key] } };
+    });
+  }
+
+  async function openList(blockId: string) {
+    setListOpen((prev) => { const n = new Set(prev); n.add(blockId); return n; });
+    // Load only the user's own undone tasks that aren't already attached
+    // to a block — those are the ones eligible to be pulled in.
+    const supabase = createClient();
+    const { data } = await supabase
+      .from("tasks")
+      .select("id, text, is_private, block_id, task_tags(tag_id)")
+      .eq("user_id", userId)
+      .eq("done", false)
+      .order("created_at", { ascending: false })
+      .limit(200);
+    const rowsData = ((data ?? []) as { id: string; text: string; is_private: boolean | null; block_id: string | null; task_tags: { tag_id: string }[] | null }[])
+      .filter((r) => !r.block_id)
+      .map((r) => ({
+        id: r.id,
+        text: r.text,
+        isPrivate: r.is_private ?? false,
+        tagIds: (r.task_tags ?? []).map((tt) => tt.tag_id),
+      }));
+    setAvailable((prev) => ({ ...prev, [blockId]: rowsData }));
+  }
+  function closeList(blockId: string) {
+    setListOpen((prev) => { const n = new Set(prev); n.delete(blockId); return n; });
+  }
 
   async function load() {
     const supabase = createClient();
@@ -149,6 +195,7 @@ export default function BlockInvites({ userId }: Props) {
     const text = stripHashtags(raw);
     const tagNames = parseHashtags(raw);
     if (!text) { setBusy(null); return; }
+    const flags = flagsFor(blockId);
     const supabase = createClient();
     const row = rows.find((r) => r.blockId === blockId);
     const { data: t } = await supabase
@@ -159,6 +206,8 @@ export default function BlockInvites({ userId }: Props) {
         done: false,
         block_id: blockId,
         committed_for_date: row?.date ?? null,
+        is_private: flags.priv,
+        is_shared: flags.shared,
       })
       .select("id")
       .single();
@@ -169,6 +218,29 @@ export default function BlockInvites({ userId }: Props) {
       }
     }
     setDrafts((prev) => ({ ...prev, [blockId]: "" }));
+    setBusy(null);
+  }
+
+  async function importFromList(blockId: string, taskId: string) {
+    if (busy === "import:" + taskId) return;
+    setBusy("import:" + taskId);
+    // Optimistically drop the row from the available list so it doesn't
+    // linger after being pulled into the block.
+    setAvailable((prev) => ({
+      ...prev,
+      [blockId]: (prev[blockId] ?? []).filter((t) => t.id !== taskId),
+    }));
+    const flags = flagsFor(blockId);
+    const row = rows.find((r) => r.blockId === blockId);
+    await createClient()
+      .from("tasks")
+      .update({
+        block_id: blockId,
+        committed_for_date: row?.date ?? null,
+        is_private: flags.priv,
+        is_shared: flags.shared,
+      })
+      .eq("id", taskId);
     setBusy(null);
   }
 
@@ -295,7 +367,15 @@ export default function BlockInvites({ userId }: Props) {
                       Accept
                     </button>
                   </div>
-                ) : (
+                ) : (() => {
+                  const flags = flagsFor(r.blockId);
+                  const isListOpen = listOpen.has(r.blockId);
+                  const listItems = available[r.blockId] ?? [];
+                  const searchQ = (listSearch[r.blockId] ?? "").trim().toLowerCase();
+                  const filteredList = searchQ
+                    ? listItems.filter((t) => t.text.toLowerCase().includes(searchQ))
+                    : listItems;
+                  return (
                   <div>
                     <div className="text-[11px] font-semibold mb-1.5" style={{ color: "var(--purple)" }}>
                       ✓ You&apos;re in. Add your tasks for this block:
@@ -325,6 +405,93 @@ export default function BlockInvites({ userId }: Props) {
                         Add
                       </button>
                     </div>
+
+                    {/* Flags row — apply to whatever gets added next */}
+                    <div className="flex items-center gap-2 mt-2">
+                      <button
+                        type="button"
+                        onClick={() => toggleFlag(r.blockId, "priv")}
+                        className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border"
+                        style={flags.priv
+                          ? { background: "var(--purple)", borderColor: "var(--purple)", color: "white" }
+                          : { background: "var(--surface)", borderColor: "var(--purple-border)", color: "var(--purple)" }}
+                        title={flags.priv ? "Adds will be private" : "Adds will be public"}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <rect x="3" y="11" width="18" height="11" rx="2" />
+                          <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                        </svg>
+                        Private
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => toggleFlag(r.blockId, "shared")}
+                        className="flex items-center gap-1 text-[11px] font-semibold px-2 py-1 rounded-full border"
+                        style={flags.shared
+                          ? { background: "var(--purple)", borderColor: "var(--purple)", color: "white" }
+                          : { background: "var(--surface)", borderColor: "var(--purple-border)", color: "var(--purple)" }}
+                        title={flags.shared ? "Adds will be shared (claimable)" : "Adds stay just yours"}
+                      >
+                        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                          <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                        </svg>
+                        Shared
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => isListOpen ? closeList(r.blockId) : openList(r.blockId)}
+                        className="ml-auto text-[11px] font-semibold flex items-center gap-1"
+                        style={{ color: "var(--purple)" }}
+                      >
+                        <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" style={{ transform: isListOpen ? "rotate(45deg)" : "rotate(0deg)", transition: "transform 0.15s" }}>
+                          <line x1="12" y1="5" x2="12" y2="19" />
+                          <line x1="5" y1="12" x2="19" y2="12" />
+                        </svg>
+                        {isListOpen ? "Close" : "Add from my list"}
+                      </button>
+                    </div>
+
+                    {/* Add from my list — search + eligible tasks */}
+                    {isListOpen && (
+                      <div className="mt-2 rounded-xl border p-2" style={{ background: "var(--surface)", borderColor: "var(--purple-border)" }}>
+                        <input
+                          type="text"
+                          value={listSearch[r.blockId] ?? ""}
+                          onChange={(e) => setListSearch((prev) => ({ ...prev, [r.blockId]: e.target.value }))}
+                          placeholder="Search your tasks…"
+                          className="w-full text-sm rounded-lg px-2.5 py-1.5 focus:outline-none border mb-2"
+                          style={{ background: "var(--surface-2)", borderColor: "var(--border-2)", color: "var(--text)", fontSize: "16px" }}
+                        />
+                        {filteredList.length === 0 ? (
+                          <p className="text-xs text-center py-3" style={{ color: "var(--text-3)" }}>
+                            {listItems.length === 0 ? "No unassigned tasks in your list" : "No matches"}
+                          </p>
+                        ) : (
+                          <ul className="space-y-1 max-h-60 overflow-y-auto">
+                            {filteredList.map((t) => (
+                              <li key={t.id}>
+                                <button
+                                  type="button"
+                                  onClick={() => importFromList(r.blockId, t.id)}
+                                  disabled={busy === "import:" + t.id}
+                                  className="w-full flex items-center gap-2 px-2.5 py-2 rounded-lg text-left transition-colors disabled:opacity-40"
+                                  style={{ background: "var(--surface-2)" }}
+                                >
+                                  <span className="flex-1 text-sm truncate" style={{ color: "var(--text)" }}>
+                                    {t.text}
+                                  </span>
+                                  <span className="text-[11px] font-semibold" style={{ color: "var(--purple)" }}>
+                                    Add
+                                  </span>
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    )}
+
                     <button
                       type="button"
                       onClick={() => respond(r.blockId, "declined")}
@@ -334,7 +501,8 @@ export default function BlockInvites({ userId }: Props) {
                       Change my mind — decline
                     </button>
                   </div>
-                )}
+                  );
+                })()}
               </div>
             </div>
           );
