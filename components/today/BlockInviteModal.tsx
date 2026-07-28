@@ -63,6 +63,7 @@ export default function BlockInviteModal({ userId, blockId, onClose, onChanged }
   async function toggle(friendId: string) {
     if (busy) return;
     const wasInvited = invitedIds.has(friendId);
+    console.log("[BlockInviteModal] toggle", { friendId, wasInvited, blockId });
     setBusy(friendId);
     // Optimistic
     setInvitedIds((prev) => {
@@ -80,35 +81,40 @@ export default function BlockInviteModal({ userId, blockId, onClose, onChanged }
         .eq("invited_user_id", friendId);
       if (error) {
         console.error("[BlockInviteModal] delete failed", error);
-        // revert optimistic
         setInvitedIds((prev) => { const n = new Set(prev); n.add(friendId); return n; });
       } else {
+        console.log("[BlockInviteModal] delete ok");
         setInvitedStatus((prev) => { const n = new Map(prev); n.delete(friendId); return n; });
       }
     } else {
-      // Upsert to handle the case where a prior invite row lingers (e.g.
-      // declined then re-invited).
-      const { error } = await supabase
+      // Try insert; on unique-constraint conflict (row lingers from a prior
+      // decline), fall back to update so the row is revived to 'invited'.
+      const { error: insertErr } = await supabase
         .from("block_invites")
-        .upsert(
-          { block_id: blockId, invited_user_id: friendId, status: "invited" },
-          { onConflict: "block_id,invited_user_id" },
-        );
-      if (error) {
-        console.error("[BlockInviteModal] upsert failed", error);
-        setInvitedIds((prev) => { const n = new Set(prev); n.delete(friendId); return n; });
-      } else {
-        setInvitedStatus((prev) => { const n = new Map(prev); n.set(friendId, "invited"); return n; });
-        // Blocks originally created with no invitees have visibility='private',
-        // which means invitees can't SELECT the block (their /home invite
-        // card would render nothing). Bump to 'shared' now that someone is
-        // invited. Safe to call repeatedly.
-        const { error: visErr } = await supabase
-          .from("blocks")
-          .update({ visibility: "shared" })
-          .eq("id", blockId);
-        if (visErr) console.error("[BlockInviteModal] visibility update failed", visErr);
+        .insert({ block_id: blockId, invited_user_id: friendId, status: "invited" });
+      if (insertErr) {
+        console.warn("[BlockInviteModal] insert error, trying update", insertErr);
+        const { error: updateErr } = await supabase
+          .from("block_invites")
+          .update({ status: "invited" })
+          .eq("block_id", blockId)
+          .eq("invited_user_id", friendId);
+        if (updateErr) {
+          console.error("[BlockInviteModal] update also failed", updateErr);
+          setInvitedIds((prev) => { const n = new Set(prev); n.delete(friendId); return n; });
+          setBusy(null);
+          return;
+        }
       }
+      console.log("[BlockInviteModal] insert/update ok");
+      setInvitedStatus((prev) => { const n = new Map(prev); n.set(friendId, "invited"); return n; });
+      // Bump the block to visibility='shared' so invitees can SELECT it.
+      const { error: visErr } = await supabase
+        .from("blocks")
+        .update({ visibility: "shared" })
+        .eq("id", blockId);
+      if (visErr) console.error("[BlockInviteModal] visibility update failed", visErr);
+      else console.log("[BlockInviteModal] visibility=shared ok");
     }
     setBusy(null);
     onChanged?.();
