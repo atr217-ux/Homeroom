@@ -18,11 +18,13 @@ type InviteRow = {
   myStatus: "invited" | "joined" | "declined";
   invitees: { profile: Participant; status: string }[]; // excludes host
   host: Participant | null;
+  myTasks: MyBlockTask[];
 };
 
 type Props = { userId: string };
 
 type AvailableTask = { id: string; text: string; tagIds: string[]; isPrivate: boolean };
+type MyBlockTask = { id: string; text: string; done: boolean; isPrivate: boolean; isShared: boolean };
 
 function formatTime12h(t: string): string {
   const [hStr, mStr] = t.split(":");
@@ -129,12 +131,26 @@ export default function BlockInvites({ userId }: Props) {
     const userIdSet = new Set<string>();
     invites.forEach((i) => userIdSet.add(i.block.user_id));
     allInvites.forEach((i) => userIdSet.add(i.invited_user_id));
-    const { data: profs } = await supabase
-      .from("profiles")
-      .select("id, username, avatar")
-      .in("id", Array.from(userIdSet));
+    const [profsRes, myTasksRes] = await Promise.all([
+      supabase
+        .from("profiles")
+        .select("id, username, avatar")
+        .in("id", Array.from(userIdSet)),
+      supabase
+        .from("tasks")
+        .select("id, text, done, block_id, is_private, is_shared")
+        .eq("user_id", userId)
+        .in("block_id", blockIds)
+        .order("created_at", { ascending: true }),
+    ]);
     const profByUser = new Map<string, Participant>();
-    for (const p of (profs ?? []) as Participant[]) profByUser.set(p.id, p);
+    for (const p of (profsRes.data ?? []) as Participant[]) profByUser.set(p.id, p);
+    const myTasksByBlock = new Map<string, MyBlockTask[]>();
+    for (const t of (myTasksRes.data ?? []) as { id: string; text: string; done: boolean; block_id: string; is_private: boolean | null; is_shared: boolean | null }[]) {
+      const arr = myTasksByBlock.get(t.block_id) ?? [];
+      arr.push({ id: t.id, text: t.text, done: t.done, isPrivate: t.is_private ?? false, isShared: t.is_shared ?? false });
+      myTasksByBlock.set(t.block_id, arr);
+    }
 
     const nextRows: InviteRow[] = invites.map((i) => {
       const b = i.block;
@@ -152,6 +168,7 @@ export default function BlockInvites({ userId }: Props) {
         myStatus: i.status as "invited" | "joined" | "declined",
         invitees: inviteesForBlock,
         host: profByUser.get(b.user_id) ?? null,
+        myTasks: myTasksByBlock.get(i.blockId) ?? [],
       };
     });
     setRows(nextRows);
@@ -219,6 +236,37 @@ export default function BlockInvites({ userId }: Props) {
     }
     setDrafts((prev) => ({ ...prev, [blockId]: "" }));
     setBusy(null);
+    // Refresh so the new task appears in "Your tasks" below.
+    load();
+  }
+
+  async function removeFromBlock(blockId: string, taskId: string) {
+    if (busy === "remove:" + taskId) return;
+    setBusy("remove:" + taskId);
+    // Optimistic
+    setRows((prev) => prev.map((r) => r.blockId === blockId
+      ? { ...r, myTasks: r.myTasks.filter((t) => t.id !== taskId) }
+      : r));
+    await createClient()
+      .from("tasks")
+      .update({ block_id: null, is_shared: false })
+      .eq("id", taskId);
+    setBusy(null);
+  }
+
+  async function toggleMyTaskFlag(blockId: string, taskId: string, key: "isPrivate" | "isShared") {
+    const row = rows.find((r) => r.blockId === blockId);
+    const task = row?.myTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    const next = !task[key];
+    setRows((prev) => prev.map((r) => r.blockId === blockId
+      ? { ...r, myTasks: r.myTasks.map((t) => t.id === taskId ? { ...t, [key]: next } : t) }
+      : r));
+    const column = key === "isPrivate" ? "is_private" : "is_shared";
+    await createClient()
+      .from("tasks")
+      .update({ [column]: next })
+      .eq("id", taskId);
   }
 
   async function importFromList(blockId: string, taskId: string) {
@@ -242,6 +290,7 @@ export default function BlockInvites({ userId }: Props) {
       })
       .eq("id", taskId);
     setBusy(null);
+    load();
   }
 
   if (loading) return null;
@@ -489,6 +538,78 @@ export default function BlockInvites({ userId }: Props) {
                             ))}
                           </ul>
                         )}
+                      </div>
+                    )}
+
+                    {/* Your tasks in this block */}
+                    {r.myTasks.length > 0 && (
+                      <div className="mt-3">
+                        <div className="text-[10px] font-semibold uppercase tracking-wider mb-1.5" style={{ color: "var(--text-2)" }}>
+                          Your tasks ({r.myTasks.length})
+                        </div>
+                        <ul className="space-y-1">
+                          {r.myTasks.map((t) => (
+                            <li
+                              key={t.id}
+                              className="flex items-center gap-2 px-2.5 py-1.5 rounded-lg"
+                              style={{ background: "var(--surface)", border: "1px solid var(--purple-border)" }}
+                            >
+                              <span
+                                className="flex-1 text-sm truncate"
+                                style={{
+                                  color: t.done ? "var(--text-3)" : "var(--text)",
+                                  textDecoration: t.done ? "line-through" : "none",
+                                }}
+                              >
+                                {t.text}
+                              </span>
+                              <button
+                                type="button"
+                                onClick={() => toggleMyTaskFlag(r.blockId, t.id, "isPrivate")}
+                                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={t.isPrivate
+                                  ? { background: "var(--purple)", color: "white" }
+                                  : { background: "var(--surface-2)", color: "var(--text-3)" }}
+                                title={t.isPrivate ? "Private — tap to make public" : "Public — tap to make private"}
+                                aria-label={t.isPrivate ? "Make public" : "Make private"}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <rect x="3" y="11" width="18" height="11" rx="2" />
+                                  <path d={t.isPrivate ? "M7 11V7a5 5 0 0 1 10 0v4" : "M7 11V7a5 5 0 0 1 9.9-1"} />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => toggleMyTaskFlag(r.blockId, t.id, "isShared")}
+                                className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0"
+                                style={t.isShared
+                                  ? { background: "var(--purple)", color: "white" }
+                                  : { background: "var(--surface-2)", color: "var(--text-3)" }}
+                                title={t.isShared ? "Shared — tap to unshare" : "Unshared — tap to share"}
+                                aria-label={t.isShared ? "Unshare" : "Share"}
+                              >
+                                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                                  <path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71" />
+                                  <path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71" />
+                                </svg>
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => removeFromBlock(r.blockId, t.id)}
+                                disabled={busy === "remove:" + t.id}
+                                className="p-1 rounded transition-opacity"
+                                style={{ color: "var(--text-3)", opacity: 0.7 }}
+                                title="Remove from this block"
+                                aria-label="Remove task from block"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                                  <line x1="18" y1="6" x2="6" y2="18" />
+                                  <line x1="6" y1="6" x2="18" y2="18" />
+                                </svg>
+                              </button>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     )}
 
