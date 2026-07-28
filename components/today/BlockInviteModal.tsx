@@ -73,22 +73,42 @@ export default function BlockInviteModal({ userId, blockId, onClose, onChanged }
     });
     const supabase = createClient();
     if (wasInvited) {
-      await supabase
+      const { error } = await supabase
         .from("block_invites")
         .delete()
         .eq("block_id", blockId)
         .eq("invited_user_id", friendId);
-      setInvitedStatus((prev) => { const n = new Map(prev); n.delete(friendId); return n; });
+      if (error) {
+        console.error("[BlockInviteModal] delete failed", error);
+        // revert optimistic
+        setInvitedIds((prev) => { const n = new Set(prev); n.add(friendId); return n; });
+      } else {
+        setInvitedStatus((prev) => { const n = new Map(prev); n.delete(friendId); return n; });
+      }
     } else {
       // Upsert to handle the case where a prior invite row lingers (e.g.
       // declined then re-invited).
-      await supabase
+      const { error } = await supabase
         .from("block_invites")
         .upsert(
           { block_id: blockId, invited_user_id: friendId, status: "invited" },
           { onConflict: "block_id,invited_user_id" },
         );
-      setInvitedStatus((prev) => { const n = new Map(prev); n.set(friendId, "invited"); return n; });
+      if (error) {
+        console.error("[BlockInviteModal] upsert failed", error);
+        setInvitedIds((prev) => { const n = new Set(prev); n.delete(friendId); return n; });
+      } else {
+        setInvitedStatus((prev) => { const n = new Map(prev); n.set(friendId, "invited"); return n; });
+        // Blocks originally created with no invitees have visibility='private',
+        // which means invitees can't SELECT the block (their /home invite
+        // card would render nothing). Bump to 'shared' now that someone is
+        // invited. Safe to call repeatedly.
+        const { error: visErr } = await supabase
+          .from("blocks")
+          .update({ visibility: "shared" })
+          .eq("id", blockId);
+        if (visErr) console.error("[BlockInviteModal] visibility update failed", visErr);
+      }
     }
     setBusy(null);
     onChanged?.();
