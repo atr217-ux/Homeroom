@@ -87,13 +87,14 @@ export default function BlockInviteModal({ userId, blockId, onClose, onChanged }
         setInvitedStatus((prev) => { const n = new Map(prev); n.delete(friendId); return n; });
       }
     } else {
-      // Try insert; on unique-constraint conflict (row lingers from a prior
-      // decline), fall back to update so the row is revived to 'invited'.
+      // Try insert; a unique-constraint 23505 means the row already exists
+      // (declined then re-invited, or a prior tap succeeded but the UI
+      // reverted). In that case, revive with an update.
       const { error: insertErr } = await supabase
         .from("block_invites")
         .insert({ block_id: blockId, invited_user_id: friendId, status: "invited" });
-      if (insertErr) {
-        console.warn("[BlockInviteModal] insert error, trying update", insertErr);
+      if (insertErr && insertErr.code === "23505") {
+        console.warn("[BlockInviteModal] row exists, updating", insertErr);
         const { error: updateErr } = await supabase
           .from("block_invites")
           .update({ status: "invited" })
@@ -105,8 +106,13 @@ export default function BlockInviteModal({ userId, blockId, onClose, onChanged }
           setBusy(null);
           return;
         }
+      } else if (insertErr) {
+        console.error("[BlockInviteModal] insert failed", insertErr);
+        setInvitedIds((prev) => { const n = new Set(prev); n.delete(friendId); return n; });
+        setBusy(null);
+        return;
       }
-      console.log("[BlockInviteModal] insert/update ok");
+      console.log("[BlockInviteModal] invite persisted");
       setInvitedStatus((prev) => { const n = new Map(prev); n.set(friendId, "invited"); return n; });
       // Bump the block to visibility='shared' so invitees can SELECT it.
       const { error: visErr } = await supabase
