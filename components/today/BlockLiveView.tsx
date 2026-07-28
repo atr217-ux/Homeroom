@@ -8,6 +8,7 @@ import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow
 import TagChip from "@/components/TagChip";
 import MoreMenu from "@/components/MoreMenu";
 import { useHasHover } from "@/lib/hooks/useHasHover";
+import BlockEditModal from "@/components/today/BlockEditModal";
 import type { Block, Tag } from "@/lib/db/types";
 
 type LiveTask = {
@@ -56,6 +57,9 @@ export default function BlockLiveView({ block, userId }: Props) {
   // re-runs immediately — realtime doesn't always fire fast enough (or at
   // all when a filter/RLS combo trips it up).
   const [reloadKey, setReloadKey] = useState(0);
+  // Host-only edit/invite modal — opened from the header while the block
+  // is running.
+  const [editOpen, setEditOpen] = useState(false);
 
   // "Add from my list" — pull an existing personal task into this block.
   type AvailableTask = { id: string; text: string; isPrivate: boolean; tagIds: string[]; createdAt: string };
@@ -404,7 +408,26 @@ export default function BlockLiveView({ block, userId }: Props) {
               {block.start_time?.slice(0, 5)} – {effectiveEnd?.slice(0, 5)}
             </span>
           </div>
-          <h1 className="text-xl font-bold">{block.name}</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold flex-1 min-w-0 truncate">{block.name}</h1>
+            {userId === block.user_id && (
+              <button
+                type="button"
+                onClick={() => setEditOpen(true)}
+                className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 flex items-center gap-1"
+                style={{ background: "rgba(255,255,255,0.18)", color: "white", border: "1px solid rgba(255,255,255,0.3)" }}
+                title="Invite more people or edit"
+              >
+                <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <line x1="19" y1="8" x2="19" y2="14" />
+                  <line x1="22" y1="11" x2="16" y2="11" />
+                </svg>
+                Invite
+              </button>
+            )}
+          </div>
           {participants.length > 1 && (
             <div className="flex items-center gap-1.5 mt-2">
               {participants.map((p) => (
@@ -815,6 +838,28 @@ export default function BlockLiveView({ block, userId }: Props) {
         <p className="text-sm text-center py-12" style={{ color: "var(--text-2)" }}>
           This block has no tasks yet.
         </p>
+      )}
+
+      {editOpen && userId === block.user_id && (
+        <BlockEditModal
+          userId={userId}
+          block={{
+            id: block.id,
+            name: block.name,
+            startTime: block.start_time ?? "",
+            endTime: block.end_time ?? "",
+            invitedIds: participants.filter((p) => p.id !== block.user_id).map((p) => p.id),
+          }}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => {
+            setEditOpen(false);
+            setReloadKey((k) => k + 1);
+          }}
+          onDeleted={() => {
+            setEditOpen(false);
+            setReloadKey((k) => k + 1);
+          }}
+        />
       )}
     </div>
   );
