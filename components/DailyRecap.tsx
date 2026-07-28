@@ -214,29 +214,21 @@ export default function DailyRecap() {
     await createClient().from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", id);
   }
 
-  async function carryUnfinished() {
+  function carryUnfinished() {
     if (!data || !userId || carrying) return;
     setCarrying(true);
     // Only carry tasks that are still undone — a user might have retro-checked
     // some in this session and those don't need to move forward.
     const ids = data.incomplete.filter((t) => !t.done).map((t) => t.id);
-    if (ids.length > 0) {
-      // Commit the tasks straight to today rather than preselecting them in
-      // the picker: that used to break when the user already had something
-      // committed for today (CommitPicker never mounts, so the preselect
-      // payload sat stranded in sessionStorage). Also stash the IDs so
-      // CommitPicker can still flag them with a "From yesterday" chip if
-      // that's the phase the user lands on.
-      const today = dateKey(new Date());
-      const supabase = createClient();
-      await supabase
-        .from("tasks")
-        .update({ committed_for_date: today })
-        .in("id", ids);
-      if (typeof window !== "undefined") {
-        sessionStorage.setItem("homeroom-carry-preselect", JSON.stringify(ids));
-        window.dispatchEvent(new CustomEvent("homeroom:carry-preselect-set"));
-      }
+    if (ids.length > 0 && typeof window !== "undefined") {
+      // Hand the IDs to CommitPicker so it can pre-select them at the top of
+      // the list with a "From yesterday" chip. Don't commit yet — the user
+      // should confirm on the picker.
+      sessionStorage.setItem("homeroom-carry-preselect", JSON.stringify(ids));
+      // If /today (and CommitPicker) is already mounted, the router.push is
+      // a no-op and the picker never re-runs its consume-on-mount effect.
+      // Broadcast an event so any live instance grabs the payload now.
+      window.dispatchEvent(new CustomEvent("homeroom:carry-preselect-set"));
     }
     close();
     router.push("/today");
