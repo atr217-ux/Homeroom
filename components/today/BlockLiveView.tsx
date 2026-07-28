@@ -8,7 +8,7 @@ import SwipeableRow, { SwipeIcons, SwipeColors } from "@/components/SwipeableRow
 import TagChip from "@/components/TagChip";
 import MoreMenu from "@/components/MoreMenu";
 import { useHasHover } from "@/lib/hooks/useHasHover";
-import BlockEditModal from "@/components/today/BlockEditModal";
+import BlockInviteModal from "@/components/today/BlockInviteModal";
 import type { Block, Tag } from "@/lib/db/types";
 
 type LiveTask = {
@@ -57,9 +57,9 @@ export default function BlockLiveView({ block, userId }: Props) {
   // re-runs immediately — realtime doesn't always fire fast enough (or at
   // all when a filter/RLS combo trips it up).
   const [reloadKey, setReloadKey] = useState(0);
-  // Host-only edit/invite modal — opened from the header while the block
-  // is running.
-  const [editOpen, setEditOpen] = useState(false);
+  // Host-only invite modal — opened from the header while the block is
+  // running so the host can add friends mid-block.
+  const [inviteOpen, setInviteOpen] = useState(false);
 
   // "Add from my list" — pull an existing personal task into this block.
   type AvailableTask = { id: string; text: string; isPrivate: boolean; tagIds: string[]; createdAt: string };
@@ -413,10 +413,10 @@ export default function BlockLiveView({ block, userId }: Props) {
             {userId === block.user_id && (
               <button
                 type="button"
-                onClick={() => setEditOpen(true)}
+                onClick={() => setInviteOpen(true)}
                 className="text-[11px] font-semibold px-2.5 py-1 rounded-full flex-shrink-0 flex items-center gap-1"
                 style={{ background: "rgba(255,255,255,0.18)", color: "white", border: "1px solid rgba(255,255,255,0.3)" }}
-                title="Invite more people or edit"
+                title="Invite friends to this block"
               >
                 <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
                   <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
@@ -840,25 +840,12 @@ export default function BlockLiveView({ block, userId }: Props) {
         </p>
       )}
 
-      {editOpen && userId === block.user_id && (
-        <BlockEditModal
+      {inviteOpen && userId === block.user_id && (
+        <BlockInviteModal
           userId={userId}
-          block={{
-            id: block.id,
-            name: block.name,
-            startTime: block.start_time ?? "",
-            endTime: block.end_time ?? "",
-            invitedIds: participants.filter((p) => p.id !== block.user_id).map((p) => p.id),
-          }}
-          onClose={() => setEditOpen(false)}
-          onSaved={() => {
-            setEditOpen(false);
-            setReloadKey((k) => k + 1);
-          }}
-          onDeleted={() => {
-            setEditOpen(false);
-            setReloadKey((k) => k + 1);
-          }}
+          blockId={block.id}
+          onClose={() => setInviteOpen(false)}
+          onChanged={() => setReloadKey((k) => k + 1)}
         />
       )}
     </div>
