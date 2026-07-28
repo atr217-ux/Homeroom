@@ -335,13 +335,15 @@ export default function BlockLiveView({ block, userId }: Props) {
   // ── Partition tasks ────────────────────────────────────────────────────
   const sharedUnclaimed = tasks.filter((t) => t.isShared && t.claimedBy === null && !t.done);
   // "Mine": tasks I own (and not shared/claimed by someone else) OR tasks I've claimed
+  // Sort done to the bottom so the block matches CommittedList behavior.
   const myTasks = tasks.filter((t) =>
     (t.user_id === userId && !t.isShared) ||
     (t.user_id === userId && t.isShared && (t.claimedBy === null || t.claimedBy === userId)) ||
     (t.user_id !== userId && t.claimedBy === userId),
-  );
+  ).sort((a, b) => Number(a.done) - Number(b.done));
 
-  // Other participants' tasks (excluding me, excluding shared-unclaimed which is in its own bucket)
+  // Other participants' tasks (excluding me, excluding shared-unclaimed which is in its own bucket).
+  // Same done-to-bottom ordering applied per owner below.
   const othersByUser = new Map<string, LiveTask[]>();
   for (const t of tasks) {
     if (t.user_id === userId) continue;
@@ -352,6 +354,10 @@ export default function BlockLiveView({ block, userId }: Props) {
     const ownerId = t.claimedBy ?? t.user_id;
     if (!othersByUser.has(ownerId)) othersByUser.set(ownerId, []);
     othersByUser.get(ownerId)!.push(t);
+  }
+  // Done tasks drop to the bottom of each per-owner list to match /today.
+  for (const [key, list] of othersByUser) {
+    othersByUser.set(key, list.slice().sort((a, b) => Number(a.done) - Number(b.done)));
   }
 
   // Local end_time override so the "Extend +10m" button reflects instantly.
