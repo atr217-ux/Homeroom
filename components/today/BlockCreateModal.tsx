@@ -160,7 +160,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
           .eq("done", false)
           .order("created_at", { ascending: false })
           .limit(200),
-        supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
+        supabase.from("tags").select("id, name, color").eq("user_id", userId).order("name"),
         supabase.from("profiles").select("auto_private_tasks").eq("id", userId).maybeSingle(),
       ]);
       setTasks(((taskRes.data ?? []) as { id: string; text: string; is_private: boolean; committed_for_date: string | null; task_tags: { tag_id: string }[] | null }[]).map((r) => ({
@@ -650,7 +650,7 @@ export default function BlockCreateModal({ userId, onClose, onCreated }: Props) 
                           {t.tagIds.map((tid) => {
                             const tag = allTags.find((tg) => tg.id === tid);
                             if (!tag) return null;
-                            const { bg, fg } = tagColor(tag.name);
+                            const { bg, fg } = tagColor(tag.name, tag.color);
                             return (
                               <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
                                 #{tag.name}

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { createClient } from "@/lib/supabase/client";
-import { getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
+import { TAG_COLORS, getOrCreateTag, parseHashtags, stripHashtags, tagColor } from "@/lib/utils/tags";
 import TaskInput from "@/components/TaskInput";
 import TaskRow from "@/components/TaskRow";
 import HabitTracker from "@/components/HabitTracker";
@@ -36,6 +36,7 @@ export default function TasksPage() {
   const [manageOpen, setManageOpen] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
+  const [pickingColorId, setPickingColorId] = useState<string | null>(null);
   const [confirmDeleteTagId, setConfirmDeleteTagId] = useState<string | null>(null);
   const [tagError, setTagError] = useState<string | null>(null);
   const tagDropdownRef = useRef<HTMLDivElement>(null);
@@ -57,7 +58,7 @@ export default function TasksPage() {
           .limit(500),
         supabase
           .from("tags")
-          .select("id, name")
+          .select("id, name, color")
           .eq("user_id", user.id)
           .order("name", { ascending: true }),
         supabase
@@ -236,6 +237,11 @@ export default function TasksPage() {
     await createClient().from("tags").update({ name }).eq("id", tagId);
   }
 
+  async function setTagColor(tagId: string, color: string | null) {
+    setAllTags(prev => prev.map(t => t.id === tagId ? { ...t, color } : t));
+    await createClient().from("tags").update({ color }).eq("id", tagId);
+  }
+
   async function deleteTag(tagId: string) {
     setAllTags(prev => prev.filter(t => t.id !== tagId));
     setTasks(prev => prev.map(t => ({ ...t, tagIds: t.tagIds.filter(id => id !== tagId) })));
@@ -354,7 +360,7 @@ export default function TasksPage() {
                 style={{ background: "var(--surface)", borderColor: "var(--border)" }}
               >
                 {allTags.map((tag) => {
-                  const { bg, fg } = tagColor(tag.name);
+                  const { bg, fg } = tagColor(tag.name, tag.color);
                   const checked = tagFilters.includes(tag.id);
                   return (
                     <button
@@ -550,7 +556,7 @@ export default function TasksPage() {
           {manageOpen && (
             <div className="mt-3 space-y-2">
               {allTags.map((tag) => {
-                const { bg, fg } = tagColor(tag.name);
+                const { bg, fg } = tagColor(tag.name, tag.color);
                 const editing = editingTagId === tag.id;
                 const confirming = confirmDeleteTagId === tag.id;
                 if (editing) {
@@ -609,28 +615,69 @@ export default function TasksPage() {
                     </div>
                   );
                 }
+                const picking = pickingColorId === tag.id;
                 return (
-                  <div key={tag.id} className="flex items-center gap-2">
-                    <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
-                      #{tag.name}
-                    </span>
-                    <span className="flex-1" />
-                    <button
-                      onClick={() => { setEditingTagId(tag.id); setEditingTagName(tag.name); setTagError(null); }}
-                      className="text-xs font-medium px-2.5 py-1 rounded-full"
-                      style={{ color: "var(--text-2)" }}
-                      title="Rename"
-                    >
-                      Rename
-                    </button>
-                    <button
-                      onClick={() => setConfirmDeleteTagId(tag.id)}
-                      className="text-xs font-medium px-2.5 py-1 rounded-full"
-                      style={{ color: "var(--text-2)" }}
-                      title="Delete"
-                    >
-                      Delete
-                    </button>
+                  <div key={tag.id}>
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs px-2 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
+                        #{tag.name}
+                      </span>
+                      <span className="flex-1" />
+                      <button
+                        onClick={() => setPickingColorId(picking ? null : tag.id)}
+                        className="w-6 h-6 rounded-full border flex items-center justify-center"
+                        style={{ background: fg, borderColor: "var(--border-2)" }}
+                        title="Change color"
+                        aria-label="Change color"
+                      />
+                      <button
+                        onClick={() => { setEditingTagId(tag.id); setEditingTagName(tag.name); setTagError(null); }}
+                        className="text-xs font-medium px-2.5 py-1 rounded-full"
+                        style={{ color: "var(--text-2)" }}
+                        title="Rename"
+                      >
+                        Rename
+                      </button>
+                      <button
+                        onClick={() => setConfirmDeleteTagId(tag.id)}
+                        className="text-xs font-medium px-2.5 py-1 rounded-full"
+                        style={{ color: "var(--text-2)" }}
+                        title="Delete"
+                      >
+                        Delete
+                      </button>
+                    </div>
+                    {picking && (
+                      <div className="flex flex-wrap items-center gap-1.5 mt-2 mb-1 pl-1">
+                        {TAG_COLORS.map((c) => {
+                          const isSel = (tag.color ?? "").toLowerCase() === c.toLowerCase();
+                          return (
+                            <button
+                              key={c}
+                              type="button"
+                              onClick={() => { setTagColor(tag.id, c); setPickingColorId(null); }}
+                              className="w-6 h-6 rounded-full transition-transform active:scale-95"
+                              style={{
+                                background: c,
+                                border: isSel ? "2px solid var(--text)" : "2px solid transparent",
+                                boxShadow: isSel ? "0 0 0 1px var(--surface) inset" : undefined,
+                              }}
+                              title={c}
+                              aria-label={`Set color ${c}`}
+                            />
+                          );
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => { setTagColor(tag.id, null); setPickingColorId(null); }}
+                          className="text-[11px] font-medium px-2 py-1 rounded-full ml-1"
+                          style={{ background: "var(--surface)", color: "var(--text-2)", border: "1px solid var(--border-2)" }}
+                          title="Reset to auto-derived"
+                        >
+                          Auto
+                        </button>
+                      </div>
+                    )}
                   </div>
                 );
               })}

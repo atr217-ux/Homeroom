@@ -174,7 +174,7 @@ export default function BlockLiveView({ block, userId }: Props) {
       if (tagIdsSet.size > 0) {
         const { data: tagData } = await supabase
           .from("tags")
-          .select("id, name")
+          .select("id, name, color")
           .in("id", Array.from(tagIdsSet));
         setAllTags((tagData ?? []) as Tag[]);
       }
@@ -692,7 +692,7 @@ export default function BlockLiveView({ block, userId }: Props) {
                             {t.tagIds.map((tid) => {
                               const tag = allTags.find((tg) => tg.id === tid);
                               if (!tag) return null;
-                              const { bg, fg } = tagColor(tag.name);
+                              const { bg, fg } = tagColor(tag.name, tag.color);
                               return (
                                 <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
                                   #{tag.name}
@@ -1220,7 +1220,7 @@ function Inner({
                 />
               );
             }
-            const { bg, fg } = tagColor(tag.name);
+            const { bg, fg } = tagColor(tag.name, tag.color);
             return (
               <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
                 #{tag.name}

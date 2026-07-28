@@ -154,7 +154,7 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
           .eq("committed_for_date", today)
           .order("sort_order", { ascending: true, nullsFirst: false })
           .order("created_at", { ascending: true }),
-        supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
+        supabase.from("tags").select("id, name, color").eq("user_id", userId).order("name"),
         supabase
           .from("daily_commitments")
           .select("commitment, notes")
@@ -784,7 +784,7 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                 {usedTagIds.map((tid) => {
                   const tag = allTags.find((tg) => tg.id === tid);
                   if (!tag) return null;
-                  const { bg, fg } = tagColor(tag.name);
+                  const { bg, fg } = tagColor(tag.name, tag.color);
                   const checked = tagFilters.includes(tid);
                   return (
                     <button
@@ -1299,7 +1299,7 @@ export default function CommittedList({ userId, onOpenSchedule, blockReloadKey }
                             {t.tagIds.map((tid) => {
                               const tag = allTags.find((tg) => tg.id === tid);
                               if (!tag) return null;
-                              const { bg, fg } = tagColor(tag.name);
+                              const { bg, fg } = tagColor(tag.name, tag.color);
                               return (
                                 <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
                                   #{tag.name}

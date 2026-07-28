@@ -5,7 +5,13 @@ export const TAG_COLORS = [
   "#DC2626", "#DB2777", "#65A30D", "#0284C7",
 ] as const;
 
-export function tagColor(name: string): { bg: string; fg: string } {
+// If `override` is a hex string (`#rrggbb`), use it; else derive a stable
+// color from the tag name via TAG_COLORS. Bg is a 13%-alpha tint of the
+// same hue (fg + "22" hex).
+export function tagColor(name: string, override?: string | null): { bg: string; fg: string } {
+  if (override && /^#[0-9a-fA-F]{6}$/.test(override)) {
+    return { bg: override + "22", fg: override };
+  }
   let h = 0;
   for (let i = 0; i < name.length; i++) h = (h * 31 + name.charCodeAt(i)) & 0xffffffff;
   const c = TAG_COLORS[Math.abs(h) % TAG_COLORS.length];
@@ -42,22 +48,22 @@ export async function getOrCreateTag(
   name: string,
   supabase: SupabaseClient,
   userId: string,
-): Promise<{ id: string; name: string } | null> {
+): Promise<{ id: string; name: string; color?: string | null } | null> {
   const normalized = name.toLowerCase().trim();
   if (!normalized) return null;
 
   const { data: existing } = await supabase
     .from("tags")
-    .select("id, name")
+    .select("id, name, color")
     .eq("user_id", userId)
     .ilike("name", normalized)
     .maybeSingle();
-  if (existing) return existing as { id: string; name: string };
+  if (existing) return existing as { id: string; name: string; color: string | null };
 
   const { data: created } = await supabase
     .from("tags")
     .insert({ user_id: userId, name: normalized })
-    .select("id, name")
+    .select("id, name, color")
     .single();
-  return (created as { id: string; name: string } | null) ?? null;
+  return (created as { id: string; name: string; color: string | null } | null) ?? null;
 }

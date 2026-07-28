@@ -14,7 +14,7 @@ type Props = {
 };
 
 export default function TagChip({ tag, hasHover, onRemove, forceVisible = false }: Props) {
-  const { bg, fg } = tagColor(tag.name);
+  const { bg, fg } = tagColor(tag.name, tag.color);
   const [hovered, setHovered] = useState(false);
   const [confirming, setConfirming] = useState(false);
   const timerRef = useRef<number | null>(null);

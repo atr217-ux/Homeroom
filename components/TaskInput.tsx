@@ -169,7 +169,7 @@ export default function TaskInput({ value, onChange, onSubmit, placeholder = "Ad
           style={{ background: "var(--surface)", borderColor: "var(--border)" }}
         >
           {completions.map((tag, i) => {
-            const { bg, fg } = tagColor(tag.name);
+            const { bg, fg } = tagColor(tag.name, tag.color);
             const isActive = i === highlight;
             return (
               <button

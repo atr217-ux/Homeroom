@@ -71,7 +71,7 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
           .eq("done", false)
           .order("created_at", { ascending: false })
           .limit(300),
-        supabase.from("tags").select("id, name").eq("user_id", userId).order("name"),
+        supabase.from("tags").select("id, name, color").eq("user_id", userId).order("name"),
         supabase
           .from("daily_commitments")
           .select("commitment")
@@ -365,7 +365,7 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
                 style={{ background: "var(--surface)", borderColor: "var(--border)" }}
               >
                 {allTags.map((tag) => {
-                  const { bg, fg } = tagColor(tag.name);
+                  const { bg, fg } = tagColor(tag.name, tag.color);
                   const checked = tagFilters.includes(tag.id);
                   return (
                     <button
@@ -516,7 +516,7 @@ export default function CommitPicker({ userId, onCommitted, blockReloadKey }: Pr
                       {task.tagIds.map((tid) => {
                         const tag = allTags.find((t) => t.id === tid);
                         if (!tag) return null;
-                        const { bg, fg } = tagColor(tag.name);
+                        const { bg, fg } = tagColor(tag.name, tag.color);
                         return (
                           <span key={tid} className="text-xs px-1.5 py-0.5 rounded-full font-medium" style={{ background: bg, color: fg }}>
                             #{tag.name}
