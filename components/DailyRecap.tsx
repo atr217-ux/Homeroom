@@ -203,15 +203,20 @@ export default function DailyRecap() {
   async function markDoneRetro(id: string) {
     if (!data) return;
     const target = data.incomplete.find((x) => x.id === id);
-    if (!target || target.done) return;
-    // Keep the row in the "left undone" list so the user sees the check
-    // land where they tapped instead of the row jumping/disappearing.
-    // The stat counts below re-derive from the live done state.
+    if (!target) return;
+    // Toggle — an accidental check should be reversible without leaving
+    // the recap. Row stays in the "left undone" list either way so the
+    // checkbox lands where the user tapped; stat counts re-derive from
+    // the live done state.
+    const next = !target.done;
     setData({
       ...data,
-      incomplete: data.incomplete.map((x) => x.id === id ? { ...x, done: true } : x),
+      incomplete: data.incomplete.map((x) => x.id === id ? { ...x, done: next } : x),
     });
-    await createClient().from("tasks").update({ done: true, completed_at: new Date().toISOString() }).eq("id", id);
+    await createClient()
+      .from("tasks")
+      .update({ done: next, completed_at: next ? new Date().toISOString() : null })
+      .eq("id", id);
   }
 
   function carryUnfinished() {
