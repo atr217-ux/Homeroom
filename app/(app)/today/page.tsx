@@ -17,6 +17,10 @@ export default function TodayPage() {
   const [phase, setPhase] = useState<Phase>("loading");
   const [scheduleOpen, setScheduleOpen] = useState(false);
   const [reloadKey, setReloadKey] = useState(0);
+  // When DailyRecap hands off a carry-preselect payload, force the picker
+  // so CommitPicker can consume it — otherwise a user who already has
+  // tasks committed today lands in CommittedList and the payload strands.
+  const [forcePicker, setForcePicker] = useState(false);
   // Manual override — set only when the user taps the toggle, cleared when
   // a new active block arrives so the auto default kicks in again.
   const [viewOverride, setViewOverride] = useState<ViewMode | null>(null);
@@ -54,13 +58,25 @@ export default function TodayPage() {
     if (userId) refreshCommitState();
   }, [userId, reloadKey, refreshCommitState]);
 
-  // DailyRecap commits carried tasks straight to today before dispatching
-  // this event — bumping reloadKey forces a phase re-check + CommittedList
-  // refetch so the carried rows appear without a manual reload.
+  // DailyRecap dispatches this after writing the carry-preselect payload.
+  // Flip forcePicker so CommitPicker mounts even if the user already has
+  // tasks committed today. Also bump reloadKey to refetch phase.
   useEffect(() => {
-    function onCarrySet() { setReloadKey((k) => k + 1); }
+    function onCarrySet() {
+      setForcePicker(true);
+      setReloadKey((k) => k + 1);
+    }
     window.addEventListener("homeroom:carry-preselect-set", onCarrySet);
     return () => window.removeEventListener("homeroom:carry-preselect-set", onCarrySet);
+  }, []);
+
+  // On first mount: if a carry payload is already sitting in sessionStorage
+  // (e.g. the recap wrote it then router.push'd here from a different tab),
+  // force the picker so the payload can be consumed on load.
+  useEffect(() => {
+    if (typeof window !== "undefined" && sessionStorage.getItem("homeroom-carry-preselect")) {
+      setForcePicker(true);
+    }
   }, []);
 
   // Reset any manual override whenever the active block changes so the
@@ -132,10 +148,14 @@ export default function TodayPage() {
         <BlockLiveView block={activeBlock} userId={userId} />
       ) : (
         <>
-          {phase === "picker" && (
-            <CommitPicker userId={userId} onCommitted={() => setReloadKey((k) => k + 1)} blockReloadKey={reloadKey} />
+          {(phase === "picker" || forcePicker) && (
+            <CommitPicker
+              userId={userId}
+              onCommitted={() => { setForcePicker(false); setReloadKey((k) => k + 1); }}
+              blockReloadKey={reloadKey}
+            />
           )}
-          {phase === "committed" && (
+          {phase === "committed" && !forcePicker && (
             <CommittedList userId={userId} onOpenSchedule={() => setScheduleOpen(true)} blockReloadKey={reloadKey} />
           )}
         </>
