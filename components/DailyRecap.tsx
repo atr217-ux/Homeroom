@@ -34,7 +34,7 @@ export default function DailyRecap() {
   const [data, setData] = useState<RecapData | null>(null);
   const [userId, setUserId] = useState<string | null>(null);
   const [completedOpen, setCompletedOpen] = useState(false);
-  const [incompleteOpen, setIncompleteOpen] = useState(false);
+  const [incompleteOpen, setIncompleteOpen] = useState(true);
   const [carrying, setCarrying] = useState(false);
   // Task IDs the user has tapped to carry into today. Checkbox = close it
   // off; tapping the text = bring it forward. Retro-checking a task
@@ -390,10 +390,11 @@ export default function DailyRecap() {
         )}
 
         {incompleteOpen && data.incomplete.length > 0 && (
-          <div className="px-6 py-3 border-b space-y-1.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
+          <div className="px-6 py-3 border-b" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
             <div className="text-[11px] italic mb-1.5" style={{ color: "var(--text-3)" }}>
               Check to close it off. Tap the text to bring it into today.
             </div>
+            <div className="space-y-1.5 max-h-[280px] overflow-y-auto pr-1" style={{ WebkitOverflowScrolling: "touch" }}>
             {data.incomplete.map((t) => {
               const isCarry = carrySelected.has(t.id);
               return (
@@ -448,6 +449,7 @@ export default function DailyRecap() {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 
