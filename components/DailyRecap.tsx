@@ -36,6 +36,10 @@ export default function DailyRecap() {
   const [completedOpen, setCompletedOpen] = useState(false);
   const [incompleteOpen, setIncompleteOpen] = useState(false);
   const [carrying, setCarrying] = useState(false);
+  // Task IDs the user has tapped to carry into today. Checkbox = close it
+  // off; tapping the text = bring it forward. Retro-checking a task
+  // auto-removes it from the carry set (finished ≠ carry).
+  const [carrySelected, setCarrySelected] = useState<Set<string>>(new Set());
   const router = useRouter();
 
   useEffect(() => {
@@ -204,35 +208,55 @@ export default function DailyRecap() {
     if (!data) return;
     const target = data.incomplete.find((x) => x.id === id);
     if (!target) return;
-    // Toggle — an accidental check should be reversible without leaving
-    // the recap. Row stays in the "left undone" list either way so the
-    // checkbox lands where the user tapped; stat counts re-derive from
-    // the live done state.
     const next = !target.done;
     setData({
       ...data,
       incomplete: data.incomplete.map((x) => x.id === id ? { ...x, done: next } : x),
     });
+    // Marking a task done retroactively removes it from the carry set —
+    // it doesn't need to move forward if it's already closed off.
+    if (next) {
+      setCarrySelected((prev) => {
+        if (!prev.has(id)) return prev;
+        const n = new Set(prev);
+        n.delete(id);
+        return n;
+      });
+    }
     await createClient()
       .from("tasks")
       .update({ done: next, completed_at: next ? new Date().toISOString() : null })
       .eq("id", id);
   }
 
+  function toggleCarry(id: string) {
+    if (!data) return;
+    const target = data.incomplete.find((x) => x.id === id);
+    // Can't carry a task the user has already closed off.
+    if (!target || target.done) return;
+    setCarrySelected((prev) => {
+      const n = new Set(prev);
+      if (n.has(id)) n.delete(id);
+      else n.add(id);
+      return n;
+    });
+  }
+
   function carryUnfinished() {
     if (!data || !userId || carrying) return;
     setCarrying(true);
-    // Only carry tasks that are still undone — a user might have retro-checked
-    // some in this session and those don't need to move forward.
-    const ids = data.incomplete.filter((t) => !t.done).map((t) => t.id);
+    // Only carry tasks the user tapped and that aren't already closed off.
+    const ids = data.incomplete
+      .filter((t) => !t.done && carrySelected.has(t.id))
+      .map((t) => t.id);
     if (ids.length > 0 && typeof window !== "undefined") {
-      // Hand the IDs to CommitPicker so it can pre-select them at the top of
-      // the list with a "From yesterday" chip. Don't commit yet — the user
-      // should confirm on the picker.
+      // Hand the IDs to CommitPicker so it can pre-select them at the top
+      // of the list with a "From yesterday" chip. Don't commit yet — the
+      // user should confirm on the picker.
       sessionStorage.setItem("homeroom-carry-preselect", JSON.stringify(ids));
-      // If /today (and CommitPicker) is already mounted, the router.push is
-      // a no-op and the picker never re-runs its consume-on-mount effect.
-      // Broadcast an event so any live instance grabs the payload now.
+      // If /today (and CommitPicker) is already mounted, the router.push
+      // is a no-op and the picker never re-runs its consume-on-mount
+      // effect. Broadcast so any live instance grabs the payload now.
       window.dispatchEvent(new CustomEvent("homeroom:carry-preselect-set"));
     }
     close();
@@ -368,36 +392,62 @@ export default function DailyRecap() {
         {incompleteOpen && data.incomplete.length > 0 && (
           <div className="px-6 py-3 border-b space-y-1.5" style={{ borderColor: "var(--border)", background: "var(--surface-2)" }}>
             <div className="text-[11px] italic mb-1.5" style={{ color: "var(--text-3)" }}>
-              Did you forget to close any?
+              Check to close it off. Tap the text to bring it into today.
             </div>
-            {data.incomplete.map((t) => (
-              <button
-                key={t.id}
-                type="button"
-                onClick={() => markDoneRetro(t.id)}
-                disabled={t.done}
-                className="w-full flex items-start gap-2 text-sm text-left transition-opacity"
-                style={{
-                  color: t.done ? "var(--text-3)" : "var(--text)",
-                  opacity: t.done ? 0.7 : 0.9,
-                  textDecoration: t.done ? "line-through" : "none",
-                }}
-              >
-                <span
-                  className="w-4 h-4 rounded flex-shrink-0 flex items-center justify-center"
-                  style={t.done
-                    ? { background: "var(--purple)", border: "2px solid var(--purple)", marginTop: 1 }
-                    : { border: "2px solid var(--border-3)", marginTop: 1 }}
+            {data.incomplete.map((t) => {
+              const isCarry = carrySelected.has(t.id);
+              return (
+                <div
+                  key={t.id}
+                  className="w-full flex items-start gap-2 text-sm rounded-lg px-1.5 py-0.5"
+                  style={{
+                    background: isCarry ? "rgba(124,58,237,0.10)" : "transparent",
+                    color: t.done ? "var(--text-3)" : "var(--text)",
+                    opacity: t.done ? 0.7 : 0.9,
+                  }}
                 >
-                  {t.done && (
-                    <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
-                      <polyline points="20 6 9 17 4 12" />
-                    </svg>
-                  )}
-                </span>
-                <span>{t.text}</span>
-              </button>
-            ))}
+                  <button
+                    type="button"
+                    onClick={() => markDoneRetro(t.id)}
+                    className="flex-shrink-0 p-0.5 -m-0.5"
+                    aria-label={t.done ? "Un-close task" : "Close task off"}
+                  >
+                    <span
+                      className="w-4 h-4 rounded flex items-center justify-center"
+                      style={t.done
+                        ? { background: "var(--purple)", border: "2px solid var(--purple)", marginTop: 1 }
+                        : { border: "2px solid var(--border-3)", marginTop: 1 }}
+                    >
+                      {t.done && (
+                        <svg width="8" height="8" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3.5">
+                          <polyline points="20 6 9 17 4 12" />
+                        </svg>
+                      )}
+                    </span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => toggleCarry(t.id)}
+                    disabled={t.done}
+                    className="flex-1 text-left flex items-start gap-1.5 disabled:cursor-default"
+                    aria-pressed={isCarry}
+                    aria-label={isCarry ? "Un-select for today" : "Bring into today"}
+                  >
+                    <span style={{ textDecoration: t.done ? "line-through" : "none" }}>
+                      {t.text}
+                    </span>
+                    {isCarry && !t.done && (
+                      <span
+                        className="text-[9px] font-semibold uppercase tracking-wide px-1.5 py-0.5 rounded-full flex-shrink-0"
+                        style={{ background: "var(--purple)", color: "white", marginTop: 1 }}
+                      >
+                        → today
+                      </span>
+                    )}
+                  </button>
+                </div>
+              );
+            })}
           </div>
         )}
 
@@ -417,22 +467,28 @@ export default function DailyRecap() {
 
         {/* Actions */}
         <div className="px-4 pb-4 pt-2 flex flex-col gap-2">
-          {liveIncompleteCount > 0 && (
-            <button
-              type="button"
-              onClick={carryUnfinished}
-              disabled={carrying}
-              className="w-full text-sm font-semibold py-3 rounded-2xl border transition-colors"
-              style={{
-                background: "transparent",
-                borderColor: "var(--purple)",
-                color: "var(--purple)",
-                opacity: carrying ? 0.5 : 1,
-              }}
-            >
-              Carry {liveIncompleteCount} unfinished task{liveIncompleteCount === 1 ? "" : "s"} into today
-            </button>
-          )}
+          {liveIncompleteCount > 0 && (() => {
+            const carryCount = data.incomplete.filter((t) => !t.done && carrySelected.has(t.id)).length;
+            const disabled = carrying || carryCount === 0;
+            return (
+              <button
+                type="button"
+                onClick={carryUnfinished}
+                disabled={disabled}
+                className="w-full text-sm font-semibold py-3 rounded-2xl border transition-colors"
+                style={{
+                  background: "transparent",
+                  borderColor: "var(--purple)",
+                  color: "var(--purple)",
+                  opacity: disabled ? 0.4 : 1,
+                }}
+              >
+                {carryCount === 0
+                  ? "Tap tasks to bring into today"
+                  : `Carry ${carryCount} task${carryCount === 1 ? "" : "s"} into today`}
+              </button>
+            );
+          })()}
           <button
             type="button"
             onClick={goToday}
