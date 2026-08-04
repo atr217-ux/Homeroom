@@ -467,38 +467,26 @@ export default function DailyRecap() {
           </div>
         )}
 
-        {/* Actions */}
-        <div className="px-4 pb-4 pt-2 flex flex-col gap-2">
-          {liveIncompleteCount > 0 && (() => {
+        {/* Actions — one adaptive button. Zero selected → straight to today;
+             one or more → write the carry payload before navigating. */}
+        <div className="px-4 pb-4 pt-2">
+          {(() => {
             const carryCount = data.incomplete.filter((t) => !t.done && carrySelected.has(t.id)).length;
-            const disabled = carrying || carryCount === 0;
+            const label = carryCount > 0
+              ? `Carry ${carryCount} task${carryCount === 1 ? "" : "s"} & start today`
+              : "Let's get today going";
             return (
               <button
                 type="button"
-                onClick={carryUnfinished}
-                disabled={disabled}
-                className="w-full text-sm font-semibold py-3 rounded-2xl border transition-colors"
-                style={{
-                  background: "transparent",
-                  borderColor: "var(--purple)",
-                  color: "var(--purple)",
-                  opacity: disabled ? 0.4 : 1,
-                }}
+                onClick={carryCount > 0 ? carryUnfinished : goToday}
+                disabled={carrying}
+                className="w-full text-sm font-semibold py-3 rounded-2xl text-white transition-opacity disabled:opacity-60"
+                style={{ background: "var(--purple)" }}
               >
-                {carryCount === 0
-                  ? "Tap tasks to bring into today"
-                  : `Carry ${carryCount} task${carryCount === 1 ? "" : "s"} into today`}
+                {label}
               </button>
             );
           })()}
-          <button
-            type="button"
-            onClick={goToday}
-            className="w-full text-sm font-semibold py-3 rounded-2xl text-white"
-            style={{ background: "var(--purple)" }}
-          >
-            Let&apos;s get today going
-          </button>
         </div>
       </div>
     </div>
