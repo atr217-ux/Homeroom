@@ -33,6 +33,7 @@ export default function TasksPage() {
   const [privacyFilter, setPrivacyFilter] = useState<"all" | "private" | "public">("all");
   const [sortDir, setSortDir] = useState<"desc" | "asc">("desc");
   const [autoPrivate, setAutoPrivate] = useState(false);
+  const [showAllUndone, setShowAllUndone] = useState(false);
   const [manageOpen, setManageOpen] = useState(false);
   const [editingTagId, setEditingTagId] = useState<string | null>(null);
   const [editingTagName, setEditingTagName] = useState("");
@@ -444,10 +445,14 @@ export default function TasksPage() {
         </p>
       )}
 
-      {/* Undone tasks */}
-      {!loading && undoneFiltered.length > 0 && (
+      {/* Undone tasks — capped at 10 by default; expand to see the rest */}
+      {!loading && undoneFiltered.length > 0 && (() => {
+        const UNDONE_LIMIT = 10;
+        const visible = showAllUndone ? undoneFiltered : undoneFiltered.slice(0, UNDONE_LIMIT);
+        const hidden = undoneFiltered.length - visible.length;
+        return (
         <div className="space-y-1 mb-6">
-          {undoneFiltered.map((task) => (
+          {visible.map((task) => (
             <TaskRow
               key={task.id}
               text={task.text}
@@ -466,8 +471,19 @@ export default function TasksPage() {
               onRemoveTag={(tagId) => removeTagFromTask(task.id, tagId)}
             />
           ))}
+          {(hidden > 0 || showAllUndone) && (
+            <button
+              type="button"
+              onClick={() => setShowAllUndone(v => !v)}
+              className="w-full text-xs font-medium mt-2 py-2 rounded-xl border transition-colors"
+              style={{ color: "var(--text-2)", borderColor: "var(--border-2)", background: "var(--surface)" }}
+            >
+              {showAllUndone ? "Show less" : `See all ${undoneFiltered.length} tasks (${hidden} more)`}
+            </button>
+          )}
         </div>
-      )}
+        );
+      })()}
 
       {/* No filtered results */}
       {!loading && tasks.length > 0 && filtered.length === 0 && (
